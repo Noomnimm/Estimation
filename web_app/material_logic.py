@@ -71,6 +71,25 @@ class MaterialWorkbook:
         heads = matches[HEAD_COL].dropna().astype(str).str.strip().unique().tolist()
         return sorted(heads, key=natural_key)
 
+    def get_status(self) -> dict[str, Any]:
+        base = None
+        if self.base_df is not None and self.base_path is not None:
+            base = {
+                "file": self.base_path.name,
+                "rows": int(len(self.base_df)),
+                "sizes": self.get_sizes(),
+            }
+
+        set_data = None
+        if self.set_df is not None and self.set_path is not None:
+            set_data = {
+                "file": self.set_path.name,
+                "rows": int(len(self.set_df)),
+                "sets": int(self.set_df[SET_COL].astype(str).str.strip().str.lower().nunique()),
+            }
+
+        return {"base": base, "set": set_data}
+
     def calculate(self, pages: list[list[dict[str, Any]]]) -> dict[str, Any]:
         if self.base_df is None:
             raise ValueError("ยังไม่ได้โหลดไฟล์ BaseData")
@@ -182,12 +201,38 @@ class MaterialWorkbook:
 def read_set_sheet(path: str | Path) -> pd.DataFrame:
     sheets = pd.read_excel(path, sheet_name=None)
     if SET_SHEET in sheets:
-        return sheets[SET_SHEET]
+        selected = sheets[SET_SHEET]
+        if {SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL}.issubset(set(selected.columns)):
+            return selected
+        normalized = normalize_report_set(selected)
+        if normalized is not None:
+            return normalized
     for df in sheets.values():
         if {SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL}.issubset(set(df.columns)):
             return df
+        normalized = normalize_report_set(df)
+        if normalized is not None:
+            return normalized
     first = next(iter(sheets.values()))
     return first
+
+
+def normalize_report_set(df: pd.DataFrame) -> pd.DataFrame | None:
+    source_set_col = "รหัสอุปกรณ์ต่อชุด"
+    required = {source_set_col, CODE_COL, SET_DESC_COL, SET_INSTALL_COL}
+    if not required.issubset(set(df.columns)):
+        return None
+
+    set_values = df[source_set_col].ffill()
+    item_rows = df[source_set_col].isna() & df[CODE_COL].notna()
+    return pd.DataFrame(
+        {
+            SET_COL: set_values[item_rows],
+            CODE_COL: df.loc[item_rows, CODE_COL],
+            SET_DESC_COL: df.loc[item_rows, SET_DESC_COL],
+            SET_INSTALL_COL: df.loc[item_rows, SET_INSTALL_COL],
+        }
+    )
 
 
 def require_columns(df: pd.DataFrame, columns: list[str], label: str) -> None:

@@ -295,4 +295,23 @@ els.exportExcel.addEventListener("click", async () => {
   }
 });
 
-renderInputs();
+async function initialize() {
+  renderInputs();
+  try {
+    const response = await fetch("/api/status");
+    const data = await readJson(response);
+    if (data.base) {
+      state.sizes = data.base.sizes;
+      els.baseMeta.textContent = `${data.base.file} (${data.base.rows} แถว) — โหลดอัตโนมัติ`;
+    }
+    if (data.set) {
+      els.setMeta.textContent = `${data.set.file} (${data.set.rows} แถว, ${data.set.sets} SET) — โหลดอัตโนมัติ`;
+    }
+    renderInputs();
+    setStatus(data.base ? "โหลดฐานข้อมูลเริ่มต้นแล้ว" : "กรุณาโหลด BaseData");
+  } catch (error) {
+    setStatus(`โหลดฐานข้อมูลเริ่มต้นไม่สำเร็จ: ${error.message}`, true);
+  }
+}
+
+initialize();

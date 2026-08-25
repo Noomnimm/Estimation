@@ -17,8 +17,14 @@ ROOT = Path(__file__).resolve().parent
 UPLOADS = ROOT / "uploads"
 OUTPUTS = ROOT / "outputs"
 STATIC = ROOT / "static"
+DEFAULT_BASE = ROOT.parent / "Newdata.xlsx"
+DEFAULT_SET = ROOT.parent / "Report.xlsx"
 
 WORKBOOK = MaterialWorkbook()
+if DEFAULT_BASE.exists():
+    WORKBOOK.load_base(DEFAULT_BASE)
+if DEFAULT_SET.exists():
+    WORKBOOK.load_set(DEFAULT_SET)
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -30,6 +36,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/heads":
             query = parse_qs(parsed.query)
             self.handle_json(lambda: {"heads": WORKBOOK.get_heads(query.get("size", [""])[0])})
+            return
+        if parsed.path == "/api/status":
+            self.handle_json(WORKBOOK.get_status)
             return
         if parsed.path.startswith("/static/"):
             target = STATIC / parsed.path.removeprefix("/static/")
