@@ -139,7 +139,7 @@ def save_upload(handler: AppHandler, prefix: str) -> Path:
 
 
 def main() -> None:
-    host = os.environ.get("HOST", "127.0.0.1")
+    host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer((host, port), AppHandler)
     print(f"Material Calculator Web is running at http://{host}:{port}")
