@@ -185,6 +185,29 @@ h2 {
   font-weight: 600;
 }
 
+.page-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.page-number {
+  min-width: 38px;
+  padding-inline: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.page-number.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
 .input-table-wrap,
 .table-wrap {
   width: 100%;

@@ -12,6 +12,7 @@ const els = {
   prevPage: document.getElementById("prevPage"),
   nextPage: document.getElementById("nextPage"),
   pageLabel: document.getElementById("pageLabel"),
+  pagePicker: document.getElementById("pagePicker"),
   addRow: document.getElementById("addRow"),
   removeRow: document.getElementById("removeRow"),
   clearPage: document.getElementById("clearPage"),
@@ -132,6 +133,23 @@ function renderPageControls() {
   els.pageLabel.textContent = `หน้า ${state.currentPage + 1}/${state.pages.length}`;
   els.prevPage.disabled = state.currentPage === 0;
   els.nextPage.disabled = state.currentPage === state.pages.length - 1;
+  els.pagePicker.innerHTML = "";
+  state.pages.forEach((_, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = String(index + 1);
+    button.className = "page-number";
+    button.classList.toggle("active", index === state.currentPage);
+    button.setAttribute("aria-label", `ไปหน้าที่ ${index + 1}`);
+    button.setAttribute("aria-current", index === state.currentPage ? "page" : "false");
+    button.addEventListener("click", () => {
+      if (index === state.currentPage) return;
+      saveCurrentPageFromDom();
+      state.currentPage = index;
+      renderInputs();
+    });
+    els.pagePicker.appendChild(button);
+  });
 }
 
 function renderResults(items, meta) {
