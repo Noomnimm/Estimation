@@ -1,0 +1,243 @@
+from __future__ import annotations
+
+from io import BytesIO
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+
+
+BASE_SHEET = "BaseData"
+SET_SHEET = "วัสดุทั้งหมด"
+
+SIZE_COL = "ขนาดเสา (m)"
+HEAD_COL = "รหัสหัวเสา"
+MATERIAL_COL = "รายการวัสดุ"
+CODE_COL = "รหัสพัสดุ"
+QTY_COL = "จำนวน"
+TOTAL_COL = "จำนวนรวม"
+
+SET_COL = "Set"
+SET_DESC_COL = "คำอธิบาย"
+SET_INSTALL_COL = "ติดตั้ง"
+
+
+class MaterialWorkbook:
+    def __init__(self) -> None:
+        self.base_df: pd.DataFrame | None = None
+        self.set_df: pd.DataFrame | None = None
+        self.summary: list[dict[str, Any]] = []
+        self.base_path: Path | None = None
+        self.set_path: Path | None = None
+
+    def load_base(self, path: str | Path) -> dict[str, Any]:
+        df = pd.read_excel(path, sheet_name=BASE_SHEET)
+        require_columns(df, [SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL], "BaseData")
+        df = df[[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL]].copy()
+        df = df.dropna(subset=[SIZE_COL, HEAD_COL, CODE_COL])
+        self.base_df = df
+        self.base_path = Path(path)
+        self.summary = []
+        return {
+            "file": self.base_path.name,
+            "rows": int(len(df)),
+            "sizes": self.get_sizes(),
+        }
+
+    def load_set(self, path: str | Path) -> dict[str, Any]:
+        df = read_set_sheet(path)
+        require_columns(df, [SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL], "SET")
+        df = df[[SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL]].copy()
+        df = df.dropna(subset=[SET_COL, CODE_COL])
+        self.set_df = df
+        self.set_path = Path(path)
+        return {
+            "file": self.set_path.name,
+            "rows": int(len(df)),
+            "sets": int(df[SET_COL].astype(str).str.strip().str.lower().nunique()),
+        }
+
+    def get_sizes(self) -> list[str]:
+        if self.base_df is None:
+            return []
+        sizes = self.base_df[SIZE_COL].dropna().astype(str).str.strip().unique().tolist()
+        return sorted(sizes, key=natural_key)
+
+    def get_heads(self, size: str) -> list[str]:
+        if self.base_df is None:
+            raise ValueError("ยังไม่ได้โหลดไฟล์ BaseData")
+        selected = str(size).strip()
+        matches = self.base_df[self.base_df[SIZE_COL].astype(str).str.strip() == selected]
+        heads = matches[HEAD_COL].dropna().astype(str).str.strip().unique().tolist()
+        return sorted(heads, key=natural_key)
+
+    def calculate(self, pages: list[list[dict[str, Any]]]) -> dict[str, Any]:
+        if self.base_df is None:
+            raise ValueError("ยังไม่ได้โหลดไฟล์ BaseData")
+
+        totals: dict[tuple[str, str], dict[str, Any]] = {}
+        input_count = 0
+        matched_rows = 0
+
+        for page in pages:
+            for item in page:
+                size = str(item.get("size", "")).strip()
+                head = str(item.get("head", "")).strip()
+                count = parse_number(item.get("count"))
+                if not size or not head or count <= 0:
+                    continue
+
+                input_count += 1
+                matches = self.base_df[
+                    (self.base_df[SIZE_COL].astype(str).str.strip() == size)
+                    & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
+                ]
+
+                for _, row in matches.iterrows():
+                    material = clean_text(row[MATERIAL_COL])
+                    code = clean_text(row[CODE_COL])
+                    amount = parse_number(row[QTY_COL]) * count
+                    if not code or amount == 0:
+                        continue
+                    key = (material, code)
+                    if key not in totals:
+                        totals[key] = {
+                            MATERIAL_COL: material,
+                            CODE_COL: code,
+                            TOTAL_COL: 0.0,
+                        }
+                    totals[key][TOTAL_COL] += amount
+                    matched_rows += 1
+
+        self.summary = sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
+        return {
+            "items": self.summary,
+            "inputRows": input_count,
+            "matchedRows": matched_rows,
+            "summaryRows": len(self.summary),
+        }
+
+    def expand_set(self) -> dict[str, Any]:
+        if self.set_df is None:
+            raise ValueError("ยังไม่ได้โหลดไฟล์ SET")
+        if not self.summary:
+            raise ValueError("ยังไม่มีผลคำนวณให้แตก SET")
+
+        expanded: list[dict[str, Any]] = []
+        set_found = 0
+        set_missing: list[str] = []
+        expanded_lines = 0
+
+        set_lookup = self.set_df.copy()
+        set_lookup["_set_key"] = set_lookup[SET_COL].astype(str).str.strip().str.lower()
+
+        for row in self.summary:
+            code = clean_text(row[CODE_COL])
+            qty = parse_number(row[TOTAL_COL])
+            key = code.lower()
+            if key.startswith("set"):
+                matches = set_lookup[set_lookup["_set_key"] == key]
+                if matches.empty:
+                    set_missing.append(code)
+                    continue
+                set_found += 1
+                for _, item in matches.iterrows():
+                    expanded.append(
+                        {
+                            MATERIAL_COL: clean_text(item[SET_DESC_COL]),
+                            CODE_COL: clean_text(item[CODE_COL]),
+                            TOTAL_COL: parse_number(item[SET_INSTALL_COL]) * qty,
+                        }
+                    )
+                    expanded_lines += 1
+            else:
+                expanded.append(
+                    {
+                        MATERIAL_COL: clean_text(row[MATERIAL_COL]),
+                        CODE_COL: code,
+                        TOTAL_COL: qty,
+                    }
+                )
+
+        self.summary = group_summary(expanded)
+        return {
+            "items": self.summary,
+            "setFound": set_found,
+            "setMissing": set_missing,
+            "expandedLines": expanded_lines,
+            "summaryRows": len(self.summary),
+        }
+
+    def export_summary(self) -> bytes:
+        if not self.summary:
+            raise ValueError("ยังไม่มีผลลัพธ์สำหรับ export")
+
+        output = BytesIO()
+        df = pd.DataFrame(self.summary, columns=[MATERIAL_COL, CODE_COL, TOTAL_COL])
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Summary")
+        return output.getvalue()
+
+
+def read_set_sheet(path: str | Path) -> pd.DataFrame:
+    sheets = pd.read_excel(path, sheet_name=None)
+    if SET_SHEET in sheets:
+        return sheets[SET_SHEET]
+    for df in sheets.values():
+        if {SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL}.issubset(set(df.columns)):
+            return df
+    first = next(iter(sheets.values()))
+    return first
+
+
+def require_columns(df: pd.DataFrame, columns: list[str], label: str) -> None:
+    missing = [col for col in columns if col not in df.columns]
+    if missing:
+        raise ValueError(f"ไฟล์ {label} ขาดคอลัมน์: {', '.join(missing)}")
+
+
+def group_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    totals: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        material = clean_text(row[MATERIAL_COL])
+        code = clean_text(row[CODE_COL])
+        amount = parse_number(row[TOTAL_COL])
+        if not code or amount == 0:
+            continue
+        key = (material, code)
+        if key not in totals:
+            totals[key] = {MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: 0.0}
+        totals[key][TOTAL_COL] += amount
+    return sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
+
+
+def clean_text(value: Any) -> str:
+    if pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def parse_number(value: Any) -> float:
+    if value is None or value == "":
+        return 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def natural_key(value: str) -> list[tuple[int, Any]]:
+    parts: list[tuple[int, Any]] = []
+    current = ""
+    numeric = False
+    for char in str(value):
+        is_digit = char.isdigit() or char == "."
+        if current and is_digit != numeric:
+            parts.append((0, float(current)) if numeric and current != "." else (1, current.lower()))
+            current = char
+        else:
+            current += char
+        numeric = is_digit
+    if current:
+        parts.append((0, float(current)) if numeric and current != "." else (1, current.lower()))
+    return parts

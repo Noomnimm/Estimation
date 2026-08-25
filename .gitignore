@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.xlsx
+*.xls
+*.docx
+
+# Web runtime data
+web_app/uploads/
+web_app/outputs/
+
+# Local environments and editors
+.venv/
+venv/
+.env
+.idea/
+.vscode/
+
