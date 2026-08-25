@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 
 BASE_SHEET = "BaseData"
@@ -200,7 +201,7 @@ class MaterialWorkbook:
         return output.getvalue()
 
     def export_page_summary(self, pages: list[list[dict[str, Any]]]) -> bytes:
-        totals: dict[tuple[int, str, str], float] = {}
+        totals: dict[tuple[str, str], dict[int, float]] = {}
         for page_number, page in enumerate(pages, start=1):
             for item in page:
                 size = clean_text(item.get("size"))
@@ -208,27 +209,29 @@ class MaterialWorkbook:
                 count = parse_number(item.get("count"))
                 if not size or not head or count <= 0:
                     continue
-                key = (page_number, size, head)
-                totals[key] = totals.get(key, 0.0) + count
+                key = (head, size)
+                if key not in totals:
+                    totals[key] = {}
+                totals[key][page_number] = totals[key].get(page_number, 0.0) + count
 
         if not totals:
             raise ValueError("ยังไม่มีข้อมูลแต่ละหน้าสำหรับ export")
 
-        rows = [
-            {
-                "หน้า": page_number,
-                SIZE_COL: size,
-                HEAD_COL: head,
-                "จำนวน": count,
-            }
-            for (page_number, size, head), count in sorted(totals.items())
-        ]
+        page_columns = [f"หน้า {page_number}" for page_number in range(1, len(pages) + 1)]
+        rows = []
+        for (head, size), page_totals in sorted(totals.items(), key=lambda item: (natural_key(item[0][1]), natural_key(item[0][0]))):
+            row: dict[str, Any] = {HEAD_COL: head, "เสา": size}
+            for page_number, column in enumerate(page_columns, start=1):
+                row[column] = page_totals.get(page_number)
+            rows.append(row)
 
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            pd.DataFrame(rows).to_excel(writer, index=False, sheet_name="สรุปแต่ละหน้า", startrow=2)
+            columns = [HEAD_COL, "เสา", *page_columns]
+            pd.DataFrame(rows, columns=columns).to_excel(writer, index=False, sheet_name="สรุปแต่ละหน้า", startrow=2)
             sheet = writer.sheets["สรุปแต่ละหน้า"]
-            sheet.merge_cells("A1:D1")
+            last_column = get_column_letter(len(columns))
+            sheet.merge_cells(f"A1:{last_column}1")
             title = sheet["A1"]
             title.value = "สรุปรายการหัวเสาแยกตามหน้า"
             title.font = Font(name="Tahoma", size=16, bold=True, color="FFFFFF")
@@ -244,19 +247,19 @@ class MaterialWorkbook:
                 cell.border = border
                 cell.alignment = Alignment(horizontal="center", vertical="center")
 
-            for row in sheet.iter_rows(min_row=4, max_row=sheet.max_row):
+            for row in sheet.iter_rows(min_row=4, max_row=sheet.max_row, max_col=len(columns)):
                 for cell in row:
                     cell.font = Font(name="Tahoma", size=10)
-                row[0].alignment = Alignment(horizontal="center")
-                row[3].alignment = Alignment(horizontal="right")
-                row[3].number_format = "#,##0.###"
+                for cell in row[2:]:
+                    cell.alignment = Alignment(horizontal="right")
+                    cell.number_format = "#,##0.###"
 
-            sheet.column_dimensions["A"].width = 10
-            sheet.column_dimensions["B"].width = 18
-            sheet.column_dimensions["C"].width = 42
-            sheet.column_dimensions["D"].width = 16
-            sheet.freeze_panes = "A4"
-            sheet.auto_filter.ref = f"A3:D{sheet.max_row}"
+            sheet.column_dimensions["A"].width = 32
+            sheet.column_dimensions["B"].width = 14
+            for column_index in range(3, len(columns) + 1):
+                sheet.column_dimensions[get_column_letter(column_index)].width = 13
+            sheet.freeze_panes = "C4"
+            sheet.auto_filter.ref = f"A3:{last_column}{sheet.max_row}"
             sheet.sheet_view.showGridLines = False
 
         return output.getvalue()
