@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: estimation
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: python web_app/server.py
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10

@@ -34,6 +34,17 @@ python server.py
 
 แล้วเปิด <http://127.0.0.1:8000>
 
+## Deploy บน Render
+
+โปรเจกต์มีไฟล์ `render.yaml` สำหรับ deploy เว็บจาก GitHub โดยตรง:
+
+1. เข้าสู่ระบบ [Render](https://render.com) ด้วย GitHub
+2. เลือก **New > Blueprint**
+3. เชื่อม repository `Noomnimm/Estimation`
+4. ตรวจสอบชื่อบริการแล้วกด **Deploy Blueprint**
+
+Render จะติดตั้ง dependencies จาก `requirements-web.txt` และ deploy ใหม่อัตโนมัติเมื่อ branch `main` มีการเปลี่ยนแปลง
+
 ## รูปแบบไฟล์ข้อมูล
 
 ไฟล์ BaseData ต้องมีชีตชื่อ `BaseData` และคอลัมน์ต่อไปนี้:

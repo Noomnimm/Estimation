@@ -3,6 +3,7 @@ from __future__ import annotations
 import cgi
 import json
 import mimetypes
+import os
 import traceback
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -138,8 +139,8 @@ def save_upload(handler: AppHandler, prefix: str) -> Path:
 
 
 def main() -> None:
-    host = "127.0.0.1"
-    port = 8000
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer((host, port), AppHandler)
     print(f"Material Calculator Web is running at http://{host}:{port}")
     server.serve_forever()
