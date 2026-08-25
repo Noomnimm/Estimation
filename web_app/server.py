@@ -54,6 +54,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/calculate": self.calculate,
             "/api/expand-set": self.expand_set,
             "/api/export": self.export_summary,
+            "/api/export-pages": self.export_pages,
         }
         route = routes.get(parsed.path)
         if route is None:
@@ -83,6 +84,20 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             self.send_header("Content-Disposition", 'attachment; filename="material_summary_web.xlsx"')
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def export_pages(self) -> None:
+        try:
+            payload = self.read_json()
+            data = WORKBOOK.export_page_summary(payload.get("pages", []))
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            self.send_header("Content-Disposition", 'attachment; filename="page_summary.xlsx"')
+            self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 
 BASE_SHEET = "BaseData"
@@ -196,6 +197,68 @@ class MaterialWorkbook:
         df = pd.DataFrame(self.summary, columns=[MATERIAL_COL, CODE_COL, TOTAL_COL])
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Summary")
+        return output.getvalue()
+
+    def export_page_summary(self, pages: list[list[dict[str, Any]]]) -> bytes:
+        totals: dict[tuple[int, str, str], float] = {}
+        for page_number, page in enumerate(pages, start=1):
+            for item in page:
+                size = clean_text(item.get("size"))
+                head = clean_text(item.get("head"))
+                count = parse_number(item.get("count"))
+                if not size or not head or count <= 0:
+                    continue
+                key = (page_number, size, head)
+                totals[key] = totals.get(key, 0.0) + count
+
+        if not totals:
+            raise ValueError("ยังไม่มีข้อมูลแต่ละหน้าสำหรับ export")
+
+        rows = [
+            {
+                "หน้า": page_number,
+                SIZE_COL: size,
+                HEAD_COL: head,
+                "จำนวน": count,
+            }
+            for (page_number, size, head), count in sorted(totals.items())
+        ]
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            pd.DataFrame(rows).to_excel(writer, index=False, sheet_name="สรุปแต่ละหน้า", startrow=2)
+            sheet = writer.sheets["สรุปแต่ละหน้า"]
+            sheet.merge_cells("A1:D1")
+            title = sheet["A1"]
+            title.value = "สรุปรายการหัวเสาแยกตามหน้า"
+            title.font = Font(name="Tahoma", size=16, bold=True, color="FFFFFF")
+            title.fill = PatternFill("solid", fgColor="0F766E")
+            title.alignment = Alignment(horizontal="center", vertical="center")
+            sheet.row_dimensions[1].height = 28
+
+            header_fill = PatternFill("solid", fgColor="DDEDEA")
+            border = Border(bottom=Side(style="thin", color="AAB7C4"))
+            for cell in sheet[3]:
+                cell.font = Font(name="Tahoma", bold=True, color="1D242D")
+                cell.fill = header_fill
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            for row in sheet.iter_rows(min_row=4, max_row=sheet.max_row):
+                for cell in row:
+                    cell.font = Font(name="Tahoma", size=10)
+                row[0].alignment = Alignment(horizontal="center")
+                row[3].alignment = Alignment(horizontal="right")
+                row[3].number_format = "#,##0.###"
+
+            sheet.column_dimensions["A"].width = 10
+            sheet.column_dimensions["B"].width = 18
+            sheet.column_dimensions["C"].width = 42
+            sheet.column_dimensions["D"].width = 16
+            sheet.freeze_panes = "A4"
+            sheet.auto_filter.ref = f"A3:D{sheet.max_row}"
+            sheet.sheet_view.showGridLines = False
+
         return output.getvalue()
 
 

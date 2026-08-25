@@ -7,6 +7,7 @@ __pycache__/
 # Web runtime data
 web_app/uploads/
 web_app/outputs/
+outputs/
 
 # Local environments and editors
 .venv/
@@ -14,4 +15,3 @@ venv/
 .env
 .idea/
 .vscode/
-
