@@ -18,7 +18,7 @@ UPLOADS = ROOT / "uploads"
 OUTPUTS = ROOT / "outputs"
 STATIC = ROOT / "static"
 DEFAULT_BASE = ROOT.parent / "Newdata.xlsx"
-DEFAULT_SET = ROOT.parent / "Report.xlsx"
+DEFAULT_SET = ROOT.parent / "New folder" / "Allset.xlsx"
 
 WORKBOOK = MaterialWorkbook()
 if DEFAULT_BASE.exists():
