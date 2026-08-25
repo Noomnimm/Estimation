@@ -7,10 +7,6 @@ const state = {
 
 const els = {
   status: document.getElementById("status"),
-  baseFile: document.getElementById("baseFile"),
-  setFile: document.getElementById("setFile"),
-  baseMeta: document.getElementById("baseMeta"),
-  setMeta: document.getElementById("setMeta"),
   totalPages: document.getElementById("totalPages"),
   applyPages: document.getElementById("applyPages"),
   prevPage: document.getElementById("prevPage"),
@@ -34,13 +30,6 @@ function blankRow() {
 function setStatus(message, isError = false) {
   els.status.textContent = message;
   els.status.classList.toggle("error", isError);
-}
-
-async function uploadFile(endpoint, file) {
-  const body = new FormData();
-  body.append("file", file);
-  const response = await fetch(endpoint, { method: "POST", body });
-  return readJson(response);
 }
 
 async function postJson(endpoint, payload = {}) {
@@ -174,37 +163,6 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-els.baseFile.addEventListener("change", async () => {
-  const file = els.baseFile.files[0];
-  if (!file) return;
-  try {
-    setStatus("กำลังโหลด BaseData...");
-    const data = await uploadFile("/api/load-base", file);
-    state.sizes = data.sizes;
-    state.pages = [[blankRow(), blankRow()]];
-    state.currentPage = 0;
-    els.baseMeta.textContent = `${data.file} (${data.rows} แถว)`;
-    renderInputs();
-    renderResults([], "ยังไม่มีข้อมูล");
-    setStatus("โหลด BaseData สำเร็จ");
-  } catch (error) {
-    setStatus(error.message, true);
-  }
-});
-
-els.setFile.addEventListener("change", async () => {
-  const file = els.setFile.files[0];
-  if (!file) return;
-  try {
-    setStatus("กำลังโหลด SET...");
-    const data = await uploadFile("/api/load-set", file);
-    els.setMeta.textContent = `${data.file} (${data.rows} แถว, ${data.sets} SET)`;
-    setStatus("โหลด SET สำเร็จ");
-  } catch (error) {
-    setStatus(error.message, true);
-  }
-});
-
 els.applyPages.addEventListener("click", () => {
   saveCurrentPageFromDom();
   const total = Math.max(1, Number.parseInt(els.totalPages.value || "1", 10));
@@ -302,10 +260,6 @@ async function initialize() {
     const data = await readJson(response);
     if (data.base) {
       state.sizes = data.base.sizes;
-      els.baseMeta.textContent = `${data.base.file} (${data.base.rows} แถว) — โหลดอัตโนมัติ`;
-    }
-    if (data.set) {
-      els.setMeta.textContent = `${data.set.file} (${data.set.rows} แถว, ${data.set.sets} SET) — โหลดอัตโนมัติ`;
     }
     renderInputs();
     setStatus(data.base ? "โหลดฐานข้อมูลเริ่มต้นแล้ว" : "กรุณาโหลด BaseData");
