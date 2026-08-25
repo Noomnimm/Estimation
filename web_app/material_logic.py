@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -265,10 +266,31 @@ def clean_text(value: Any) -> str:
 def parse_number(value: Any) -> float:
     if value is None or value == "":
         return 0.0
+    if isinstance(value, str):
+        expression = value.strip()
+        if not expression or len(expression) > 100:
+            return 0.0
+        try:
+            return float(evaluate_add_sub(ast.parse(expression, mode="eval").body))
+        except (SyntaxError, TypeError, ValueError):
+            return 0.0
     try:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def evaluate_add_sub(node: ast.AST) -> float:
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return float(node.value)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
+        left = evaluate_add_sub(node.left)
+        right = evaluate_add_sub(node.right)
+        return left + right if isinstance(node.op, ast.Add) else left - right
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        value = evaluate_add_sub(node.operand)
+        return value if isinstance(node.op, ast.UAdd) else -value
+    raise ValueError("รองรับเฉพาะตัวเลข เครื่องหมาย +, - และวงเล็บ")
 
 
 def natural_key(value: str) -> list[tuple[int, Any]]:

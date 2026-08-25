@@ -66,7 +66,7 @@ function renderInputs() {
     tr.innerHTML = `
       <td><select class="size"></select></td>
       <td><select class="head"></select></td>
-      <td><input class="count" type="number" min="0" step="1" placeholder="จำนวน"></td>
+      <td><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
     `;
 
     const sizeSelect = tr.querySelector(".size");
