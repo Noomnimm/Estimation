@@ -46,7 +46,7 @@ PG3_MATERIAL = (
     "1020300103",
 )
 HOTLINE_CLAMP_MATERIAL = ("HOTLINE CLAMP,MAIN35-185,TAP50-185SQ.MM.", "1020330104")
-BAIL_CLAMP_MATERIAL = ("HOTLINE BAIL-CLAMP,MAIN 35-70 SQ.MM.", "1020330005")
+BAIL_CLAMP_MATERIAL = ("HOTLINE BAIL-CLAMP,MAIN 70-185 SQ.MM.", "1020330006")
 CLEVIS_MATERIAL = ("CLEVIS,THIMBLE,FOR PREFORMED DEAD-END", "1030140011")
 
 
@@ -307,9 +307,9 @@ def add_wire_materials(
         added += 1
 
     if wire_kind == "ba":
-        if conductor_group(wire1) in {"95", "185"}:
+        if conductor_group(wire2) == "185":
             material, code = PG3_MATERIAL
-            add_material(totals, material, code, 3 * count)
+            add_material(totals, material, code, 6 * count)
             added += 1
         else:
             for material, code in (HOTLINE_CLAMP_MATERIAL, BAIL_CLAMP_MATERIAL):

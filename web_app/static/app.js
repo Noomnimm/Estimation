@@ -154,6 +154,9 @@ function createWireDetailsRow(row, index, wireKind) {
     const select = document.createElement("select");
     select.className = "wire-select";
     fillSelect(select, wireOptions, "เลือกชนิดสาย");
+    if (wireKind === "ba" && key === "wire1" && !row[key]) {
+      row[key] = "185 SAC";
+    }
     select.value = row[key] || "";
     select.addEventListener("change", () => {
       state.pages[state.currentPage][index][key] = select.value;
