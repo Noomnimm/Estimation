@@ -249,6 +249,37 @@ td select {
   background: #fff;
 }
 
+.wire-details-row td {
+  padding: 0 10px 12px;
+  background: #f8fbfa;
+}
+
+.wire-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--soft);
+}
+
+.wire-details label {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 260px);
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+}
+
+.wire-details select {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: #fff;
+}
+
 .input-table th:nth-child(1),
 .input-table td:nth-child(1) {
   width: 26%;
@@ -300,5 +331,12 @@ td select {
 
   .control-group.grow {
     margin-left: 0;
+  }
+
+  .wire-details,
+  .wire-details label {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
   }
 }

@@ -26,7 +26,7 @@ const els = {
 };
 
 function blankRow() {
-  return { size: "", head: "", count: "" };
+  return { size: "", head: "", count: "", wire1: "", wire2: "" };
 }
 
 function setStatus(message, isError = false) {
@@ -52,12 +52,14 @@ async function readJson(response) {
 }
 
 function saveCurrentPageFromDom() {
-  const rows = [...els.inputRows.querySelectorAll("tr")];
-  state.pages[state.currentPage] = rows.map((tr) => ({
-    size: tr.querySelector(".size").value,
-    head: tr.querySelector(".head").value,
-    count: tr.querySelector(".count").value,
-  }));
+  const rows = [...els.inputRows.querySelectorAll("tr.input-row")];
+  rows.forEach((tr, index) => {
+    Object.assign(state.pages[state.currentPage][index], {
+      size: tr.querySelector(".size").value,
+      head: tr.querySelector(".head").value,
+      count: tr.querySelector(".count").value,
+    });
+  });
 }
 
 function renderInputs() {
@@ -65,6 +67,7 @@ function renderInputs() {
   const page = state.pages[state.currentPage];
   page.forEach((row, index) => {
     const tr = document.createElement("tr");
+    tr.className = "input-row";
     tr.innerHTML = `
       <td><select class="size"></select></td>
       <td><select class="head"></select></td>
@@ -80,24 +83,78 @@ function renderInputs() {
     countInput.value = row.count || "";
     fillSelect(headSelect, [], "เลือกรหัสหัวเสา");
 
-    sizeSelect.addEventListener("change", async () => {
+    sizeSelect.addEventListener("change", () => {
       page[index].size = sizeSelect.value;
       page[index].head = "";
-      await loadHeads(sizeSelect.value, headSelect, "");
+      page[index].wire1 = "";
+      page[index].wire2 = "";
+      renderInputs();
     });
     headSelect.addEventListener("change", () => {
       page[index].head = headSelect.value;
+      page[index].wire1 = "";
+      page[index].wire2 = "";
+      renderInputs();
     });
     countInput.addEventListener("input", () => {
       page[index].count = countInput.value;
     });
 
     els.inputRows.appendChild(tr);
+    const wireKind = classifyWireHead(row.head);
+    if (wireKind) {
+      els.inputRows.appendChild(createWireDetailsRow(row, index, wireKind));
+    }
     if (row.size) {
       loadHeads(row.size, headSelect, row.head);
     }
   });
   renderPageControls();
+}
+
+const wireOptions = ["185 SAC", "50 SAC", "185 A"];
+
+function classifyWireHead(head) {
+  const normalized = String(head || "").trim().toUpperCase();
+  if (normalized.startsWith("DDE.BL")) return "dde_bl";
+  if (normalized.startsWith("DDE")) return "dde";
+  if (normalized.startsWith("DE")) return "de";
+  if (normalized.startsWith("BA")) return "ba";
+  return "";
+}
+
+function createWireDetailsRow(row, index, wireKind) {
+  const detailRow = document.createElement("tr");
+  detailRow.className = "wire-details-row";
+  const cell = document.createElement("td");
+  cell.colSpan = 3;
+  const panel = document.createElement("div");
+  panel.className = "wire-details";
+
+  const labels = wireKind === "de"
+    ? [["สาย Dead End", "wire1"]]
+    : wireKind === "ba"
+      ? [["Main Line", "wire1"], ["Tap Line", "wire2"]]
+      : [["สายด้านซ้าย", "wire1"], ["สายด้านขวา", "wire2"]];
+
+  labels.forEach(([labelText, key]) => {
+    const label = document.createElement("label");
+    const caption = document.createElement("span");
+    caption.textContent = labelText;
+    const select = document.createElement("select");
+    select.className = "wire-select";
+    fillSelect(select, wireOptions, "เลือกชนิดสาย");
+    select.value = row[key] || "";
+    select.addEventListener("change", () => {
+      state.pages[state.currentPage][index][key] = select.value;
+    });
+    label.append(caption, select);
+    panel.appendChild(label);
+  });
+
+  cell.appendChild(panel);
+  detailRow.appendChild(cell);
+  return detailRow;
 }
 
 function fillSelect(select, values, placeholder) {

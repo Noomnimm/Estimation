@@ -24,6 +24,24 @@ SET_COL = "Set"
 SET_DESC_COL = "คำอธิบาย"
 SET_INSTALL_COL = "ติดตั้ง"
 
+WIRE_MATERIALS = {
+    "185 SAC": ("PREFORMED DEAD END, FOR SAC 185 SQ.MM.", "1020250221"),
+    "50 SAC": ("PREFORMED DEAD END, FOR SAC 50 SQ.MM.", "1020250001"),
+    "185 A": ("CLAMP,STRAIN,STRAIGHT TYPE,FOR AL 185 SQ.MM.", "1030110004"),
+}
+
+TENSIONLESS_MATERIALS = {
+    "50": ("CONNECTOR,SPLICE,COMPRESSION TYPE,TENSIONLESS AL 50 SQ.MM.", "1020410002"),
+    "185": ("CONNECTOR,SPLICE,COMPRESSION TYPE,TENSIONLESS AL 185 SQ.MM.", "1020410027"),
+}
+
+PG3_MATERIAL = (
+    "CONNECTOR,PARALLEL GROOVE,TRIPLE BOLT,AL,AL-ALLOY AND ACSR 70-185 SQ.MM.",
+    "1020300103",
+)
+HOTLINE_CLAMP_MATERIAL = ("HOTLINE CLAMP,MAIN35-185,TAP50-185SQ.MM.", "1020330104")
+BAIL_CLAMP_MATERIAL = ("HOTLINE BAIL-CLAMP,MAIN 35-70 SQ.MM.", "1020330005")
+
 
 class MaterialWorkbook:
     def __init__(self) -> None:
@@ -101,8 +119,8 @@ class MaterialWorkbook:
         input_count = 0
         matched_rows = 0
 
-        for page in pages:
-            for item in page:
+        for page_number, page in enumerate(pages, start=1):
+            for row_number, item in enumerate(page, start=1):
                 size = str(item.get("size", "")).strip()
                 head = str(item.get("head", "")).strip()
                 count = parse_number(item.get("count"))
@@ -110,6 +128,10 @@ class MaterialWorkbook:
                     continue
 
                 input_count += 1
+                wire_kind = classify_wire_head(head)
+                wire1 = clean_text(item.get("wire1"))
+                wire2 = clean_text(item.get("wire2"))
+                validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head)
                 matches = self.base_df[
                     (self.base_df[SIZE_COL].astype(str).str.strip() == size)
                     & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
@@ -121,15 +143,10 @@ class MaterialWorkbook:
                     amount = parse_number(row[QTY_COL]) * count
                     if not code or amount == 0:
                         continue
-                    key = (material, code)
-                    if key not in totals:
-                        totals[key] = {
-                            MATERIAL_COL: material,
-                            CODE_COL: code,
-                            TOTAL_COL: 0.0,
-                        }
-                    totals[key][TOTAL_COL] += amount
+                    add_material(totals, material, code, amount)
                     matched_rows += 1
+
+                matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count)
 
         self.summary = sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
         return {
@@ -199,6 +216,93 @@ class MaterialWorkbook:
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Summary")
         return output.getvalue()
+
+
+def classify_wire_head(head: str) -> str | None:
+    normalized = clean_text(head).upper()
+    if normalized.startswith("DDE.BL"):
+        return "dde_bl"
+    if normalized.startswith("DDE"):
+        return "dde"
+    if normalized.startswith("DE"):
+        return "de"
+    if normalized.startswith("BA"):
+        return "ba"
+    return None
+
+
+def validate_wire_selection(
+    wire_kind: str | None,
+    wire1: str,
+    wire2: str,
+    page_number: int,
+    row_number: int,
+    head: str,
+) -> None:
+    if wire_kind is None:
+        return
+    if wire1 not in WIRE_MATERIALS:
+        raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): กรุณาเลือกชนิดสายช่องแรก")
+    if wire_kind in {"dde", "dde_bl", "ba"} and wire2 not in WIRE_MATERIALS:
+        raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): กรุณาเลือกชนิดสายช่องที่สอง")
+    if wire_kind == "dde" and conductor_group(wire1) != conductor_group(wire2):
+        raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): สายซ้ายและขวาต้องมีขนาดเดียวกันสำหรับ Tensionless")
+
+
+def conductor_group(wire: str) -> str:
+    return "50" if clean_text(wire).startswith("50") else "185"
+
+
+def add_material(
+    totals: dict[tuple[str, str], dict[str, Any]],
+    material: str,
+    code: str,
+    amount: float,
+) -> None:
+    if not code or amount == 0:
+        return
+    key = (material, code)
+    if key not in totals:
+        totals[key] = {MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: 0.0}
+    totals[key][TOTAL_COL] += amount
+
+
+def add_wire_materials(
+    totals: dict[tuple[str, str], dict[str, Any]],
+    wire_kind: str | None,
+    wire1: str,
+    wire2: str,
+    count: float,
+) -> int:
+    if wire_kind is None:
+        return 0
+
+    selected_wires = [wire1]
+    if wire_kind in {"dde", "dde_bl"}:
+        selected_wires.append(wire2)
+
+    added = 0
+    for wire in selected_wires:
+        material, code = WIRE_MATERIALS[wire]
+        add_material(totals, material, code, 3 * count)
+        added += 1
+
+    if wire_kind == "dde":
+        material, code = TENSIONLESS_MATERIALS[conductor_group(wire1)]
+        add_material(totals, material, code, 3 * count)
+        added += 1
+
+    if wire_kind == "ba":
+        if conductor_group(wire1) == "185":
+            material, code = PG3_MATERIAL
+            add_material(totals, material, code, 3 * count)
+            added += 1
+        else:
+            for material, code in (HOTLINE_CLAMP_MATERIAL, BAIL_CLAMP_MATERIAL):
+                add_material(totals, material, code, 3 * count)
+                added += 1
+
+    return added
 
     def export_page_summary(self, pages: list[list[dict[str, Any]]]) -> bytes:
         totals: dict[tuple[str, str], dict[int, float]] = {}
