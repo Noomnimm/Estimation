@@ -112,7 +112,17 @@ function renderInputs() {
   renderPageControls();
 }
 
-const wireOptions = ["185 SAC", "50 SAC", "185 A"];
+const wireOptions = [
+  "50 PIC",
+  "95 PIC",
+  "185 PIC",
+  "50 SAC",
+  "185 SAC",
+  "50 A",
+  "50 ACSR",
+  "185 ACSR",
+  "185 A",
+];
 
 function classifyWireHead(head) {
   const normalized = String(head || "").trim().toUpperCase();

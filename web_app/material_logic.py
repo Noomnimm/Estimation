@@ -25,9 +25,15 @@ SET_DESC_COL = "คำอธิบาย"
 SET_INSTALL_COL = "ติดตั้ง"
 
 WIRE_MATERIALS = {
-    "185 SAC": ("PREFORMED DEAD END, FOR SAC 185 SQ.MM.", "1020250221"),
-    "50 SAC": ("PREFORMED DEAD END, FOR SAC 50 SQ.MM.", "1020250001"),
-    "185 A": ("CLAMP,STRAIN,STRAIGHT TYPE,FOR AL 185 SQ.MM.", "1030110004"),
+    "50 PIC": ("PREFORMED DEAD END,FOR AL PARTIALLY INSULATED CONDUCTOR 22 KV. 50 SQ.MM.", "1020250001", "50", True),
+    "95 PIC": ("PREFORMED DEAD END,FOR AL PARTIALLY INSULATED CONDUCTOR 22 KV. 95 SQ.MM.", "1020250002", "95", True),
+    "185 PIC": ("PREFORMED DEAD END,FOR AL PARTIALLY INSULATED CONDUCTOR 22 KV. 185 SQ.MM.", "1020250004", "185", True),
+    "50 SAC": ("PREFORMED D/E,SAC 22kV 50sq.mm. 21.80mm", "1020260202", "50", True),
+    "185 SAC": ("PREFORMED D/E,SAC 22kV 185sq.mm. 29.78mm", "1020260205", "185", True),
+    "50 A": ("CLAMP,STRAIN,STRAIGHT TYPE,AL 35-70 sq.mm.ACSR 35-50 SQ.MM.", "1030110000", "50", False),
+    "50 ACSR": ("CLAMP,STRAIN,STRAIGHT TYPE,AL 35-70 sq.mm.ACSR 35-50 SQ.MM.", "1030110000", "50", False),
+    "185 ACSR": ("CLAMP,STRAIN,STRAIGHT TYPE FOR ACSR.120-185 sq.mm.", "1030110007", "185", False),
+    "185 A": ("CLAMP,STRAIN,STRAIGHT TYPE,FOR AL 185 SQ.MM.", "1030110004", "185", False),
 }
 
 TENSIONLESS_MATERIALS = {
@@ -41,6 +47,7 @@ PG3_MATERIAL = (
 )
 HOTLINE_CLAMP_MATERIAL = ("HOTLINE CLAMP,MAIN35-185,TAP50-185SQ.MM.", "1020330104")
 BAIL_CLAMP_MATERIAL = ("HOTLINE BAIL-CLAMP,MAIN 35-70 SQ.MM.", "1020330005")
+CLEVIS_MATERIAL = ("CLEVIS,THIMBLE,FOR PREFORMED DEAD-END", "1030140011")
 
 
 class MaterialWorkbook:
@@ -247,10 +254,13 @@ def validate_wire_selection(
         raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): กรุณาเลือกชนิดสายช่องที่สอง")
     if wire_kind == "dde" and conductor_group(wire1) != conductor_group(wire2):
         raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): สายซ้ายและขวาต้องมีขนาดเดียวกันสำหรับ Tensionless")
+    if wire_kind == "dde" and conductor_group(wire1) not in TENSIONLESS_MATERIALS:
+        raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): ยังไม่มีรหัส Tensionless สำหรับสายขนาด {conductor_group(wire1)}")
 
 
 def conductor_group(wire: str) -> str:
-    return "50" if clean_text(wire).startswith("50") else "185"
+    details = WIRE_MATERIALS.get(clean_text(wire))
+    return details[2] if details else ""
 
 
 def add_material(
@@ -283,9 +293,13 @@ def add_wire_materials(
 
     added = 0
     for wire in selected_wires:
-        material, code = WIRE_MATERIALS[wire]
+        material, code, _, needs_clevis = WIRE_MATERIALS[wire]
         add_material(totals, material, code, 3 * count)
         added += 1
+        if needs_clevis:
+            clevis_material, clevis_code = CLEVIS_MATERIAL
+            add_material(totals, clevis_material, clevis_code, 3 * count)
+            added += 1
 
     if wire_kind == "dde":
         material, code = TENSIONLESS_MATERIALS[conductor_group(wire1)]
@@ -293,7 +307,7 @@ def add_wire_materials(
         added += 1
 
     if wire_kind == "ba":
-        if conductor_group(wire1) == "185":
+        if conductor_group(wire1) in {"95", "185"}:
             material, code = PG3_MATERIAL
             add_material(totals, material, code, 3 * count)
             added += 1
