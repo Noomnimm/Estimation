@@ -291,7 +291,7 @@ def add_wire_materials(
     if wire_kind is None:
         return 0
 
-    selected_wires = [wire1]
+    selected_wires = [wire2] if wire_kind == "ba" else [wire1]
     if wire_kind in {"dde", "dde_bl"}:
         selected_wires.append(wire2)
 
