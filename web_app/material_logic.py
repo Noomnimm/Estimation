@@ -48,6 +48,10 @@ PG3_MATERIAL = (
 HOTLINE_CLAMP_MATERIAL = ("HOTLINE CLAMP,MAIN35-185,TAP50-185SQ.MM.", "1020330104")
 BAIL_CLAMP_MATERIAL = ("HOTLINE BAIL-CLAMP,MAIN 70-185 SQ.MM.", "1020330006")
 CLEVIS_MATERIAL = ("CLEVIS,THIMBLE,FOR PREFORMED DEAD-END", "1030140011")
+TENSIONLESS_TAPES = (
+    ("PVC TAPE", "1020180001"),
+    ("ERP TAPE", "1020180008"),
+)
 
 
 class MaterialWorkbook:
@@ -303,8 +307,12 @@ def add_wire_materials(
 
     if wire_kind == "dde":
         material, code = TENSIONLESS_MATERIALS[conductor_group(wire1)]
-        add_material(totals, material, code, 3 * count)
+        tensionless_quantity = 3 * count
+        add_material(totals, material, code, tensionless_quantity)
         added += 1
+        for tape_material, tape_code in TENSIONLESS_TAPES:
+            add_material(totals, tape_material, tape_code, tensionless_quantity)
+            added += 1
 
     if wire_kind == "ba":
         if conductor_group(wire2) == "185":
