@@ -110,12 +110,155 @@ h2 {
 }
 
 .band,
+.project-bar,
+.saved-projects,
 .workspace,
 .results {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   margin-top: 14px;
+}
+
+.app-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.app-tab {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.app-tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.tab-count {
+  display: inline-flex;
+  min-width: 22px;
+  min-height: 22px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e7eeef;
+  font-size: 12px;
+}
+
+.project-bar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+
+.project-fields,
+.project-actions,
+.saved-actions,
+.saved-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.project-fields {
+  flex: 1;
+}
+
+.project-fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 230px;
+  flex: 1;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.project-fields input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.project-actions {
+  justify-content: flex-end;
+}
+
+#saveHint {
+  width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.saved-projects {
+  padding: 16px;
+}
+
+.saved-head p,
+.saved-meta {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.saved-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.saved-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.saved-card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.saved-meta span + span::before {
+  content: "•";
+  margin-right: 10px;
+  color: #aab3bf;
+}
+
+button.danger {
+  border-color: #f0b5ae;
+  color: var(--danger);
+}
+
+.empty-saved {
+  padding: 36px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 .band {
@@ -331,6 +474,21 @@ td select {
 
   .control-group.grow {
     margin-left: 0;
+  }
+
+  .project-bar,
+  .saved-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .project-actions,
+  .saved-actions {
+    justify-content: flex-start;
+  }
+
+  #saveHint {
+    text-align: left;
   }
 
   .wire-details,

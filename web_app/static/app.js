@@ -3,7 +3,10 @@ const state = {
   pages: [[blankRow(), blankRow()]],
   currentPage: 0,
   results: [],
+  activeProjectId: "",
 };
+
+const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
 
 const els = {
   status: document.getElementById("status"),
@@ -23,6 +26,13 @@ const els = {
   exportPages: document.getElementById("exportPages"),
   resultRows: document.getElementById("resultRows"),
   resultMeta: document.getElementById("resultMeta"),
+  projectName: document.getElementById("projectName"),
+  planNumber: document.getElementById("planNumber"),
+  saveProject: document.getElementById("saveProject"),
+  newProject: document.getElementById("newProject"),
+  saveHint: document.getElementById("saveHint"),
+  savedCount: document.getElementById("savedCount"),
+  savedProjectList: document.getElementById("savedProjectList"),
 };
 
 function blankRow() {
@@ -252,6 +262,149 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function clonePages(pages) {
+  return pages.map((page) => page.map((row) => ({ ...blankRow(), ...row })));
+}
+
+function getSavedProjects() {
+  try {
+    const value = JSON.parse(localStorage.getItem(SAVED_PROJECTS_KEY) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedProjects(projects) {
+  localStorage.setItem(SAVED_PROJECTS_KEY, JSON.stringify(projects));
+  renderSavedProjects();
+}
+
+function formatSavedDate(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function switchTab(tabName) {
+  document.querySelectorAll(".app-tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === tabName);
+  });
+  document.querySelectorAll(".tab-panel").forEach((panel) => {
+    panel.hidden = panel.dataset.panel !== tabName;
+  });
+  if (tabName === "saved") renderSavedProjects();
+}
+
+function renderSavedProjects() {
+  const projects = getSavedProjects().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  els.savedCount.textContent = String(projects.length);
+  if (!projects.length) {
+    els.savedProjectList.innerHTML = '<div class="empty-saved">ยังไม่มีงานที่บันทึกไว้</div>';
+    return;
+  }
+  els.savedProjectList.innerHTML = projects.map((project) => `
+    <article class="saved-card">
+      <div class="saved-info">
+        <h3>${escapeHtml(project.name)}</h3>
+        <div class="saved-meta">
+          <span>เลขผัง: ${escapeHtml(project.planNumber || "-")}</span>
+          <span>${Number(project.pages?.length || 0)} หน้า</span>
+          <span>แก้ไขล่าสุด ${escapeHtml(formatSavedDate(project.updatedAt))}</span>
+        </div>
+      </div>
+      <div class="saved-actions">
+        <button type="button" data-action="open" data-project-id="${escapeHtml(project.id)}">เปิดงาน</button>
+        <button type="button" class="danger" data-action="delete" data-project-id="${escapeHtml(project.id)}">ลบ</button>
+      </div>
+    </article>
+  `).join("");
+}
+
+function resetProject() {
+  state.activeProjectId = "";
+  state.pages = [[blankRow(), blankRow()]];
+  state.currentPage = 0;
+  state.results = [];
+  els.projectName.value = "";
+  els.planNumber.value = "";
+  els.saveHint.textContent = "ยังไม่ได้บันทึกงานนี้";
+  renderInputs();
+  renderResults([], "ยังไม่มีข้อมูล");
+  switchTab("calculator");
+  setStatus("สร้างงานใหม่แล้ว");
+}
+
+function openSavedProject(projectId) {
+  const project = getSavedProjects().find((item) => item.id === projectId);
+  if (!project) {
+    setStatus("ไม่พบงานที่บันทึกไว้", true);
+    renderSavedProjects();
+    return;
+  }
+  state.activeProjectId = project.id;
+  state.pages = clonePages(project.pages?.length ? project.pages : [[blankRow(), blankRow()]]);
+  state.currentPage = Math.min(Number(project.currentPage || 0), state.pages.length - 1);
+  els.projectName.value = project.name || "";
+  els.planNumber.value = project.planNumber || "";
+  els.saveHint.textContent = `เปิดงานที่บันทึกเมื่อ ${formatSavedDate(project.updatedAt)}`;
+  renderInputs();
+  renderResults(project.results || [], project.resultMeta || "ยังไม่มีผลคำนวณ");
+  switchTab("calculator");
+  setStatus("เปิดงานเดิมสำเร็จ");
+}
+
+function saveProject() {
+  saveCurrentPageFromDom();
+  const name = els.projectName.value.trim();
+  if (!name) {
+    els.projectName.focus();
+    setStatus("กรุณาใส่ชื่องานก่อนบันทึก", true);
+    return;
+  }
+  const projects = getSavedProjects();
+  const now = new Date().toISOString();
+  const id = state.activeProjectId || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const project = {
+    id,
+    name,
+    planNumber: els.planNumber.value.trim(),
+    pages: clonePages(state.pages),
+    currentPage: state.currentPage,
+    results: state.results,
+    resultMeta: els.resultMeta.textContent,
+    createdAt: projects.find((item) => item.id === id)?.createdAt || now,
+    updatedAt: now,
+  };
+  const index = projects.findIndex((item) => item.id === id);
+  if (index >= 0) projects[index] = project;
+  else projects.push(project);
+  state.activeProjectId = id;
+  writeSavedProjects(projects);
+  els.saveHint.textContent = `บันทึกล่าสุด ${formatSavedDate(now)}`;
+  setStatus("บันทึกงานแล้ว");
+}
+
+document.querySelectorAll(".app-tab").forEach((button) => {
+  button.addEventListener("click", () => switchTab(button.dataset.tab));
+});
+
+els.saveProject.addEventListener("click", saveProject);
+els.newProject.addEventListener("click", resetProject);
+els.savedProjectList.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const projectId = button.dataset.projectId;
+  if (button.dataset.action === "open") {
+    openSavedProject(projectId);
+    return;
+  }
+  const project = getSavedProjects().find((item) => item.id === projectId);
+  if (!project || !window.confirm(`ลบงาน “${project.name}” ใช่ไหม`)) return;
+  writeSavedProjects(getSavedProjects().filter((item) => item.id !== projectId));
+  if (state.activeProjectId === projectId) state.activeProjectId = "";
+  setStatus("ลบงานที่บันทึกแล้ว");
+});
+
 els.applyPages.addEventListener("click", () => {
   saveCurrentPageFromDom();
   const total = Math.max(1, Number.parseInt(els.totalPages.value || "1", 10));
@@ -369,6 +522,7 @@ els.exportPages.addEventListener("click", async () => {
 });
 
 async function initialize() {
+  renderSavedProjects();
   renderInputs();
   try {
     const response = await fetch("/api/status");

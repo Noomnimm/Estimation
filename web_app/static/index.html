@@ -16,7 +16,40 @@
       <div class="status" id="status">พร้อมใช้งาน</div>
     </header>
 
-    <section class="workspace">
+    <nav class="app-tabs" aria-label="เมนูหลัก">
+      <button class="app-tab active" data-tab="calculator" type="button">คำนวณงาน</button>
+      <button class="app-tab" data-tab="saved" type="button">งานที่บันทึก <span id="savedCount" class="tab-count">0</span></button>
+    </nav>
+
+    <section class="project-bar tab-panel" data-panel="calculator">
+      <div class="project-fields">
+        <label>
+          <span>ชื่องาน</span>
+          <input id="projectName" type="text" placeholder="เช่น งานปรับปรุงระบบจำหน่าย">
+        </label>
+        <label>
+          <span>เลขผัง</span>
+          <input id="planNumber" type="text" placeholder="เช่น KAN5(P1)FIN">
+        </label>
+      </div>
+      <div class="project-actions">
+        <span id="saveHint">ยังไม่ได้บันทึกงานนี้</span>
+        <button id="newProject" type="button">สร้างงานใหม่</button>
+        <button id="saveProject" class="primary" type="button">บันทึกงาน</button>
+      </div>
+    </section>
+
+    <section class="saved-projects tab-panel" data-panel="saved" hidden>
+      <div class="saved-head">
+        <div>
+          <h2>งานที่บันทึกไว้</h2>
+          <p>ข้อมูลเก็บอยู่ในเบราว์เซอร์เครื่องนี้</p>
+        </div>
+      </div>
+      <div id="savedProjectList" class="saved-list"></div>
+    </section>
+
+    <section class="workspace tab-panel" data-panel="calculator">
       <div class="controls">
         <div class="control-group">
           <label>จำนวนหน้า</label>
@@ -58,7 +91,7 @@
       </div>
     </section>
 
-    <section class="results">
+    <section class="results tab-panel" data-panel="calculator">
       <div class="result-head">
         <h2>ผลลัพธ์</h2>
         <span id="resultMeta">ยังไม่มีข้อมูล</span>
