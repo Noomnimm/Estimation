@@ -15,7 +15,3 @@ services:
         value: 1VmjN3KrLM2NTbkoRmvQw-rLPA9eaHbrgb8FQqLrfO4M
       - key: GOOGLE_CLIENT_ID
         value: 1042166516076-ir04nc87kglsuvmb6c1i6vubjub2ulie.apps.googleusercontent.com
-      - key: GOOGLE_SERVICE_ACCOUNT_JSON
-        sync: false
-      - key: GOOGLE_ALLOWED_EMAILS
-        sync: false
