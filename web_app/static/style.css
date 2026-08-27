@@ -1,14 +1,18 @@
 :root {
   color-scheme: light;
-  --bg: #f6f7f9;
+  --bg: #f6f4fa;
   --panel: #ffffff;
-  --ink: #1d242d;
-  --muted: #667180;
-  --line: #d8dee7;
-  --accent: #0f766e;
-  --accent-dark: #115e59;
+  --ink: #241b2f;
+  --muted: #736a7d;
+  --line: #e3ddea;
+  --accent: #63318a;
+  --accent-dark: #4b216e;
+  --accent-light: #f0e8f6;
+  --gold: #f5b800;
+  --gold-dark: #d99a00;
+  --purple-shadow: rgba(79, 36, 111, 0.14);
   --danger: #b42318;
-  --soft: #eef6f5;
+  --soft: #f6f0fa;
   font-family: "Segoe UI", Tahoma, sans-serif;
 }
 
@@ -19,7 +23,10 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 5% 0%, rgba(99, 49, 138, 0.10), transparent 30rem),
+    radial-gradient(circle at 95% 8%, rgba(245, 184, 0, 0.10), transparent 26rem),
+    var(--bg);
   color: var(--ink);
 }
 
@@ -35,22 +42,27 @@ button {
   color: var(--ink);
   min-height: 38px;
   padding: 8px 14px;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
+  font-weight: 600;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
 button:hover {
   border-color: var(--accent);
+  box-shadow: 0 5px 14px var(--purple-shadow);
+  transform: translateY(-1px);
 }
 
 button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: linear-gradient(135deg, var(--gold), #ffc928);
+  border-color: var(--gold-dark);
+  color: #40285b;
+  box-shadow: 0 5px 14px rgba(220, 156, 0, 0.18);
 }
 
 button.primary:hover {
-  background: var(--accent-dark);
+  background: linear-gradient(135deg, #ffc928, var(--gold));
 }
 
 button:disabled {
@@ -61,7 +73,7 @@ button:disabled {
 .shell {
   width: min(1240px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 24px 0 40px;
+  padding: 20px 0 44px;
 }
 
 .topbar {
@@ -69,7 +81,25 @@ button:disabled {
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
+  padding: 22px 24px;
+  border-radius: 18px;
+  background: linear-gradient(125deg, #4b216e 0%, #71369b 62%, #8c4bb3 100%);
+  color: #fff;
+  box-shadow: 0 14px 34px rgba(74, 31, 105, 0.22);
+  position: relative;
+  overflow: hidden;
+}
+
+.topbar::after {
+  content: "";
+  position: absolute;
+  right: -35px;
+  bottom: -70px;
+  width: 220px;
+  height: 220px;
+  border: 34px solid rgba(245, 184, 0, 0.18);
+  border-radius: 50%;
 }
 
 h1,
@@ -79,7 +109,7 @@ p {
 }
 
 h1 {
-  font-size: 28px;
+  font-size: 30px;
   line-height: 1.2;
 }
 
@@ -89,18 +119,21 @@ h2 {
 
 .topbar p {
   margin-top: 5px;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .status {
   min-width: 220px;
   max-width: 420px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.13);
   padding: 10px 12px;
-  border-radius: 6px;
-  color: var(--muted);
+  border-radius: 12px;
+  color: #fff;
   text-align: right;
+  backdrop-filter: blur(7px);
+  position: relative;
+  z-index: 1;
 }
 
 .status.error {
@@ -116,28 +149,51 @@ h2 {
 .results {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 14px;
   margin-top: 14px;
+  box-shadow: 0 7px 22px rgba(53, 34, 69, 0.055);
 }
 
 .app-tabs {
   display: flex;
   gap: 6px;
-  border-bottom: 1px solid var(--line);
+  padding: 6px;
+  border: 1px solid rgba(99, 49, 138, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 6px 18px rgba(53, 34, 69, 0.05);
+  backdrop-filter: blur(8px);
 }
 
 .app-tab {
   border: 0;
-  border-bottom: 3px solid transparent;
-  border-radius: 6px 6px 0 0;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
 }
 
 .app-tab.active {
-  border-bottom-color: var(--accent);
-  color: var(--accent-dark);
+  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  color: #fff;
   font-weight: 700;
+  box-shadow: 0 7px 18px rgba(74, 31, 105, 0.2);
+}
+
+.tab-icon {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.app-tab.active .tab-icon {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--gold);
 }
 
 .tab-count {
@@ -149,8 +205,13 @@ h2 {
   margin-left: 4px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: #e7eeef;
+  background: #eadff1;
   font-size: 12px;
+}
+
+.app-tab.active .tab-count {
+  background: var(--gold);
+  color: #3d2450;
 }
 
 .project-bar {
@@ -188,10 +249,18 @@ h2 {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 10px;
   padding: 8px 10px;
   background: #fff;
   color: var(--ink);
+}
+
+.project-fields input:focus,
+td input:focus,
+td select:focus,
+.wire-details select:focus {
+  border-color: var(--accent);
+  outline: 3px solid rgba(99, 49, 138, 0.12);
 }
 
 .project-actions {
@@ -237,7 +306,7 @@ h2 {
   margin-top: 14px;
   padding: 10px 12px;
   border: 1px solid #f2d49b;
-  border-radius: 6px;
+  border-radius: 10px;
   background: #fff9eb;
   color: #8a5a00;
 }
@@ -255,8 +324,15 @@ h2 {
   gap: 16px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfcfd;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fff, #fcf9fe);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.saved-card:hover {
+  border-color: #cdb9dc;
+  box-shadow: 0 9px 24px var(--purple-shadow);
+  transform: translateY(-1px);
 }
 
 .saved-card h3 {
@@ -320,6 +396,31 @@ button.danger {
   padding: 16px;
 }
 
+.workspace::before,
+.results::before,
+.project-bar::before,
+.saved-projects::before {
+  content: "";
+  display: block;
+  height: 4px;
+  margin: -16px -16px 14px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(90deg, var(--accent-dark), var(--accent) 72%, var(--gold));
+}
+
+.project-bar::before {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 16px;
+  margin: -16px;
+}
+
+.project-bar {
+  position: relative;
+  padding-top: 22px;
+}
+
 .controls,
 .actions,
 .result-head {
@@ -371,10 +472,11 @@ button.danger {
 }
 
 .page-number.active {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+  border-color: var(--gold-dark);
+  background: var(--gold);
+  color: #3d2450;
   font-weight: 700;
+  box-shadow: 0 5px 12px rgba(220, 156, 0, 0.2);
 }
 
 .input-table-wrap,
@@ -382,7 +484,7 @@ button.danger {
   width: 100%;
   overflow: auto;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   margin-top: 14px;
 }
 
@@ -401,8 +503,8 @@ td {
 }
 
 th {
-  background: #f0f4f8;
-  color: #344054;
+  background: linear-gradient(180deg, #f5eff9, #eee5f4);
+  color: #4b216e;
   font-weight: 600;
   position: sticky;
   top: 0;
@@ -413,14 +515,14 @@ td select {
   width: 100%;
   min-height: 36px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 9px;
   padding: 7px 9px;
   background: #fff;
 }
 
 .wire-details-row td {
   padding: 0 10px 12px;
-  background: #f8fbfa;
+  background: #fbf8fd;
 }
 
 .wire-details {
@@ -428,8 +530,8 @@ td select {
   flex-wrap: wrap;
   gap: 12px;
   padding: 12px;
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
+  border-left: 4px solid var(--gold);
+  border-radius: 10px;
   background: var(--soft);
 }
 
@@ -444,7 +546,7 @@ td select {
 .wire-details select {
   min-height: 36px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 9px;
   padding: 7px 9px;
   background: #fff;
 }
@@ -466,6 +568,15 @@ td select {
 
 .actions {
   margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.actions button:first-child {
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  border-color: var(--accent-dark);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(74, 31, 105, 0.18);
 }
 
 .results {
