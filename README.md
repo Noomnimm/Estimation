@@ -52,6 +52,17 @@ python server.py
 
 Render จะติดตั้ง dependencies จาก `requirements-web.txt` และ deploy ใหม่อัตโนมัติเมื่อ branch `main` มีการเปลี่ยนแปลง
 
+## บันทึกงานบน Google Sheet กลาง
+
+เว็บรองรับ Google Sign-in และใช้ Google Sheet เป็นพื้นที่เก็บงานร่วมกันของทีม โดยต้องตั้งค่า Environment Variables บน Render:
+
+- `GOOGLE_SHEET_ID` — Spreadsheet ID ของไฟล์กลาง
+- `GOOGLE_CLIENT_ID` — OAuth Web Client ID สำหรับ Google Sign-in
+- `GOOGLE_SERVICE_ACCOUNT_JSON` — เนื้อหา JSON Key ของ Service Account ทั้งไฟล์ (Secret)
+- `GOOGLE_ALLOWED_EMAILS` — อีเมลที่อนุญาต คั่นด้วย comma เช่น `user1@example.com,user2@example.com`
+
+ห้ามบันทึก Service Account JSON ลงใน Git หรือส่งกุญแจผ่านช่องทางสาธารณะ ต้องแชร์ Google Sheet ให้ Service Account เป็น Editor ก่อนใช้งาน ระบบจะสร้างแท็บ `Projects` และหัวตารางให้อัตโนมัติเมื่อเชื่อมต่อครั้งแรก
+
 ## รูปแบบไฟล์ข้อมูล
 
 ไฟล์ BaseData ต้องมีชีตชื่อ `BaseData` และคอลัมน์ต่อไปนี้:

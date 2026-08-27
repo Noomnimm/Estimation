@@ -216,6 +216,32 @@ h2 {
   font-size: 13px;
 }
 
+.saved-head,
+.cloud-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cloud-auth {
+  flex: 0 0 auto;
+}
+
+.cloud-user span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cloud-notice {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid #f2d49b;
+  border-radius: 6px;
+  background: #fff9eb;
+  color: #8a5a00;
+}
+
 .saved-list {
   display: grid;
   gap: 10px;
@@ -477,7 +503,8 @@ td select {
   }
 
   .project-bar,
-  .saved-card {
+  .saved-card,
+  .saved-head {
     align-items: stretch;
     flex-direction: column;
   }

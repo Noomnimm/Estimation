@@ -4,6 +4,10 @@ const state = {
   currentPage: 0,
   results: [],
   activeProjectId: "",
+  cloudConfigured: false,
+  googleCredential: sessionStorage.getItem("material-calculator-google-credential") || "",
+  cloudProjects: [],
+  cloudUser: null,
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
@@ -33,6 +37,12 @@ const els = {
   saveHint: document.getElementById("saveHint"),
   savedCount: document.getElementById("savedCount"),
   savedProjectList: document.getElementById("savedProjectList"),
+  savedLocationText: document.getElementById("savedLocationText"),
+  googleSignIn: document.getElementById("googleSignIn"),
+  cloudUser: document.getElementById("cloudUser"),
+  cloudUserName: document.getElementById("cloudUserName"),
+  googleSignOut: document.getElementById("googleSignOut"),
+  cloudNotice: document.getElementById("cloudNotice"),
 };
 
 function blankRow() {
@@ -280,6 +290,14 @@ function writeSavedProjects(projects) {
   renderSavedProjects();
 }
 
+async function cloudRequest(endpoint, options = {}) {
+  const headers = { ...(options.headers || {}), Authorization: `Bearer ${state.googleCredential}` };
+  const response = await fetch(endpoint, { ...options, headers });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "เชื่อมต่อ Google Sheet ไม่สำเร็จ");
+  return data;
+}
+
 function formatSavedDate(value) {
   if (!value) return "";
   return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -296,8 +314,12 @@ function switchTab(tabName) {
 }
 
 function renderSavedProjects() {
-  const projects = getSavedProjects().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const projects = (state.cloudUser ? state.cloudProjects : getSavedProjects())
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   els.savedCount.textContent = String(projects.length);
+  els.savedLocationText.textContent = state.cloudUser
+    ? "ข้อมูลจาก Google Sheet กลางของทีม"
+    : "ข้อมูลในเบราว์เซอร์เครื่องนี้ - เข้าสู่ระบบเพื่อเปิดงาน Cloud";
   if (!projects.length) {
     els.savedProjectList.innerHTML = '<div class="empty-saved">ยังไม่มีงานที่บันทึกไว้</div>';
     return;
@@ -313,8 +335,8 @@ function renderSavedProjects() {
         </div>
       </div>
       <div class="saved-actions">
-        <button type="button" data-action="open" data-project-id="${escapeHtml(project.id)}">เปิดงาน</button>
-        <button type="button" class="danger" data-action="delete" data-project-id="${escapeHtml(project.id)}">ลบ</button>
+        <button type="button" data-action="open" data-source="${state.cloudUser ? "cloud" : "local"}" data-project-id="${escapeHtml(project.id)}">เปิดงาน</button>
+        <button type="button" class="danger" data-action="delete" data-source="${state.cloudUser ? "cloud" : "local"}" data-project-id="${escapeHtml(project.id)}">ลบ</button>
       </div>
     </article>
   `).join("");
@@ -334,8 +356,9 @@ function resetProject() {
   setStatus("สร้างงานใหม่แล้ว");
 }
 
-function openSavedProject(projectId) {
-  const project = getSavedProjects().find((item) => item.id === projectId);
+function openSavedProject(projectId, source = "local") {
+  const projects = source === "cloud" ? state.cloudProjects : getSavedProjects();
+  const project = projects.find((item) => item.id === projectId);
   if (!project) {
     setStatus("ไม่พบงานที่บันทึกไว้", true);
     renderSavedProjects();
@@ -353,7 +376,7 @@ function openSavedProject(projectId) {
   setStatus("เปิดงานเดิมสำเร็จ");
 }
 
-function saveProject() {
+async function saveProject() {
   saveCurrentPageFromDom();
   const name = els.projectName.value.trim();
   if (!name) {
@@ -381,7 +404,99 @@ function saveProject() {
   state.activeProjectId = id;
   writeSavedProjects(projects);
   els.saveHint.textContent = `บันทึกล่าสุด ${formatSavedDate(now)}`;
-  setStatus("บันทึกงานแล้ว");
+  if (state.cloudUser) {
+    try {
+      setStatus("กำลังบันทึกลง Google Sheet...");
+      const data = await cloudRequest("/api/cloud-projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project }),
+      });
+      const cloudIndex = state.cloudProjects.findIndex((item) => item.id === id);
+      if (cloudIndex >= 0) state.cloudProjects[cloudIndex] = data.project;
+      else state.cloudProjects.push(data.project);
+      renderSavedProjects();
+      setStatus("บันทึกงานลง Google Sheet แล้ว");
+      return;
+    } catch (error) {
+      setStatus(`บันทึกในเครื่องแล้ว แต่ Cloud ไม่สำเร็จ: ${error.message}`, true);
+      return;
+    }
+  }
+  setStatus(state.cloudConfigured ? "บันทึกในเครื่องแล้ว - เข้าสู่ระบบเพื่อบันทึก Cloud" : "บันทึกงานแล้ว");
+}
+
+function waitForGoogleIdentity(timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      if (window.google?.accounts?.id) {
+        window.clearInterval(timer);
+        resolve();
+      } else if (Date.now() - started > timeoutMs) {
+        window.clearInterval(timer);
+        reject(new Error("โหลดระบบ Google Sign-in ไม่สำเร็จ"));
+      }
+    }, 100);
+  });
+}
+
+async function setupCloudLogin(config) {
+  state.cloudConfigured = Boolean(config.configured);
+  if (!state.cloudConfigured) {
+    els.cloudNotice.hidden = false;
+    els.cloudNotice.textContent = "Cloud ยังไม่พร้อมใช้งาน ผู้ดูแลต้องตั้งค่า Google Client ID และ Service Account บน Render";
+    renderSavedProjects();
+    return;
+  }
+  try {
+    await waitForGoogleIdentity();
+    window.google.accounts.id.initialize({
+      client_id: config.clientId,
+      callback: handleGoogleCredential,
+      auto_select: false,
+    });
+    window.google.accounts.id.renderButton(els.googleSignIn, {
+      theme: "outline",
+      size: "large",
+      text: "signin_with",
+      locale: "th",
+    });
+    if (state.googleCredential) await loadCloudProjects();
+  } catch (error) {
+    els.cloudNotice.hidden = false;
+    els.cloudNotice.textContent = error.message;
+  }
+}
+
+async function handleGoogleCredential(response) {
+  state.googleCredential = response.credential || "";
+  sessionStorage.setItem("material-calculator-google-credential", state.googleCredential);
+  await loadCloudProjects();
+}
+
+async function loadCloudProjects() {
+  try {
+    const data = await cloudRequest("/api/cloud-projects");
+    state.cloudProjects = data.projects || [];
+    state.cloudUser = data.user || null;
+    els.googleSignIn.hidden = true;
+    els.cloudUser.hidden = false;
+    els.cloudUserName.textContent = state.cloudUser.name || state.cloudUser.email;
+    els.cloudNotice.hidden = true;
+    renderSavedProjects();
+    setStatus("เชื่อมต่อ Google Sheet แล้ว");
+  } catch (error) {
+    state.googleCredential = "";
+    state.cloudUser = null;
+    state.cloudProjects = [];
+    sessionStorage.removeItem("material-calculator-google-credential");
+    els.googleSignIn.hidden = false;
+    els.cloudUser.hidden = true;
+    els.cloudNotice.hidden = false;
+    els.cloudNotice.textContent = error.message;
+    renderSavedProjects();
+  }
 }
 
 document.querySelectorAll(".app-tab").forEach((button) => {
@@ -390,16 +505,41 @@ document.querySelectorAll(".app-tab").forEach((button) => {
 
 els.saveProject.addEventListener("click", saveProject);
 els.newProject.addEventListener("click", resetProject);
+els.googleSignOut.addEventListener("click", () => {
+  window.google?.accounts?.id?.disableAutoSelect();
+  state.googleCredential = "";
+  state.cloudUser = null;
+  state.cloudProjects = [];
+  sessionStorage.removeItem("material-calculator-google-credential");
+  els.googleSignIn.hidden = false;
+  els.cloudUser.hidden = true;
+  renderSavedProjects();
+  setStatus("ออกจากระบบ Google แล้ว");
+});
 els.savedProjectList.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   const projectId = button.dataset.projectId;
+  const source = button.dataset.source || "local";
   if (button.dataset.action === "open") {
-    openSavedProject(projectId);
+    openSavedProject(projectId, source);
     return;
   }
-  const project = getSavedProjects().find((item) => item.id === projectId);
+  const sourceProjects = source === "cloud" ? state.cloudProjects : getSavedProjects();
+  const project = sourceProjects.find((item) => item.id === projectId);
   if (!project || !window.confirm(`ลบงาน “${project.name}” ใช่ไหม`)) return;
+  if (source === "cloud") {
+    cloudRequest("/api/cloud-projects/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId }),
+    }).then(() => {
+      state.cloudProjects = state.cloudProjects.filter((item) => item.id !== projectId);
+      renderSavedProjects();
+      setStatus("ลบงานออกจาก Google Sheet แล้ว");
+    }).catch((error) => setStatus(error.message, true));
+    return;
+  }
   writeSavedProjects(getSavedProjects().filter((item) => item.id !== projectId));
   if (state.activeProjectId === projectId) state.activeProjectId = "";
   setStatus("ลบงานที่บันทึกแล้ว");
@@ -525,13 +665,15 @@ async function initialize() {
   renderSavedProjects();
   renderInputs();
   try {
-    const response = await fetch("/api/status");
-    const data = await readJson(response);
+    const [statusResponse, cloudResponse] = await Promise.all([fetch("/api/status"), fetch("/api/cloud-config")]);
+    const data = await readJson(statusResponse);
+    const cloudConfig = await readJson(cloudResponse);
     if (data.base) {
       state.sizes = data.base.sizes;
     }
     renderInputs();
     setStatus(data.base ? "โหลดฐานข้อมูลเริ่มต้นแล้ว" : "กรุณาโหลด BaseData");
+    setupCloudLogin(cloudConfig);
   } catch (error) {
     setStatus(`โหลดฐานข้อมูลเริ่มต้นไม่สำเร็จ: ${error.message}`, true);
   }

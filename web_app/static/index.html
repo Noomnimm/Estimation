@@ -43,9 +43,17 @@
       <div class="saved-head">
         <div>
           <h2>งานที่บันทึกไว้</h2>
-          <p>ข้อมูลเก็บอยู่ในเบราว์เซอร์เครื่องนี้</p>
+          <p id="savedLocationText">ข้อมูลเก็บอยู่ในเบราว์เซอร์เครื่องนี้</p>
+        </div>
+        <div class="cloud-auth">
+          <div id="googleSignIn"></div>
+          <div id="cloudUser" class="cloud-user" hidden>
+            <span id="cloudUserName"></span>
+            <button id="googleSignOut" type="button">ออกจากระบบ</button>
+          </div>
         </div>
       </div>
+      <div id="cloudNotice" class="cloud-notice" hidden></div>
       <div id="savedProjectList" class="saved-list"></div>
     </section>
 
@@ -110,6 +118,7 @@
       </div>
     </section>
   </main>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

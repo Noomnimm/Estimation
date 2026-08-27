@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from material_logic import MaterialWorkbook
+from cloud_store import GoogleSheetProjectStore
 
 
 ROOT = Path(__file__).resolve().parent
@@ -21,6 +22,7 @@ DEFAULT_BASE = ROOT.parent / "Newdata.xlsx"
 DEFAULT_SET = ROOT.parent / "New folder" / "Allset.xlsx"
 
 WORKBOOK = MaterialWorkbook()
+CLOUD_STORE = GoogleSheetProjectStore()
 if DEFAULT_BASE.exists():
     WORKBOOK.load_base(DEFAULT_BASE)
 if DEFAULT_SET.exists():
@@ -40,6 +42,12 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/status":
             self.handle_json(WORKBOOK.get_status)
             return
+        if parsed.path == "/api/cloud-config":
+            self.handle_json(CLOUD_STORE.public_config)
+            return
+        if parsed.path == "/api/cloud-projects":
+            self.cloud_projects()
+            return
         if parsed.path.startswith("/static/"):
             target = STATIC / parsed.path.removeprefix("/static/")
             self.send_file(target)
@@ -55,6 +63,8 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/expand-set": self.expand_set,
             "/api/export": self.export_summary,
             "/api/export-pages": self.export_pages,
+            "/api/cloud-projects": self.save_cloud_project,
+            "/api/cloud-projects/delete": self.delete_cloud_project,
         }
         route = routes.get(parsed.path)
         if route is None:
@@ -103,6 +113,43 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def cloud_projects(self) -> None:
+        try:
+            user = CLOUD_STORE.verify_user(self.bearer_token())
+            self.send_json({"projects": CLOUD_STORE.list_projects(), "user": user})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            traceback.print_exc()
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def save_cloud_project(self) -> None:
+        try:
+            user = CLOUD_STORE.verify_user(self.bearer_token())
+            project = CLOUD_STORE.save_project(self.read_json().get("project", {}), user)
+            self.send_json({"project": project, "user": user})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            traceback.print_exc()
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def delete_cloud_project(self) -> None:
+        try:
+            user = CLOUD_STORE.verify_user(self.bearer_token())
+            CLOUD_STORE.delete_project(str(self.read_json().get("projectId", "")).strip(), user)
+            self.send_json({"deleted": True})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            traceback.print_exc()
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def bearer_token(self) -> str:
+        authorization = self.headers.get("Authorization", "")
+        prefix = "Bearer "
+        return authorization[len(prefix):].strip() if authorization.startswith(prefix) else ""
 
     def handle_json(self, action) -> None:
         try:
