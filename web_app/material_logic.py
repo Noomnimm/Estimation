@@ -228,6 +228,70 @@ class MaterialWorkbook:
             df.to_excel(writer, index=False, sheet_name="Summary")
         return output.getvalue()
 
+    def export_page_summary(self, pages: list[list[dict[str, Any]]]) -> bytes:
+        totals: dict[tuple[str, str], dict[int, float]] = {}
+        for page_number, page in enumerate(pages, start=1):
+            for item in page:
+                size = clean_text(item.get("size"))
+                head = clean_text(item.get("head"))
+                count = parse_number(item.get("count"))
+                if not size or not head or count <= 0:
+                    continue
+                key = (head, size)
+                if key not in totals:
+                    totals[key] = {}
+                totals[key][page_number] = totals[key].get(page_number, 0.0) + count
+
+        if not totals:
+            raise ValueError("ยังไม่มีข้อมูลแต่ละหน้าสำหรับ export")
+
+        page_columns = [f"หน้า {page_number}" for page_number in range(1, len(pages) + 1)]
+        rows = []
+        for (head, size), page_totals in sorted(totals.items(), key=lambda item: (natural_key(item[0][1]), natural_key(item[0][0]))):
+            row: dict[str, Any] = {HEAD_COL: head, "เสา": size}
+            for page_number, column in enumerate(page_columns, start=1):
+                row[column] = page_totals.get(page_number)
+            rows.append(row)
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            columns = [HEAD_COL, "เสา", *page_columns]
+            pd.DataFrame(rows, columns=columns).to_excel(writer, index=False, sheet_name="สรุปแต่ละหน้า", startrow=2)
+            sheet = writer.sheets["สรุปแต่ละหน้า"]
+            last_column = get_column_letter(len(columns))
+            sheet.merge_cells(f"A1:{last_column}1")
+            title = sheet["A1"]
+            title.value = "สรุปรายการหัวเสาแยกตามหน้า"
+            title.font = Font(name="Tahoma", size=16, bold=True, color="FFFFFF")
+            title.fill = PatternFill("solid", fgColor="0F766E")
+            title.alignment = Alignment(horizontal="center", vertical="center")
+            sheet.row_dimensions[1].height = 28
+
+            header_fill = PatternFill("solid", fgColor="DDEDEA")
+            border = Border(bottom=Side(style="thin", color="AAB7C4"))
+            for cell in sheet[3]:
+                cell.font = Font(name="Tahoma", bold=True, color="1D242D")
+                cell.fill = header_fill
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            for row in sheet.iter_rows(min_row=4, max_row=sheet.max_row, max_col=len(columns)):
+                for cell in row:
+                    cell.font = Font(name="Tahoma", size=10)
+                for cell in row[2:]:
+                    cell.alignment = Alignment(horizontal="right")
+                    cell.number_format = "#,##0.###"
+
+            sheet.column_dimensions["A"].width = 32
+            sheet.column_dimensions["B"].width = 14
+            for column_index in range(3, len(columns) + 1):
+                sheet.column_dimensions[get_column_letter(column_index)].width = 13
+            sheet.freeze_panes = "C4"
+            sheet.auto_filter.ref = f"A3:{last_column}{sheet.max_row}"
+            sheet.sheet_view.showGridLines = False
+
+        return output.getvalue()
+
 
 def classify_wire_head(head: str) -> str | None:
     normalized = clean_text(head).upper()
@@ -325,70 +389,6 @@ def add_wire_materials(
                 added += 1
 
     return added
-
-    def export_page_summary(self, pages: list[list[dict[str, Any]]]) -> bytes:
-        totals: dict[tuple[str, str], dict[int, float]] = {}
-        for page_number, page in enumerate(pages, start=1):
-            for item in page:
-                size = clean_text(item.get("size"))
-                head = clean_text(item.get("head"))
-                count = parse_number(item.get("count"))
-                if not size or not head or count <= 0:
-                    continue
-                key = (head, size)
-                if key not in totals:
-                    totals[key] = {}
-                totals[key][page_number] = totals[key].get(page_number, 0.0) + count
-
-        if not totals:
-            raise ValueError("ยังไม่มีข้อมูลแต่ละหน้าสำหรับ export")
-
-        page_columns = [f"หน้า {page_number}" for page_number in range(1, len(pages) + 1)]
-        rows = []
-        for (head, size), page_totals in sorted(totals.items(), key=lambda item: (natural_key(item[0][1]), natural_key(item[0][0]))):
-            row: dict[str, Any] = {HEAD_COL: head, "เสา": size}
-            for page_number, column in enumerate(page_columns, start=1):
-                row[column] = page_totals.get(page_number)
-            rows.append(row)
-
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            columns = [HEAD_COL, "เสา", *page_columns]
-            pd.DataFrame(rows, columns=columns).to_excel(writer, index=False, sheet_name="สรุปแต่ละหน้า", startrow=2)
-            sheet = writer.sheets["สรุปแต่ละหน้า"]
-            last_column = get_column_letter(len(columns))
-            sheet.merge_cells(f"A1:{last_column}1")
-            title = sheet["A1"]
-            title.value = "สรุปรายการหัวเสาแยกตามหน้า"
-            title.font = Font(name="Tahoma", size=16, bold=True, color="FFFFFF")
-            title.fill = PatternFill("solid", fgColor="0F766E")
-            title.alignment = Alignment(horizontal="center", vertical="center")
-            sheet.row_dimensions[1].height = 28
-
-            header_fill = PatternFill("solid", fgColor="DDEDEA")
-            border = Border(bottom=Side(style="thin", color="AAB7C4"))
-            for cell in sheet[3]:
-                cell.font = Font(name="Tahoma", bold=True, color="1D242D")
-                cell.fill = header_fill
-                cell.border = border
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-
-            for row in sheet.iter_rows(min_row=4, max_row=sheet.max_row, max_col=len(columns)):
-                for cell in row:
-                    cell.font = Font(name="Tahoma", size=10)
-                for cell in row[2:]:
-                    cell.alignment = Alignment(horizontal="right")
-                    cell.number_format = "#,##0.###"
-
-            sheet.column_dimensions["A"].width = 32
-            sheet.column_dimensions["B"].width = 14
-            for column_index in range(3, len(columns) + 1):
-                sheet.column_dimensions[get_column_letter(column_index)].width = 13
-            sheet.freeze_panes = "C4"
-            sheet.auto_filter.ref = f"A3:{last_column}{sheet.max_row}"
-            sheet.sheet_view.showGridLines = False
-
-        return output.getvalue()
 
 
 def read_set_sheet(path: str | Path) -> pd.DataFrame:
