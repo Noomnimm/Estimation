@@ -163,7 +163,11 @@ const wireOptions = [
 ];
 
 function classifyWireHead(head) {
-  const normalized = String(head || "").trim().toUpperCase();
+  let normalized = String(head || "").trim().toUpperCase();
+  if (normalized.startsWith("2")) {
+    if (normalized.includes("+")) return "";
+    normalized = normalized.slice(1);
+  }
   if (normalized.startsWith("DDE.BL")) return "dde_bl";
   if (normalized.startsWith("DDE")) return "dde";
   if (normalized.startsWith("DE")) return "de";

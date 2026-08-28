@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -157,7 +158,7 @@ class MaterialWorkbook:
                     add_material(totals, material, code, amount)
                     matched_rows += 1
 
-                matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count)
+                matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head))
 
         self.summary = sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
         return {
@@ -295,6 +296,11 @@ class MaterialWorkbook:
 
 def classify_wire_head(head: str) -> str | None:
     normalized = clean_text(head).upper()
+    if normalized.startswith("2"):
+        # Only the insulator totals of +DE.CON assemblies have been confirmed.
+        if "+" in normalized:
+            return None
+        normalized = normalized[1:]
     if normalized.startswith("DDE.BL"):
         return "dde_bl"
     if normalized.startswith("DDE"):
@@ -304,6 +310,13 @@ def classify_wire_head(head: str) -> str | None:
     if normalized.startswith("BA"):
         return "ba"
     return None
+
+
+def wire_head_multiplier(head: str) -> float:
+    normalized = clean_text(head).upper()
+    if re.search(r"1\s*-?\s*P\b", normalized):
+        return 2 / 3
+    return 2 if normalized.startswith("2") else 1
 
 
 def validate_wire_selection(

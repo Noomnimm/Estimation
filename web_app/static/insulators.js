@@ -1,8 +1,29 @@
 /* Informational counts only: never added to the material bill or exports. */
 function insulatorRate(head) {
-  const name = String(head || "").trim().toUpperCase();
+  const name = String(head || "").trim().toUpperCase().replace(/\s*,\s*/g, ",");
+  const compact = name.replace(/\s+/g, "");
+  if (compact === "2BA.ST4.5M+DE.CON") return [12, 36];
+  if (compact === "2DE.ST4.5+DE.CON") return [6, 36];
+  if (compact === "DDE,DP.ST3.0M") return [12, 24];
+  if (compact === "DDE.ST3M,LAT.SLK") return [12, 36];
+  if (/^(CTB|CSC)(?=$|[.\s])/.test(name)) return [0, 0];
+  if (/^LAT\.SLK(?=$|[.\s])/.test(name)) return [6, 12];
+  if (/^BA\.SLK(?=$|[.\s])/.test(name)) return [6, 0];
+  if (/1\s*-?\s*P\b/.test(name)) {
+    if (name.startsWith("DE.CON")) return [4, 8];
+    if (name.startsWith("DDE.BL")) return [0, 16];
+    if (name.startsWith("DDE")) return [4, 16];
+    if (name.startsWith("BA")) return [2, 8];
+    if (name.startsWith("SP")) return [2, 0];
+    return null;
+  }
+  if (/^2(?:BA|DE|DDE|SP|DP)(?=$|[.\s])/.test(name)) {
+    const single = insulatorRate(name.slice(1));
+    return single ? single.map(value => value * 2) : null;
+  }
+  if (name === "SP บน,ล่าง") return [3, 0];
   if (/^CCB\s*,\s*CCB$/.test(name)) return [6, 0];
-  // Special phases, doubled heads and combined assemblies need their own rates.
+  // Unconfirmed combined assemblies are not inferred.
   if (/^\d|1\s*-?\s*P|[,+]/.test(name)) return null;
   if (/^CCB(?:\s|$)/.test(name)) return [name.includes("ประกบ") ? 6 : 3, 0];
   const rates = { "DDE.BL": [0, 24], DDE: [6, 24], DE: [0, 12], BA: [4, 12], SP: [3, 0], DP: [6, 0] };
