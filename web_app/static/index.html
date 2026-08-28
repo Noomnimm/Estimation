@@ -99,6 +99,19 @@
       </div>
     </section>
 
+    <section class="results insulator-panel tab-panel" data-panel="calculator" aria-labelledby="insulatorTitle">
+      <div class="result-head">
+        <h2 id="insulatorTitle">จำนวนลูกถ้วยที่ควรมี</h2>
+        <span>รวมทุกหน้า · อัปเดตตามจำนวนที่กรอก</span>
+      </div>
+      <div class="insulator-counts" aria-live="polite" aria-atomic="true">
+        <div><span>ลูกถ้วยตั้ง</span><strong id="uprightCount">0</strong><span>ลูก</span></div>
+        <div><span>ลูกถ้วยนอน</span><strong id="horizontalCount">0</strong><span>ลูก</span></div>
+      </div>
+      <p>ใช้ตรวจสอบตามอัตราที่กำหนดเท่านั้น ไม่เพิ่มในรายการวัสดุหรือ Export Excel</p>
+      <details id="insulatorWarnings" hidden><summary>รายการที่ยังไม่รวมในยอด</summary><ul id="insulatorWarningList"></ul></details>
+    </section>
+
     <section class="results tab-panel" data-panel="calculator">
       <div class="result-head">
         <h2>ผลลัพธ์</h2>
@@ -119,6 +132,7 @@
     </section>
   </main>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="/static/insulators.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

@@ -118,6 +118,7 @@ function renderInputs() {
     });
     countInput.addEventListener("input", () => {
       page[index].count = countInput.value;
+      renderInsulators();
     });
 
     els.inputRows.appendChild(tr);
@@ -130,6 +131,23 @@ function renderInputs() {
     }
   });
   renderPageControls();
+  renderInsulators();
+}
+
+function renderInsulators() {
+  const totals = summarizeInsulators(state.pages);
+  document.getElementById("uprightCount").textContent = formatAmount(totals.upright);
+  document.getElementById("horizontalCount").textContent = formatAmount(totals.horizontal);
+  const warnings = document.getElementById("insulatorWarnings");
+  warnings.hidden = totals.warnings.length === 0;
+  warnings.querySelector("summary").textContent = `รายการที่ยังไม่รวมในยอด (${totals.warnings.length} แถว)`;
+  const list = document.getElementById("insulatorWarningList");
+  list.replaceChildren();
+  totals.warnings.forEach(message => {
+    const item = document.createElement("li");
+    item.textContent = message;
+    list.appendChild(item);
+  });
 }
 
 const wireOptions = [
