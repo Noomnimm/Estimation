@@ -38,7 +38,7 @@ class HeadRuleTests(unittest.TestCase):
         values = self.equipment('2DE', wire1='185 A')
         self.assertEqual(values['1030110004'], 6)
         self.assertNotIn('1030140011', values)
-        for head in ['LAT.SLK บน', '2BA.st 4.5m+DE.CON', '2DE.st4.5 + DE.CON']:
+        for head in ['2BA.st 4.5m+DE.CON', '2DE.st4.5 + DE.CON']:
             self.assertIsNone(classify_wire_head(head))
         self.assertEqual(classify_wire_head('BA.SLK บน'), 'ba')  # Preserve existing wire rule.
         self.assertEqual(self.equipment('DDE.st 3m, LAT.SLK')['1020260205'], 6)
@@ -51,6 +51,34 @@ class HeadRuleTests(unittest.TestCase):
         values = {r[CODE_COL]: r[TOTAL_COL] for r in result['items']}
         self.assertEqual(values['SetExample'], 2)
         self.assertEqual(values['1020260205'], 12)
+
+    def test_lat_as_de(self):
+        for head in ['LAT.SLK บน', 'LAT.SLK ล่าง']:
+            values = self.equipment(head, wire1='50 SAC')
+            self.assertEqual(values['1020260202'], 3)
+            self.assertEqual(values['1030140011'], 3)
+            self.assertNotIn('1020410027', values)
+            self.assertNotIn('1020180001', values)
+            strain = self.equipment(head, wire1='185 A')
+            self.assertEqual(strain['1030110004'], 3)
+            self.assertNotIn('1030140011', strain)
+
+    def test_mixed_lat(self):
+        workbook = MaterialWorkbook()
+        head = 'DDE.st 3m, LAT.SLK'
+        workbook.base_df = pd.DataFrame([{SIZE_COL: '99', HEAD_COL: head, MATERIAL_COL: 'Base', CODE_COL: 'SetExample', QTY_COL: 1}])
+        row = {'size': '99', 'head': head, 'count': '1+1', 'wire1': '185 SAC', 'wire2': '185 SAC'}
+        with self.assertRaisesRegex(ValueError, 'LAT.SLK'):
+            workbook.calculate([[row]])
+        row['latWire'] = '50 SAC'
+        result = workbook.calculate([[row]])
+        values = {r[CODE_COL]: r[TOTAL_COL] for r in result['items']}
+        self.assertEqual(values['SetExample'], 2)
+        self.assertEqual(values['1020260205'], 12)
+        self.assertEqual(values['1020260202'], 6)
+        self.assertEqual(values['1030140011'], 18)
+        self.assertEqual(values['1020410027'], 6)
+        self.assertEqual(values['1020180001'], 6)
 
 
 if __name__ == '__main__':

@@ -32,10 +32,14 @@ Wire-dependent additions: 2BA/2DE/2DDE use a multiplier of 2; 1-P/1P
 use 2/3. These factors apply to Preform/Strain, Clevis, BA connectors,
 and DDE tensionless/tapes, not to BaseData material quantities.
 The two confirmed DDE mixed heads use the ordinary DDE wire rule.
+LAT.SLK บน/ล่าง use the DE wire rule: one conductor input, 3 Preforms
+and 3 Clevises or 3 Strain clamps per head, with no tensionless/tapes.
+DDE.st 3m, LAT.SLK adds a separate LAT.SLK conductor input and its DE
+wire additions on top of the ordinary DDE additions.
 
 Pending, intentionally unchanged:
 - Wire additions for +DE.CON double-head assemblies remain absent until confirmed.
-- LAT.SLK has no separate wire additions; BA.SLK retains its existing BA wire rule.
+- BA.SLK retains its existing BA wire rule.
 - SET insulator quantities can differ from the informational totals. No workbook
   data was changed to reconcile them.
 - BaseData contains separately spelled 2SP names with comma-spacing differences;

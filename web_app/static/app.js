@@ -46,7 +46,7 @@ const els = {
 };
 
 function blankRow() {
-  return { size: "", head: "", count: "", wire1: "", wire2: "" };
+  return { size: "", head: "", count: "", wire1: "", wire2: "", latWire: "" };
 }
 
 function setStatus(message, isError = false) {
@@ -108,12 +108,14 @@ function renderInputs() {
       page[index].head = "";
       page[index].wire1 = "";
       page[index].wire2 = "";
+      page[index].latWire = "";
       renderInputs();
     });
     headSelect.addEventListener("change", () => {
       page[index].head = headSelect.value;
       page[index].wire1 = "";
       page[index].wire2 = "";
+      page[index].latWire = "";
       renderInputs();
     });
     countInput.addEventListener("input", () => {
@@ -164,6 +166,7 @@ const wireOptions = [
 
 function classifyWireHead(head) {
   let normalized = String(head || "").trim().toUpperCase();
+  if (/^LAT\.SLK(?=$|\s)/.test(normalized)) return "de";
   if (normalized.startsWith("2")) {
     if (normalized.includes("+")) return "";
     normalized = normalized.slice(1);
@@ -188,6 +191,9 @@ function createWireDetailsRow(row, index, wireKind) {
     : wireKind === "ba"
       ? [["Main Line", "wire1"], ["Tap Line", "wire2"]]
       : [["สายด้านซ้าย", "wire1"], ["สายด้านขวา", "wire2"]];
+  if (String(row.head || "").toUpperCase().replace(/\s+/g, "") === "DDE.ST3M,LAT.SLK") {
+    labels.push(["สาย LAT.SLK (ยึดแบบ DE)", "latWire"]);
+  }
 
   labels.forEach(([labelText, key]) => {
     const label = document.createElement("label");

@@ -144,6 +144,9 @@ class MaterialWorkbook:
                 wire1 = clean_text(item.get("wire1"))
                 wire2 = clean_text(item.get("wire2"))
                 validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head)
+                lat_wire = clean_text(item.get("latWire"))
+                if has_combined_lat(head):
+                    validate_wire_selection("de", lat_wire, "", page_number, row_number, f"{head} — LAT.SLK")
                 matches = self.base_df[
                     (self.base_df[SIZE_COL].astype(str).str.strip() == size)
                     & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
@@ -159,6 +162,8 @@ class MaterialWorkbook:
                     matched_rows += 1
 
                 matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head))
+                if has_combined_lat(head):
+                    matched_rows += add_wire_materials(totals, "de", lat_wire, "", count)
 
         self.summary = sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
         return {
@@ -296,6 +301,8 @@ class MaterialWorkbook:
 
 def classify_wire_head(head: str) -> str | None:
     normalized = clean_text(head).upper()
+    if re.match(r"^LAT\.SLK(?=$|\s)", normalized):
+        return "de"
     if normalized.startswith("2"):
         # Only the insulator totals of +DE.CON assemblies have been confirmed.
         if "+" in normalized:
@@ -310,6 +317,10 @@ def classify_wire_head(head: str) -> str | None:
     if normalized.startswith("BA"):
         return "ba"
     return None
+
+
+def has_combined_lat(head: str) -> bool:
+    return re.sub(r"\s+", "", clean_text(head).upper()) == "DDE.ST3M,LAT.SLK"
 
 
 def wire_head_multiplier(head: str) -> float:
