@@ -46,7 +46,7 @@ const els = {
 };
 
 function blankRow() {
-  return { size: "", head: "", count: "", wire1: "", wire2: "", ohgw: false };
+  return { size: "", head: "", count: "", wire1: "", wire2: "" };
 }
 
 function setStatus(message, isError = false) {
@@ -78,7 +78,6 @@ function saveCurrentPageFromDom() {
       size: tr.querySelector(".size").value,
       head: tr.querySelector(".head").value,
       count: tr.querySelector(".count").value,
-      ohgw: tr.querySelector(".ohgw").checked,
     });
   });
 }
@@ -93,17 +92,11 @@ function renderInputs() {
       <td><select class="size"></select></td>
       <td><select class="head"></select></td>
       <td><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
-      <td><label class="ohgw-label"><input class="ohgw" type="checkbox"> มี OHGW</label></td>
     `;
 
     const sizeSelect = tr.querySelector(".size");
     const headSelect = tr.querySelector(".head");
     const countInput = tr.querySelector(".count");
-    const ohgwInput = tr.querySelector(".ohgw");
-    ohgwInput.checked = row.ohgw === true;
-    ohgwInput.addEventListener("change", () => {
-      page[index].ohgw = ohgwInput.checked;
-    });
 
     fillSelect(sizeSelect, state.sizes, "เลือกขนาดเสา");
     sizeSelect.value = row.size || "";
@@ -182,7 +175,7 @@ function createWireDetailsRow(row, index, wireKind) {
   const detailRow = document.createElement("tr");
   detailRow.className = "wire-details-row";
   const cell = document.createElement("td");
-  cell.colSpan = 4;
+  cell.colSpan = 3;
   const panel = document.createElement("div");
   panel.className = "wire-details";
 
