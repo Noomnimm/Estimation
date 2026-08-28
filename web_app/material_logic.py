@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -52,6 +53,36 @@ TENSIONLESS_TAPES = (
     ("PVC TAPE", "1020180001"),
     ("ERP TAPE", "1020180008"),
 )
+
+
+def ohgw_material(head: str, size: str) -> tuple[str, str]:
+    name = head.strip().upper()
+    # Do not infer OHGW for doubled or combined assemblies.
+    if name == "CCB,CCB":
+        name = "CCB"
+    match = re.match(r"^(DDE\.BL|DDE|DE|BA|SP|DP|CCB)(?=$|[.\s])", name)
+    if not match or "+" in name or "," in name:
+        raise ValueError(f"ยังไม่มีเกณฑ์ OHGW สำหรับหัวเสา {head}")
+    kind = match.group(1)
+    try:
+        height = float(size)
+    except ValueError:
+        raise ValueError(f"ขนาดเสา OHGW ไม่ถูกต้อง: {size}") from None
+    if kind in {"SP", "DP", "CCB"}:
+        family = "SP" if kind == "SP" else "DP"
+        if height in {12.2, 14.0}:
+            code = "Set25251" if family == "SP" else "Set25262"
+        elif height == 14.3:
+            code = "Set25264" if family == "SP" else "Set25266"
+        else:
+            raise ValueError(f"ยังไม่มีเกณฑ์ OHGW สำหรับ {head} เสา {size} m")
+    else:
+        family = "DDE" if kind in {"DDE", "DDE.BL"} else kind
+        allowed = {14.0, 16.0} if family == "BA" else {12.0, 14.0, 16.0}
+        if height not in allowed:
+            raise ValueError(f"ยังไม่มีเกณฑ์ OHGW สำหรับ {head} เสา {size} m")
+        code = {"DDE": "Set25258", "DE": "Set25256", "BA": "Set25261"}[family]
+    return f"เหล็ก {family} OHGW", code
 
 
 class MaterialWorkbook:
@@ -158,6 +189,13 @@ class MaterialWorkbook:
                     matched_rows += 1
 
                 matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count)
+                if item.get("ohgw") is True:
+                    try:
+                        material, code = ohgw_material(head, size)
+                    except ValueError as error:
+                        raise ValueError(f"หน้า {page_number} แถว {row_number}: {error}") from error
+                    add_material(totals, material, code, count)
+                    matched_rows += 1
 
         self.summary = sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
         return {

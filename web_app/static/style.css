@@ -559,19 +559,24 @@ td select {
   background: #fff;
 }
 
+.ohgw-label { display: flex; align-items: center; gap: 8px; white-space: nowrap; cursor: pointer; }
+.ohgw-label input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
+.input-table { min-width: 700px; }
+.input-table th:nth-child(4), .input-table td:nth-child(4) { width: 16%; }
+
 .input-table th:nth-child(1),
 .input-table td:nth-child(1) {
-  width: 26%;
+  width: 22%;
 }
 
 .input-table th:nth-child(2),
 .input-table td:nth-child(2) {
-  width: 48%;
+  width: 40%;
 }
 
 .input-table th:nth-child(3),
 .input-table td:nth-child(3) {
-  width: 26%;
+  width: 22%;
 }
 
 .actions {
