@@ -600,6 +600,53 @@ td select {
   font-variant-numeric: tabular-nums;
 }
 
+.calculator-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 14px;
+  align-items: start;
+  margin-top: 14px;
+}
+
+.calculator-layout > section {
+  min-width: 0;
+  margin-top: 0;
+  grid-column: 1;
+}
+
+.calculator-layout > .insulator-panel {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.insulator-panel .result-head {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.insulator-panel .insulator-counts {
+  grid-template-columns: 1fr;
+}
+
+.insulator-panel p { margin-top: 12px; line-height: 1.6; }
+.insulator-panel details { margin-top: 10px; overflow-wrap: anywhere; }
+
+@media (max-width: 1050px) {
+  .calculator-layout { grid-template-columns: minmax(0, 1fr); }
+  .calculator-layout > .insulator-panel {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    max-height: none;
+  }
+  .insulator-panel .insulator-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 760px) {
   .shell {
     width: min(100% - 20px, 1240px);
