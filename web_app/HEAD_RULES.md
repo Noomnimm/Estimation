@@ -6,6 +6,7 @@ do not alter BaseData, SET contents or material exports.
 | Head | Upright | Horizontal |
 |---|---:|---:|
 | BA / BA.AL | 4 | 12 |
+| SP,DDE.BL st.4.5m (copied from 2DDE.st 4.5m for 12.20/14.30/22 m poles) | 3 | 24 |
 | 2BA st.4.5m (copied from 2DDE.st 4.5m for 12.20/14.30/22 m poles) | 12 | 24 |
 | DE / DE.AL | 0 | 12 |
 | DDE / DDE.AL | 6 | 24 |
