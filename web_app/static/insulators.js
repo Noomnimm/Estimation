@@ -2,6 +2,7 @@
 function insulatorRate(head) {
   const name = String(head || "").trim().toUpperCase().replace(/\s*,\s*/g, ",");
   const compact = name.replace(/\s+/g, "");
+  if (compact === "2BAST.4.5M") return [12, 24];
   if (compact === "2BA.ST4.5M+DE.CON") return [12, 36];
   if (compact === "2DE.ST4.5+DE.CON") return [6, 36];
   if (compact === "DDE,DP.ST3.0M") return [12, 24];
