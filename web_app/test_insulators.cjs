@@ -6,6 +6,7 @@ for (const [head, expected] of Object.entries({
   'SP,DDE.BL st.4.5m': [3, 24],
   'DP,DDE.BL st.4.5m': [6, 24],
   'DP,DDE st.4.5m': [12, 24],
+  'DP,DE st.4.5m': [6, 12],
   SP: [3, 0], DP: [6, 0], 'CCB บน': [3, 0], 'CCB ล่าง': [3, 0],
   'CCB ประกบบน': [6, 0], 'CCB ประกบล่าง': [6, 0], 'CCB,CCB': [6, 0],
   'DDE.BL.st 2.5m': [0, 24], 'DDE.st 4.5m': [6, 24],
