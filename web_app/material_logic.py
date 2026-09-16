@@ -510,17 +510,9 @@ def evaluate_add_sub(node: ast.AST) -> float:
 
 
 def natural_key(value: str) -> list[tuple[int, Any]]:
-    parts: list[tuple[int, Any]] = []
-    current = ""
-    numeric = False
-    for char in str(value):
-        is_digit = char.isdigit() or char == "."
-        if current and is_digit != numeric:
-            parts.append((0, float(current)) if numeric and current != "." else (1, current.lower()))
-            current = char
-        else:
-            current += char
-        numeric = is_digit
-    if current:
-        parts.append((0, float(current)) if numeric and current != "." else (1, current.lower()))
-    return parts
+    # A punctuation dot in "st.4.5m" belongs to the text, not to 4.5.
+    return [
+        (0, float(part)) if index % 2 else (1, part.lower())
+        for index, part in enumerate(re.split(r"([0-9]+(?:\.[0-9]+)?)", str(value)))
+        if part
+    ]
