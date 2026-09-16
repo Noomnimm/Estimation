@@ -21,7 +21,7 @@ class HeadSortingTests(unittest.TestCase):
                 self.assertTrue(workbook.get_heads(size))
         for size in ['12.2', '14.3', '22']:
             heads = workbook.get_heads(size)
-            for name in ['BA.st4.5m', '2BA st.4.5m', 'SP,DDE.BL st.4.5m']:
+            for name in ['BA.st4.5m', '2BA st.4.5m', 'SP,DDE.BL st.4.5m', 'DP,DDE.BL st.4.5m']:
                 self.assertIn(name, heads)
 
 
