@@ -166,6 +166,14 @@ const wireOptions = [
 
 function classifyWireHead(head) {
   let normalized = String(head || "").trim().toUpperCase();
+  const compact = normalized.replace(/\s+/g, "");
+  const combinedRules = {
+    "SP,DDE.BLST.4.5M": "dde_bl",
+    "DP,DDE.BLST.4.5M": "dde_bl",
+    "DP,DDEST.4.5M": "dde",
+    "DP,DEST.4.5M": "de",
+  };
+  if (combinedRules[compact]) return combinedRules[compact];
   if (/^LAT\.SLK(?=$|\s)/.test(normalized)) return "de";
   if (normalized.startsWith("2")) {
     if (normalized.includes("+")) return "";

@@ -37,6 +37,10 @@ Wire-dependent additions: 2BA/2DE/2DDE use a multiplier of 2; 1-P/1P
 use 2/3. These factors apply to Preform/Strain, Clevis, BA connectors,
 and DDE tensionless/tapes, not to BaseData material quantities.
 The two confirmed DDE mixed heads use the ordinary DDE wire rule.
+SP,DDE.BL st.4.5m and DP,DDE.BL st.4.5m use two conductor inputs and
+the DDE.BL wire rule. DP,DDE st.4.5m uses two conductor inputs plus
+DDE tensionless and tapes. DP,DE st.4.5m uses one conductor input and
+the DE wire rule. These mixed heads apply the wire rule once per head.
 LAT.SLK บน/ล่าง use the DE wire rule: one conductor input, 3 Preforms
 and 3 Clevises or 3 Strain clamps per head, with no tensionless/tapes.
 DDE.st 3m, LAT.SLK adds a separate LAT.SLK conductor input and its DE

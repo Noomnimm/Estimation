@@ -80,6 +80,27 @@ class HeadRuleTests(unittest.TestCase):
         self.assertEqual(values['1020410027'], 6)
         self.assertEqual(values['1020180001'], 6)
 
+    def test_new_steel_combined_heads(self):
+        cases = {
+            'SP,DDE.BL st.4.5m': 'dde_bl',
+            'DP,DDE.BL st.4.5m': 'dde_bl',
+            'DP,DDE st.4.5m': 'dde',
+            'DP,DE st.4.5m': 'de',
+        }
+        for head, expected_kind in cases.items():
+            with self.subTest(head=head):
+                self.assertEqual(classify_wire_head(head), expected_kind)
+                values = self.equipment(head)
+                expected_preform = 3 if expected_kind == 'de' else 6
+                self.assertEqual(values['1020260205'], expected_preform)
+                self.assertEqual(values['1030140011'], expected_preform)
+                if expected_kind == 'dde':
+                    self.assertEqual(values['1020410027'], 3)
+                    self.assertEqual(values['1020180001'], 3)
+                    self.assertEqual(values['1020180008'], 3)
+                else:
+                    self.assertNotIn('1020410027', values)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -301,6 +301,15 @@ class MaterialWorkbook:
 
 def classify_wire_head(head: str) -> str | None:
     normalized = clean_text(head).upper()
+    compact = re.sub(r"\s+", "", normalized)
+    combined_rules = {
+        "SP,DDE.BLST.4.5M": "dde_bl",
+        "DP,DDE.BLST.4.5M": "dde_bl",
+        "DP,DDEST.4.5M": "dde",
+        "DP,DEST.4.5M": "de",
+    }
+    if compact in combined_rules:
+        return combined_rules[compact]
     if re.match(r"^LAT\.SLK(?=$|\s)", normalized):
         return "de"
     if normalized.startswith("2"):
