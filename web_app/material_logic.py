@@ -440,6 +440,82 @@ class MaterialWorkbook:
             detail_sheet.sheet_view.showGridLines = False
         return output.getvalue()
 
+    def export_page_insulators(self, pages: list[list[dict[str, Any]]]) -> bytes:
+        page_totals: dict[int, tuple[float, float]] = {}
+        details: list[dict[str, Any]] = []
+
+        for page_number, page in enumerate(pages, start=1):
+            upright_total = 0.0
+            horizontal_total = 0.0
+            for item in page:
+                size = clean_text(item.get("size"))
+                head = clean_text(item.get("head"))
+                if not size or not head:
+                    continue
+                count = parse_number(item.get("count"))
+                if count == 0:
+                    continue
+                upright_rate, horizontal_rate = insulator_rate(head)
+                upright = upright_rate * count
+                horizontal = horizontal_rate * count
+                if upright == 0 and horizontal == 0:
+                    continue
+                upright_total += upright
+                horizontal_total += horizontal
+                details.append({
+                    "หน้า": page_number,
+                    SIZE_COL: size,
+                    HEAD_COL: head,
+                    "จำนวนหัว": count,
+                    "ตั้ง/หัว": upright_rate,
+                    "นอน/หัว": horizontal_rate,
+                    "ลูกถ้วยตั้ง": upright,
+                    "ลูกถ้วยนอน": horizontal,
+                })
+            page_totals[page_number] = (upright_total, horizontal_total)
+
+        if not details:
+            raise ValueError("ยังไม่มีข้อมูลหัวเสาที่มีลูกถ้วยสำหรับ export")
+
+        summary_rows = []
+        for page_number, (upright, horizontal) in page_totals.items():
+            summary_rows.append({"หน้า": page_number, "ลูกถ้วยตั้ง": upright, "ลูกถ้วยนอน": horizontal, "รวมลูกถ้วย": upright + horizontal})
+        summary_rows.append({
+            "หน้า": "รวมทุกหน้า",
+            "ลูกถ้วยตั้ง": sum(value[0] for value in page_totals.values()),
+            "ลูกถ้วยนอน": sum(value[1] for value in page_totals.values()),
+            "รวมลูกถ้วย": sum(sum(value) for value in page_totals.values()),
+        })
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            pd.DataFrame(summary_rows).to_excel(writer, index=False, sheet_name="สรุปลูกถ้วยแยกหน้า")
+            pd.DataFrame(details).to_excel(writer, index=False, sheet_name="ที่มาลูกถ้วย")
+            for sheet_name, widths in {
+                "สรุปลูกถ้วยแยกหน้า": [14, 18, 18, 18],
+                "ที่มาลูกถ้วย": [10, 18, 34, 14, 14, 14, 16, 16],
+            }.items():
+                sheet = writer.sheets[sheet_name]
+                for cell in sheet[1]:
+                    cell.font = Font(name="Tahoma", bold=True, color="FFFFFF")
+                    cell.fill = PatternFill("solid", fgColor="4B216E")
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row):
+                    for cell in row:
+                        cell.font = Font(name="Tahoma", size=10)
+                    for cell in row[1:]:
+                        cell.number_format = "#,##0.###"
+                for index, width in enumerate(widths, start=1):
+                    sheet.column_dimensions[get_column_letter(index)].width = width
+                sheet.freeze_panes = "A2"
+                sheet.auto_filter.ref = sheet.dimensions
+                sheet.sheet_view.showGridLines = False
+            total_row = writer.sheets["สรุปลูกถ้วยแยกหน้า"].max_row
+            for cell in writer.sheets["สรุปลูกถ้วยแยกหน้า"][total_row]:
+                cell.font = Font(name="Tahoma", bold=True)
+                cell.fill = PatternFill("solid", fgColor="E8DDF2")
+        return output.getvalue()
+
 
 def classify_wire_head(head: str) -> str | None:
     normalized = clean_text(head).upper()

@@ -167,6 +167,24 @@ class HeadRuleTests(unittest.TestCase):
         self.assertEqual(by_code['1020330006'], 39)
         self.assertEqual(by_code['1020330104'], 39)
 
+    def test_page_insulator_export_shows_totals_and_sources(self):
+        workbook = MaterialWorkbook()
+        pages = [[
+            {'size': '14.3', 'head': 'BA', 'count': '1+1'},
+            {'size': '14.3', 'head': 'DE', 'count': 1},
+        ], [
+            {'size': '12.2', 'head': 'SP 1-P', 'count': 3},
+        ]]
+        exported = load_workbook(BytesIO(workbook.export_page_insulators(pages)), data_only=True)
+        summary = list(exported['สรุปลูกถ้วยแยกหน้า'].iter_rows(min_row=2, values_only=True))
+        self.assertEqual(summary[0], (1, 8, 36, 44))
+        self.assertEqual(summary[1], (2, 6, 0, 6))
+        self.assertEqual(summary[2], ('รวมทุกหน้า', 14, 36, 50))
+        details = list(exported['ที่มาลูกถ้วย'].iter_rows(min_row=2, values_only=True))
+        self.assertEqual(details[0], (1, '14.3', 'BA', 2, 4, 12, 8, 24))
+        self.assertEqual(details[1], (1, '14.3', 'DE', 1, 0, 12, 0, 12))
+        self.assertEqual(details[2], (2, '12.2', 'SP 1-P', 3, 2, 0, 6, 0))
+
 
 if __name__ == '__main__':
     unittest.main()
