@@ -28,6 +28,7 @@ const els = {
   expandSet: document.getElementById("expandSet"),
   exportExcel: document.getElementById("exportExcel"),
   exportPages: document.getElementById("exportPages"),
+  exportPageHardware: document.getElementById("exportPageHardware"),
   resultRows: document.getElementById("resultRows"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
@@ -692,6 +693,32 @@ els.exportPages.addEventListener("click", async () => {
     link.click();
     URL.revokeObjectURL(url);
     setStatus("Export รายการแต่ละหน้าสำเร็จ");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+els.exportPageHardware.addEventListener("click", async () => {
+  try {
+    saveCurrentPageFromDom();
+    setStatus("กำลังสร้างสรุปลูกถ้วยและอุปกรณ์ยึดสาย...");
+    const response = await fetch("/api/export-page-hardware", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pages: state.pages }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Export ลูกถ้วยและอุปกรณ์ยึดสายไม่สำเร็จ");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "page_insulators_hardware.xlsx";
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus("Export ลูกถ้วยและอุปกรณ์ยึดสายสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
   }

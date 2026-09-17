@@ -63,6 +63,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/expand-set": self.expand_set,
             "/api/export": self.export_summary,
             "/api/export-pages": self.export_pages,
+            "/api/export-page-hardware": self.export_page_hardware,
             "/api/cloud-projects": self.save_cloud_project,
             "/api/cloud-projects/delete": self.delete_cloud_project,
         }
@@ -107,6 +108,19 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             self.send_header("Content-Disposition", 'attachment; filename="page_summary.xlsx"')
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def export_page_hardware(self) -> None:
+        try:
+            data = WORKBOOK.export_page_hardware(self.read_json().get("pages", []))
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            self.send_header("Content-Disposition", 'attachment; filename="page_insulators_hardware.xlsx"')
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()

@@ -298,6 +298,92 @@ class MaterialWorkbook:
 
         return output.getvalue()
 
+    def export_page_hardware(self, pages: list[list[dict[str, Any]]]) -> bytes:
+        totals: dict[tuple[str, str, str], dict[int, float]] = {}
+
+        def add_page_item(group: str, material: str, code: str, page_number: int, amount: float) -> None:
+            if amount == 0:
+                return
+            key = (group, material, code)
+            totals.setdefault(key, {})[page_number] = totals.setdefault(key, {}).get(page_number, 0.0) + amount
+
+        for page_number, page in enumerate(pages, start=1):
+            for row_number, item in enumerate(page, start=1):
+                size = clean_text(item.get("size"))
+                head = clean_text(item.get("head"))
+                count = parse_number(item.get("count"))
+                if not size or not head or count <= 0:
+                    continue
+
+                upright, horizontal = insulator_rate(head)
+                add_page_item("ลูกถ้วย", "ลูกถ้วยตั้ง", "", page_number, upright * count)
+                add_page_item("ลูกถ้วย", "ลูกถ้วยนอน", "", page_number, horizontal * count)
+
+                wire_kind = classify_wire_head(head)
+                wire1 = clean_text(item.get("wire1"))
+                wire2 = clean_text(item.get("wire2"))
+                validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head)
+                wire_totals: dict[tuple[str, str], dict[str, Any]] = {}
+                add_wire_materials(wire_totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head))
+
+                lat_wire = clean_text(item.get("latWire"))
+                if has_combined_lat(head):
+                    validate_wire_selection("de", lat_wire, "", page_number, row_number, f"{head} — LAT.SLK")
+                    add_wire_materials(wire_totals, "de", lat_wire, "", count)
+
+                for material in wire_totals.values():
+                    add_page_item(
+                        "อุปกรณ์ยึดสาย",
+                        clean_text(material[MATERIAL_COL]),
+                        clean_text(material[CODE_COL]),
+                        page_number,
+                        parse_number(material[TOTAL_COL]),
+                    )
+
+        if not totals:
+            raise ValueError("ยังไม่มีข้อมูลลูกถ้วยหรืออุปกรณ์ยึดสายสำหรับ export")
+
+        page_columns = [f"หน้า {number}" for number in range(1, len(pages) + 1)]
+        rows = []
+        for (group, material, code), page_totals in sorted(totals.items(), key=lambda item: (item[0][0], item[0][2], item[0][1])):
+            row: dict[str, Any] = {"ประเภท": group, MATERIAL_COL: material, CODE_COL: code}
+            for page_number, column in enumerate(page_columns, start=1):
+                row[column] = page_totals.get(page_number)
+            rows.append(row)
+
+        output = BytesIO()
+        columns = ["ประเภท", MATERIAL_COL, CODE_COL, *page_columns]
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            pd.DataFrame(rows, columns=columns).to_excel(writer, index=False, sheet_name="ลูกถ้วยและอุปกรณ์", startrow=2)
+            sheet = writer.sheets["ลูกถ้วยและอุปกรณ์"]
+            last_column = get_column_letter(len(columns))
+            sheet.merge_cells(f"A1:{last_column}1")
+            title = sheet["A1"]
+            title.value = "สรุปลูกถ้วยและอุปกรณ์ยึดสายแยกตามหน้า"
+            title.font = Font(name="Tahoma", size=16, bold=True, color="FFFFFF")
+            title.fill = PatternFill("solid", fgColor="63318A")
+            title.alignment = Alignment(horizontal="center", vertical="center")
+            sheet.row_dimensions[1].height = 28
+            for cell in sheet[3]:
+                cell.font = Font(name="Tahoma", bold=True, color="FFFFFF")
+                cell.fill = PatternFill("solid", fgColor="4B216E")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            for row in sheet.iter_rows(min_row=4, max_row=sheet.max_row, max_col=len(columns)):
+                for cell in row:
+                    cell.font = Font(name="Tahoma", size=10)
+                for cell in row[3:]:
+                    cell.alignment = Alignment(horizontal="right")
+                    cell.number_format = "#,##0.###"
+            sheet.column_dimensions["A"].width = 18
+            sheet.column_dimensions["B"].width = 64
+            sheet.column_dimensions["C"].width = 18
+            for column_index in range(4, len(columns) + 1):
+                sheet.column_dimensions[get_column_letter(column_index)].width = 13
+            sheet.freeze_panes = "D4"
+            sheet.auto_filter.ref = f"A3:{last_column}{sheet.max_row}"
+            sheet.sheet_view.showGridLines = False
+        return output.getvalue()
+
 
 def classify_wire_head(head: str) -> str | None:
     normalized = clean_text(head).upper()
@@ -326,6 +412,36 @@ def classify_wire_head(head: str) -> str | None:
     if normalized.startswith("BA"):
         return "ba"
     return None
+
+
+def insulator_rate(head: str) -> tuple[float, float]:
+    name = re.sub(r"\s*,\s*", ",", clean_text(head).upper())
+    compact = re.sub(r"\s+", "", name)
+    exact = {
+        "DP,DEST.4.5M": (6, 12), "DP,DDEST.4.5M": (12, 24),
+        "DP,DDE.BLST.4.5M": (6, 24), "SP,DDE.BLST.4.5M": (3, 24),
+        "2BAST.4.5M": (12, 24), "2BA.ST4.5M+DE.CON": (12, 36),
+        "2DE.ST4.5+DE.CON": (6, 36), "DDE,DP.ST3.0M": (12, 24),
+        "DDE.ST3M,LAT.SLK": (12, 36), "CCB,CCB": (6, 0),
+    }
+    if compact in exact:
+        return exact[compact]
+    if re.match(r"^(CTB|CSC)(?=$|[.\s])", name): return (0, 0)
+    if re.match(r"^LAT\.SLK(?=$|[.\s])", name): return (6, 12)
+    if re.match(r"^BA\.SLK(?=$|[.\s])", name): return (6, 0)
+    if re.search(r"1\s*-?\s*P\b", name):
+        for prefix, rate in (("DE.CON", (4, 8)), ("DDE.BL", (0, 16)), ("DDE", (4, 16)), ("BA", (2, 8)), ("SP", (2, 0))):
+            if name.startswith(prefix): return rate
+        return (0, 0)
+    if re.match(r"^2(?:BA|DE|DDE|SP|DP)(?=$|[.\s])", name):
+        upright, horizontal = insulator_rate(name[1:])
+        return upright * 2, horizontal * 2
+    if name == "SP บน,ล่าง": return (3, 0)
+    if re.match(r"^CCB(?:\s|$)", name): return (6, 0) if "ประกบ" in name else (3, 0)
+    for prefix, rate in (("DDE.BL", (0, 24)), ("DDE", (6, 24)), ("DE", (0, 12)), ("BA", (4, 12)), ("SP", (3, 0)), ("DP", (6, 0))):
+        if name == prefix or name.startswith(prefix + ".") or name.startswith(prefix + " "):
+            return rate
+    return (0, 0)
 
 
 def has_combined_lat(head: str) -> bool:

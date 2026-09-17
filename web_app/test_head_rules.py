@@ -1,8 +1,10 @@
 import unittest
+from io import BytesIO
 import pandas as pd
+from openpyxl import load_workbook
 from web_app.material_logic import (
     MaterialWorkbook, classify_wire_head, wire_head_multiplier, add_wire_materials,
-    SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, TOTAL_COL,
+    insulator_rate, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, TOTAL_COL,
 )
 
 
@@ -100,6 +102,36 @@ class HeadRuleTests(unittest.TestCase):
                     self.assertEqual(values['1020180008'], 3)
                 else:
                     self.assertNotIn('1020410027', values)
+
+    def test_page_hardware_export(self):
+        workbook = MaterialWorkbook()
+        pages = [[{
+            'size': '14.3', 'head': 'DP,DDE st.4.5m', 'count': '1+1',
+            'wire1': '185 SAC', 'wire2': '185 SAC',
+        }], [{
+            'size': '12.2', 'head': 'DP,DE st.4.5m', 'count': '1',
+            'wire1': '50 SAC',
+        }]]
+        exported = load_workbook(BytesIO(workbook.export_page_hardware(pages)), data_only=True)
+        sheet = exported['ลูกถ้วยและอุปกรณ์']
+        values = {(row[0], row[1], str(row[2] or '')): (row[3], row[4]) for row in sheet.iter_rows(min_row=4, values_only=True)}
+        self.assertEqual(values[('ลูกถ้วย', 'ลูกถ้วยตั้ง', '')], (24, 6))
+        self.assertEqual(values[('ลูกถ้วย', 'ลูกถ้วยนอน', '')], (48, 12))
+        self.assertEqual(values[('อุปกรณ์ยึดสาย', 'PREFORMED D/E,SAC 22kV 185sq.mm. 29.78mm', '1020260205')], (12, None))
+        self.assertEqual(values[('อุปกรณ์ยึดสาย', 'PREFORMED D/E,SAC 22kV 50sq.mm. 21.80mm', '1020260202')], (None, 3))
+        self.assertEqual(values[('อุปกรณ์ยึดสาย', 'CLEVIS,THIMBLE,FOR PREFORMED DEAD-END', '1030140011')], (12, 3))
+        self.assertEqual(values[('อุปกรณ์ยึดสาย', 'CONNECTOR,SPLICE,COMPRESSION TYPE,TENSIONLESS AL 185 SQ.MM.', '1020410027')], (6, None))
+        self.assertEqual(sheet.freeze_panes, 'D4')
+
+    def test_python_insulator_rules_match_confirmed_cases(self):
+        expected = {
+            'BA.st4.5m': (4, 12), '2BA st.4.5m': (12, 24),
+            'SP,DDE.BL st.4.5m': (3, 24), 'DP,DDE.BL st.4.5m': (6, 24),
+            'DP,DDE st.4.5m': (12, 24), 'DP,DE st.4.5m': (6, 12),
+            'DDE.st 3m, LAT.SLK': (12, 36), 'DE.CON 1-P': (4, 8),
+        }
+        for head, rate in expected.items():
+            self.assertEqual(insulator_rate(head), rate)
 
 
 if __name__ == '__main__':
