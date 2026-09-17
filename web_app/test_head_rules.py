@@ -105,9 +105,18 @@ class HeadRuleTests(unittest.TestCase):
 
     def test_page_hardware_export(self):
         workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([{
+            SIZE_COL: 'Dis & SF6', HEAD_COL: 'SF6', MATERIAL_COL: 'SF6 SET', CODE_COL: 'set24009', QTY_COL: 1,
+        }])
+        workbook.set_df = pd.DataFrame([
+            {"Set": 'set24009', CODE_COL: '1020330006', "คำอธิบาย": 'HOTLINE BAIL-CLAMP,MAIN 70-185 SQ.MM.', "ติดตั้ง": 3},
+            {"Set": 'set24009', CODE_COL: '1020330104', "คำอธิบาย": 'HOTLINE CLAMP,MAIN35-185,TAP50-185SQ.MM.', "ติดตั้ง": 3},
+        ])
         pages = [[{
             'size': '14.3', 'head': 'DP,DDE st.4.5m', 'count': '1+1',
             'wire1': '185 SAC', 'wire2': '185 SAC',
+        }, {
+            'size': 'Dis & SF6', 'head': 'SF6', 'count': '1',
         }], [{
             'size': '12.2', 'head': 'DP,DE st.4.5m', 'count': '1',
             'wire1': '50 SAC',
@@ -121,7 +130,13 @@ class HeadRuleTests(unittest.TestCase):
         self.assertEqual(values[('อุปกรณ์ยึดสาย', 'PREFORMED D/E,SAC 22kV 50sq.mm. 21.80mm', '1020260202')], (None, 3))
         self.assertEqual(values[('อุปกรณ์ยึดสาย', 'CLEVIS,THIMBLE,FOR PREFORMED DEAD-END', '1030140011')], (12, 3))
         self.assertEqual(values[('อุปกรณ์ยึดสาย', 'CONNECTOR,SPLICE,COMPRESSION TYPE,TENSIONLESS AL 185 SQ.MM.', '1020410027')], (6, None))
+        self.assertEqual(values[('อุปกรณ์ยึดสาย', 'HOTLINE BAIL-CLAMP,MAIN 70-185 SQ.MM.', '1020330006')], (3, None))
+        self.assertEqual(values[('อุปกรณ์ยึดสาย', 'HOTLINE CLAMP,MAIN35-185,TAP50-185SQ.MM.', '1020330104')], (3, None))
         self.assertEqual(sheet.freeze_panes, 'D4')
+        detail_sheet = exported['ที่มารายการ']
+        sf6_rows = [row for row in detail_sheet.iter_rows(min_row=2, values_only=True) if row[1] == 'SF6']
+        self.assertEqual(len(sf6_rows), 2)
+        self.assertTrue(all(row[2] == 'set24009' and row[5] == 3 for row in sf6_rows))
 
     def test_python_insulator_rules_match_confirmed_cases(self):
         expected = {
@@ -132,6 +147,25 @@ class HeadRuleTests(unittest.TestCase):
         }
         for head, rate in expected.items():
             self.assertEqual(insulator_rate(head), rate)
+
+    def test_sf6_set_hardware_reconciles_with_wire_totals(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([{
+            SIZE_COL: 'Dis & SF6', HEAD_COL: 'SF6', MATERIAL_COL: 'SF6 SET', CODE_COL: 'set24009', QTY_COL: 1,
+        }])
+        workbook.set_df = pd.DataFrame([
+            {"Set": 'set24009', CODE_COL: '1020330006', "คำอธิบาย": 'HOTLINE BAIL-CLAMP,MAIN 70-185 SQ.MM.', "ติดตั้ง": 3},
+            {"Set": 'set24009', CODE_COL: '1020330104', "คำอธิบาย": 'HOTLINE CLAMP,MAIN35-185,TAP50-185SQ.MM.', "ติดตั้ง": 3},
+        ])
+        pages = [[
+            {'size': '14.3', 'head': 'BA', 'count': 12, 'wire1': '185 SAC', 'wire2': '50 SAC'},
+            {'size': 'Dis & SF6', 'head': 'SF6', 'count': 1},
+        ]]
+        exported = load_workbook(BytesIO(workbook.export_page_hardware(pages)), data_only=True)
+        rows = list(exported['ลูกถ้วยและอุปกรณ์'].iter_rows(min_row=4, values_only=True))
+        by_code = {str(row[2] or ''): row[3] for row in rows}
+        self.assertEqual(by_code['1020330006'], 39)
+        self.assertEqual(by_code['1020330104'], 39)
 
 
 if __name__ == '__main__':

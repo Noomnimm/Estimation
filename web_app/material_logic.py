@@ -300,6 +300,17 @@ class MaterialWorkbook:
 
     def export_page_hardware(self, pages: list[list[dict[str, Any]]]) -> bytes:
         totals: dict[tuple[str, str, str], dict[int, float]] = {}
+        details: list[dict[str, Any]] = []
+        hardware_codes = {
+            *(wire_details[1] for wire_details in WIRE_MATERIALS.values()),
+            *(code for _, code in TENSIONLESS_MATERIALS.values()),
+            *(code for _, code in TENSIONLESS_TAPES),
+            PG3_MATERIAL[1], HOTLINE_CLAMP_MATERIAL[1], BAIL_CLAMP_MATERIAL[1], CLEVIS_MATERIAL[1],
+        }
+        set_lookup = None
+        if self.set_df is not None:
+            set_lookup = self.set_df.copy()
+            set_lookup["_set_key"] = set_lookup[SET_COL].astype(str).str.strip().str.lower()
 
         def add_page_item(group: str, material: str, code: str, page_number: int, amount: float) -> None:
             if amount == 0:
@@ -318,6 +329,29 @@ class MaterialWorkbook:
                 upright, horizontal = insulator_rate(head)
                 add_page_item("ลูกถ้วย", "ลูกถ้วยตั้ง", "", page_number, upright * count)
                 add_page_item("ลูกถ้วย", "ลูกถ้วยนอน", "", page_number, horizontal * count)
+                if upright:
+                    details.append({"หน้า": page_number, HEAD_COL: head, "ที่มา": "เกณฑ์ลูกถ้วย", MATERIAL_COL: "ลูกถ้วยตั้ง", CODE_COL: "", TOTAL_COL: upright * count})
+                if horizontal:
+                    details.append({"หน้า": page_number, HEAD_COL: head, "ที่มา": "เกณฑ์ลูกถ้วย", MATERIAL_COL: "ลูกถ้วยนอน", CODE_COL: "", TOTAL_COL: horizontal * count})
+
+                if self.base_df is not None and set_lookup is not None:
+                    matches = self.base_df[
+                        (self.base_df[SIZE_COL].astype(str).str.strip() == size)
+                        & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
+                    ]
+                    for _, base_row in matches.iterrows():
+                        set_code = clean_text(base_row[CODE_COL])
+                        if not set_code.lower().startswith("set"):
+                            continue
+                        set_quantity = parse_number(base_row[QTY_COL]) * count
+                        for _, set_row in set_lookup[set_lookup["_set_key"] == set_code.lower()].iterrows():
+                            code = clean_text(set_row[CODE_COL])
+                            if code not in hardware_codes:
+                                continue
+                            material = clean_text(set_row[SET_DESC_COL])
+                            amount = parse_number(set_row[SET_INSTALL_COL]) * set_quantity
+                            add_page_item("อุปกรณ์ยึดสาย", material, code, page_number, amount)
+                            details.append({"หน้า": page_number, HEAD_COL: head, "ที่มา": set_code, MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: amount})
 
                 wire_kind = classify_wire_head(head)
                 wire1 = clean_text(item.get("wire1"))
@@ -332,13 +366,18 @@ class MaterialWorkbook:
                     add_wire_materials(wire_totals, "de", lat_wire, "", count)
 
                 for material in wire_totals.values():
+                    amount = parse_number(material[TOTAL_COL])
                     add_page_item(
                         "อุปกรณ์ยึดสาย",
                         clean_text(material[MATERIAL_COL]),
                         clean_text(material[CODE_COL]),
                         page_number,
-                        parse_number(material[TOTAL_COL]),
+                        amount,
                     )
+                    details.append({
+                        "หน้า": page_number, HEAD_COL: head, "ที่มา": "ช่องเลือกสาย",
+                        MATERIAL_COL: clean_text(material[MATERIAL_COL]), CODE_COL: clean_text(material[CODE_COL]), TOTAL_COL: amount,
+                    })
 
         if not totals:
             raise ValueError("ยังไม่มีข้อมูลลูกถ้วยหรืออุปกรณ์ยึดสายสำหรับ export")
@@ -382,6 +421,23 @@ class MaterialWorkbook:
             sheet.freeze_panes = "D4"
             sheet.auto_filter.ref = f"A3:{last_column}{sheet.max_row}"
             sheet.sheet_view.showGridLines = False
+
+            detail_columns = ["หน้า", HEAD_COL, "ที่มา", MATERIAL_COL, CODE_COL, TOTAL_COL]
+            pd.DataFrame(details, columns=detail_columns).to_excel(writer, index=False, sheet_name="ที่มารายการ")
+            detail_sheet = writer.sheets["ที่มารายการ"]
+            for cell in detail_sheet[1]:
+                cell.font = Font(name="Tahoma", bold=True, color="FFFFFF")
+                cell.fill = PatternFill("solid", fgColor="4B216E")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            for row in detail_sheet.iter_rows(min_row=2, max_row=detail_sheet.max_row):
+                for cell in row:
+                    cell.font = Font(name="Tahoma", size=10)
+                row[5].number_format = "#,##0.###"
+            for column, width in {"A": 10, "B": 30, "C": 18, "D": 64, "E": 18, "F": 14}.items():
+                detail_sheet.column_dimensions[column].width = width
+            detail_sheet.freeze_panes = "A2"
+            detail_sheet.auto_filter.ref = f"A1:F{detail_sheet.max_row}"
+            detail_sheet.sheet_view.showGridLines = False
         return output.getvalue()
 
 
