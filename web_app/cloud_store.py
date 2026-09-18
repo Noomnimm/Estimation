@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -20,6 +21,18 @@ HEADERS = [
     "created_by",
     "updated_by",
     "deleted_at",
+]
+
+REQUEST_SHEET = "BaseDataRequests"
+REQUEST_HEADERS = [
+    "request_id", "submitted_at", "submitter_name", "employee_id", "department",
+    "action", "size", "head", "rows_json", "note", "status", "reviewed_at",
+    "reviewed_by", "review_note",
+]
+APPROVED_SHEET = "ApprovedBaseData"
+APPROVED_HEADERS = [
+    "size", "head", "material", "code", "quantity", "action", "request_id",
+    "approved_at", "approved_by",
 ]
 
 
@@ -46,6 +59,162 @@ class GoogleSheetProjectStore:
             "configured": self.configured,
             "clientId": self.client_id if self.configured else "",
             "allowedDomain": self.allowed_domain,
+        }
+
+    @property
+    def service_configured(self) -> bool:
+        return bool(self.spreadsheet_id and self._credentials_json)
+
+    def submit_base_request(self, payload: dict[str, Any]) -> dict[str, Any]:
+        required = {
+            "submitter_name": "ชื่อผู้เสนอ", "employee_id": "รหัสพนักงาน",
+            "department": "สังกัด", "size": "ขนาดเสา", "head": "รหัสหัวเสา",
+        }
+        values = {key: str(payload.get(key, "")).strip() for key in required}
+        missing = [label for key, label in required.items() if not values[key]]
+        if missing:
+            raise ValueError(f"กรุณากรอก {', '.join(missing)}")
+        rows = payload.get("rows", [])
+        if not isinstance(rows, list) or not rows:
+            raise ValueError("กรุณาเพิ่มรายการวัสดุอย่างน้อย 1 รายการ")
+        if len(rows) > 100:
+            raise ValueError("หนึ่งคำขอเพิ่มรายการวัสดุได้ไม่เกิน 100 รายการ")
+        clean_rows = []
+        for row in rows:
+            material = str(row.get("material", "")).strip()
+            code = str(row.get("code", "")).strip()
+            try:
+                quantity = float(row.get("quantity", 0))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("จำนวนวัสดุต้องเป็นตัวเลข") from exc
+            if not material or not code or quantity == 0:
+                raise ValueError("ทุกรายการต้องมีชื่อวัสดุ รหัสพัสดุ/SET และจำนวนที่ไม่เป็นศูนย์")
+            clean_rows.append({"material": material, "code": code, "quantity": quantity})
+        action = str(payload.get("action", "add")).strip().lower()
+        if action not in {"add", "replace"}:
+            action = "add"
+        record = {
+            "request_id": uuid.uuid4().hex,
+            "submitted_at": datetime.now(timezone.utc).isoformat(),
+            **values,
+            "action": action,
+            "rows_json": json.dumps(clean_rows, ensure_ascii=False, separators=(",", ":")),
+            "note": str(payload.get("note", "")).strip(),
+            "status": "pending", "reviewed_at": "", "reviewed_by": "", "review_note": "",
+        }
+        with self._lock:
+            self._ensure_named_sheet(REQUEST_SHEET, REQUEST_HEADERS)
+            self._append_named_record(REQUEST_SHEET, REQUEST_HEADERS, record)
+        return self._request_to_public(record)
+
+    def list_base_requests(self) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
+        return [self._request_to_public(row) for row in reversed(rows)]
+
+    def review_base_request(self, request_id: str, approve: bool, reviewer: str, note: str = "") -> dict[str, Any]:
+        with self._lock:
+            rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
+            record = next((row for row in rows if row["request_id"] == request_id), None)
+            if not record:
+                raise ValueError("ไม่พบคำขอที่ต้องการตรวจ")
+            if record.get("status") != "pending":
+                raise ValueError("คำขอนี้ถูกตรวจแล้ว")
+            now = datetime.now(timezone.utc).isoformat()
+            record.update({
+                "status": "approved" if approve else "rejected", "reviewed_at": now,
+                "reviewed_by": reviewer, "review_note": str(note).strip(),
+            })
+            self._update_named_record(REQUEST_SHEET, REQUEST_HEADERS, record, record["_row_number"])
+            if approve:
+                self._ensure_named_sheet(APPROVED_SHEET, APPROVED_HEADERS)
+                for item in json.loads(record["rows_json"]):
+                    self._append_named_record(APPROVED_SHEET, APPROVED_HEADERS, {
+                        "size": record["size"], "head": record["head"],
+                        "material": item["material"], "code": item["code"], "quantity": item["quantity"],
+                        "action": record["action"], "request_id": request_id,
+                        "approved_at": now, "approved_by": reviewer,
+                    })
+        return self._request_to_public(record)
+
+    def list_approved_base_rows(self) -> list[dict[str, Any]]:
+        if not self.service_configured:
+            return []
+        with self._lock:
+            return self._read_named_rows(APPROVED_SHEET, APPROVED_HEADERS, "request_id")
+
+    def _ensure_named_sheet(self, sheet_name: str, headers: list[str]) -> None:
+        if not self.service_configured:
+            raise ValueError("ยังไม่ได้ตั้งค่า Google Sheet สำหรับเก็บคำขอ BaseData")
+        service = self._get_service()
+        metadata = service.spreadsheets().get(spreadsheetId=self.spreadsheet_id).execute()
+        titles = {sheet["properties"]["title"] for sheet in metadata.get("sheets", [])}
+        if sheet_name not in titles:
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body={"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]},
+            ).execute()
+        current = service.spreadsheets().values().get(
+            spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A1:{self._column_letter(len(headers))}1",
+        ).execute().get("values", [])
+        if not current:
+            service.spreadsheets().values().update(
+                spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A1",
+                valueInputOption="RAW", body={"values": [headers]},
+            ).execute()
+        elif current[0] != headers:
+            raise ValueError(f"หัวตารางในแท็บ {sheet_name} ไม่ตรงกับรูปแบบของระบบ")
+
+    def _read_named_rows(self, sheet_name: str, headers: list[str], key: str) -> list[dict[str, Any]]:
+        self._ensure_named_sheet(sheet_name, headers)
+        values = self._get_service().spreadsheets().values().get(
+            spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A2:{self._column_letter(len(headers))}",
+        ).execute().get("values", [])
+        result = []
+        for row_number, value_row in enumerate(values, start=2):
+            padded = value_row + [""] * (len(headers) - len(value_row))
+            row = dict(zip(headers, padded[:len(headers)]))
+            if row.get(key):
+                row["_row_number"] = row_number
+                result.append(row)
+        return result
+
+    def _append_named_record(self, sheet_name: str, headers: list[str], record: dict[str, Any]) -> None:
+        self._get_service().spreadsheets().values().append(
+            spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A:{self._column_letter(len(headers))}",
+            valueInputOption="RAW", insertDataOption="INSERT_ROWS",
+            body={"values": [[record.get(header, "") for header in headers]]},
+        ).execute()
+
+    def _update_named_record(self, sheet_name: str, headers: list[str], record: dict[str, Any], row_number: int) -> None:
+        self._get_service().spreadsheets().values().update(
+            spreadsheetId=self.spreadsheet_id,
+            range=f"'{sheet_name}'!A{row_number}:{self._column_letter(len(headers))}{row_number}",
+            valueInputOption="RAW", body={"values": [[record.get(header, "") for header in headers]]},
+        ).execute()
+
+    @staticmethod
+    def _column_letter(number: int) -> str:
+        result = ""
+        while number:
+            number, remainder = divmod(number - 1, 26)
+            result = chr(65 + remainder) + result
+        return result
+
+    @staticmethod
+    def _request_to_public(record: dict[str, Any]) -> dict[str, Any]:
+        try:
+            rows = json.loads(record.get("rows_json", "[]"))
+        except json.JSONDecodeError:
+            rows = []
+        return {
+            "id": record.get("request_id", ""), "submittedAt": record.get("submitted_at", ""),
+            "submitterName": record.get("submitter_name", ""), "employeeId": record.get("employee_id", ""),
+            "department": record.get("department", ""), "action": record.get("action", "add"),
+            "size": record.get("size", ""), "head": record.get("head", ""), "rows": rows,
+            "note": record.get("note", ""), "status": record.get("status", "pending"),
+            "reviewedAt": record.get("reviewed_at", ""), "reviewedBy": record.get("reviewed_by", ""),
+            "reviewNote": record.get("review_note", ""),
         }
 
     def verify_user(self, credential: str) -> dict[str, str]:

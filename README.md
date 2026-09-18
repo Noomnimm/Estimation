@@ -63,6 +63,18 @@ Render จะติดตั้ง dependencies จาก `requirements-web.txt`
 
 ห้ามบันทึก Service Account JSON ลงใน Git หรือส่งกุญแจผ่านช่องทางสาธารณะ ต้องแชร์ Google Sheet ให้ Service Account เป็น Editor ก่อนใช้งาน ระบบจะสร้างแท็บ `Projects` และหัวตารางให้อัตโนมัติเมื่อเชื่อมต่อครั้งแรก
 
+## เสนอและอนุมัติ BaseData ผ่านเว็บ
+
+ผู้ใช้ทั่วไปเสนอหัวเสาได้โดยกรอกชื่อ รหัสพนักงาน และสังกัด โดยไม่ต้องเข้าสู่ระบบ Google คำขอจะยังไม่ถูกนำไปคำนวณจนกว่า Admin จะอนุมัติ ระบบเก็บคำขอในแท็บ `BaseDataRequests` และข้อมูลที่อนุมัติใน `ApprovedBaseData`
+
+ตั้งค่า Environment Variables เพิ่มบน Render โดยไม่บันทึกค่าจริงลง Git:
+
+- `BASE_ADMIN_USERNAME` — ชื่อผู้ใช้ Admin
+- `BASE_ADMIN_PASSWORD` — รหัสผ่าน Admin
+- `BASE_ADMIN_SESSION_SECRET` — ค่าสุ่มสำหรับลงนาม session; Blueprint สามารถสร้างให้อัตโนมัติ
+
+เมื่อ Admin อนุมัติ ระบบจะโหลด BaseData ที่อนุมัติเข้าสู่เว็บทันที และโหลดกลับมาใหม่จาก Google Sheet ทุกครั้งที่บริการเริ่มทำงาน
+
 ## รูปแบบไฟล์ข้อมูล
 
 ไฟล์ BaseData ต้องมีชีตชื่อ `BaseData` และคอลัมน์ต่อไปนี้:

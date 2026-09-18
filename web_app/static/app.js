@@ -8,6 +8,7 @@ const state = {
   googleCredential: sessionStorage.getItem("material-calculator-google-credential") || "",
   cloudProjects: [],
   cloudUser: null,
+  adminToken: sessionStorage.getItem("material-calculator-admin-token") || "",
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
@@ -31,6 +32,23 @@ const els = {
   exportPageHardware: document.getElementById("exportPageHardware"),
   exportPageInsulators: document.getElementById("exportPageInsulators"),
   exportPageCrossarms: document.getElementById("exportPageCrossarms"),
+  baseRequestForm: document.getElementById("baseRequestForm"),
+  requesterName: document.getElementById("requesterName"),
+  requesterEmployeeId: document.getElementById("requesterEmployeeId"),
+  requesterDepartment: document.getElementById("requesterDepartment"),
+  requestAction: document.getElementById("requestAction"),
+  requestSize: document.getElementById("requestSize"),
+  requestHead: document.getElementById("requestHead"),
+  requestMaterialRows: document.getElementById("requestMaterialRows"),
+  addRequestMaterial: document.getElementById("addRequestMaterial"),
+  requestNote: document.getElementById("requestNote"),
+  adminLoginPanel: document.getElementById("adminLoginPanel"),
+  adminRequestsPanel: document.getElementById("adminRequestsPanel"),
+  adminLoginForm: document.getElementById("adminLoginForm"),
+  adminUsername: document.getElementById("adminUsername"),
+  adminPassword: document.getElementById("adminPassword"),
+  adminLogout: document.getElementById("adminLogout"),
+  baseRequestList: document.getElementById("baseRequestList"),
   resultRows: document.getElementById("resultRows"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
@@ -350,6 +368,7 @@ function switchTab(tabName) {
     panel.hidden = panel.dataset.panel !== tabName;
   });
   if (tabName === "saved") renderSavedProjects();
+  if (tabName === "base-admin") showAdminPanel();
 }
 
 function renderSavedProjects() {
@@ -778,7 +797,191 @@ els.exportPageCrossarms.addEventListener("click", async () => {
   }
 });
 
+function addRequestMaterialRow(value = {}) {
+  const row = document.createElement("tr");
+  for (const [className, placeholder, type] of [
+    ["request-material", "ชื่อรายการวัสดุ", "text"],
+    ["request-code", "รหัสพัสดุหรือ Set", "text"],
+    ["request-quantity", "จำนวน", "number"],
+  ]) {
+    const cell = document.createElement("td");
+    const input = document.createElement("input");
+    input.className = className;
+    input.type = type;
+    input.placeholder = placeholder;
+    input.required = true;
+    if (type === "number") input.step = "any";
+    input.value = className === "request-material" ? (value.material || "")
+      : className === "request-code" ? (value.code || "") : (value.quantity ?? "");
+    cell.appendChild(input);
+    row.appendChild(cell);
+  }
+  const actionCell = document.createElement("td");
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "danger compact";
+  remove.textContent = "ลบ";
+  remove.addEventListener("click", () => {
+    if (els.requestMaterialRows.children.length > 1) row.remove();
+  });
+  actionCell.appendChild(remove);
+  row.appendChild(actionCell);
+  els.requestMaterialRows.appendChild(row);
+}
+
+function requestMaterialValues() {
+  return [...els.requestMaterialRows.querySelectorAll("tr")].map((row) => ({
+    material: row.querySelector(".request-material").value.trim(),
+    code: row.querySelector(".request-code").value.trim(),
+    quantity: row.querySelector(".request-quantity").value,
+  }));
+}
+
+async function submitBaseRequest(event) {
+  event.preventDefault();
+  try {
+    setStatus("กำลังส่งคำขอให้ Admin ตรวจ...");
+    const response = await fetch("/api/base-requests", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        submitter_name: els.requesterName.value, employee_id: els.requesterEmployeeId.value,
+        department: els.requesterDepartment.value, action: els.requestAction.value,
+        size: els.requestSize.value, head: els.requestHead.value,
+        rows: requestMaterialValues(), note: els.requestNote.value,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "ส่งคำขอไม่สำเร็จ");
+    els.requestSize.value = "";
+    els.requestHead.value = "";
+    els.requestNote.value = "";
+    els.requestMaterialRows.innerHTML = "";
+    addRequestMaterialRow();
+    setStatus(`ส่งคำขอ ${data.request.id.slice(0, 8)} ให้ Admin แล้ว`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function adminFetch(url, options = {}) {
+  const headers = { ...(options.headers || {}), Authorization: `Bearer ${state.adminToken}` };
+  const response = await fetch(url, { ...options, headers });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "ดำเนินการ Admin ไม่สำเร็จ");
+  return data;
+}
+
+function showAdminPanel() {
+  els.adminLoginPanel.hidden = Boolean(state.adminToken);
+  els.adminRequestsPanel.hidden = !state.adminToken;
+  if (state.adminToken) loadBaseRequests();
+}
+
+async function loadBaseRequests() {
+  try {
+    const data = await adminFetch("/api/base-requests/admin");
+    renderBaseRequests(data.requests);
+  } catch (error) {
+    state.adminToken = "";
+    sessionStorage.removeItem("material-calculator-admin-token");
+    showAdminPanel();
+    setStatus(error.message, true);
+  }
+}
+
+function renderBaseRequests(requests) {
+  els.baseRequestList.innerHTML = "";
+  if (!requests.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-saved";
+    empty.textContent = "ยังไม่มีคำขอแก้ไข BaseData";
+    els.baseRequestList.appendChild(empty);
+    return;
+  }
+  requests.forEach((request) => {
+    const card = document.createElement("article");
+    card.className = `request-card status-${request.status}`;
+    const title = document.createElement("h3");
+    title.textContent = `${request.size} · ${request.head}`;
+    const meta = document.createElement("p");
+    meta.textContent = `${request.submitterName} · ${request.employeeId} · ${request.department} · ${request.action === "replace" ? "แทนที่ข้อมูลเดิม" : "เพิ่มข้อมูล"}`;
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>รายการวัสดุ</th><th>รหัส</th><th>จำนวน</th></tr></thead>";
+    const body = document.createElement("tbody");
+    request.rows.forEach((item) => {
+      const row = document.createElement("tr");
+      [item.material, item.code, item.quantity].forEach((value) => {
+        const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell);
+      });
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    const footer = document.createElement("div");
+    footer.className = "request-card-footer";
+    const status = document.createElement("strong");
+    status.textContent = request.status === "pending" ? "รอตรวจ" : request.status === "approved" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว";
+    footer.appendChild(status);
+    if (request.status === "pending") {
+      for (const [label, approve, className] of [["อนุมัติ", true, "primary"], ["ปฏิเสธ", false, "danger"]]) {
+        const button = document.createElement("button");
+        button.type = "button"; button.textContent = label; button.className = className;
+        button.addEventListener("click", () => reviewBaseRequest(request.id, approve));
+        footer.appendChild(button);
+      }
+    }
+    card.append(title, meta);
+    if (request.note) { const note = document.createElement("p"); note.textContent = `หมายเหตุ: ${request.note}`; card.appendChild(note); }
+    const wrap = document.createElement("div"); wrap.className = "table-wrap"; wrap.appendChild(table); card.append(wrap, footer);
+    els.baseRequestList.appendChild(card);
+  });
+}
+
+async function reviewBaseRequest(requestId, approve) {
+  const note = window.prompt(approve ? "หมายเหตุการอนุมัติ (เว้นว่างได้)" : "เหตุผลที่ปฏิเสธ") ?? "";
+  try {
+    await adminFetch("/api/base-requests/review", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId, approve, note }),
+    });
+    if (approve) {
+      const statusResponse = await fetch("/api/status");
+      const statusData = await readJson(statusResponse);
+      state.sizes = statusData.base?.sizes || state.sizes;
+      renderInputs();
+    }
+    setStatus(approve ? "อนุมัติและอัปเดต BaseData แล้ว" : "ปฏิเสธคำขอแล้ว");
+    await loadBaseRequests();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+els.addRequestMaterial.addEventListener("click", () => addRequestMaterialRow());
+els.baseRequestForm.addEventListener("submit", submitBaseRequest);
+els.adminLoginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const response = await fetch("/api/base-admin/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: els.adminUsername.value, password: els.adminPassword.value }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "เข้าสู่ระบบไม่สำเร็จ");
+    state.adminToken = data.token;
+    sessionStorage.setItem("material-calculator-admin-token", data.token);
+    els.adminPassword.value = "";
+    showAdminPanel();
+    setStatus("เข้าสู่ระบบ Admin แล้ว");
+  } catch (error) { setStatus(error.message, true); }
+});
+els.adminLogout.addEventListener("click", () => {
+  state.adminToken = "";
+  sessionStorage.removeItem("material-calculator-admin-token");
+  showAdminPanel();
+});
+
 async function initialize() {
+  if (!els.requestMaterialRows.children.length) addRequestMaterialRow();
   renderSavedProjects();
   renderInputs();
   try {

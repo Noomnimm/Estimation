@@ -19,6 +19,8 @@
     <nav class="app-tabs" aria-label="เมนูหลัก">
       <button class="app-tab active" data-tab="calculator" type="button"><span class="tab-icon">⌁</span> คำนวณงาน</button>
       <button class="app-tab" data-tab="saved" type="button"><span class="tab-icon">▣</span> งานที่บันทึก <span id="savedCount" class="tab-count">0</span></button>
+      <button class="app-tab" data-tab="base-request" type="button"><span class="tab-icon">＋</span> เสนอหัวเสา</button>
+      <button class="app-tab" data-tab="base-admin" type="button"><span class="tab-icon">✓</span> ตรวจ BaseData</button>
     </nav>
 
     <section class="project-bar tab-panel" data-panel="calculator">
@@ -55,6 +57,39 @@
       </div>
       <div id="cloudNotice" class="cloud-notice" hidden></div>
       <div id="savedProjectList" class="saved-list"></div>
+    </section>
+
+    <section class="base-editor tab-panel" data-panel="base-request" hidden>
+      <div class="section-heading"><div><h2>เสนอเพิ่มหรือแก้ไขหัวเสา</h2><p>ข้อมูลจะเข้าสู่ระบบหลัง Admin ตรวจและอนุมัติแล้วเท่านั้น</p></div></div>
+      <form id="baseRequestForm">
+        <div class="form-grid">
+          <label><span>ชื่อ–นามสกุล</span><input id="requesterName" required></label>
+          <label><span>รหัสพนักงาน</span><input id="requesterEmployeeId" required></label>
+          <label><span>สังกัด</span><input id="requesterDepartment" required></label>
+          <label><span>ประเภทคำขอ</span><select id="requestAction"><option value="add">เพิ่มข้อมูล</option><option value="replace">แทนที่หัวเสาเดิมทั้งหมด</option></select></label>
+          <label><span>ขนาดเสา (m)</span><input id="requestSize" required placeholder="เช่น 14.3 หรือ 99"></label>
+          <label><span>รหัสหัวเสา</span><input id="requestHead" required placeholder="เช่น DDE.st 4.5m"></label>
+        </div>
+        <div class="request-material-head"><h3>รายการวัสดุ</h3><button id="addRequestMaterial" type="button">เพิ่มรายการ</button></div>
+        <div class="table-wrap"><table class="request-table"><thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ/SET</th><th>จำนวน</th><th></th></tr></thead><tbody id="requestMaterialRows"></tbody></table></div>
+        <label class="note-field"><span>เหตุผลหรือหมายเหตุ</span><textarea id="requestNote" rows="3"></textarea></label>
+        <div class="actions"><button class="primary" type="submit">ส่งให้ Admin ตรวจ</button></div>
+      </form>
+    </section>
+
+    <section class="base-editor tab-panel" data-panel="base-admin" hidden>
+      <div id="adminLoginPanel">
+        <div class="section-heading"><div><h2>เข้าสู่ระบบ Admin</h2><p>สำหรับตรวจและอนุมัติการแก้ไข BaseData</p></div></div>
+        <form id="adminLoginForm" class="admin-login">
+          <label><span>ชื่อผู้ใช้</span><input id="adminUsername" autocomplete="username" required></label>
+          <label><span>รหัสผ่าน</span><input id="adminPassword" type="password" autocomplete="current-password" required></label>
+          <button class="primary" type="submit">เข้าสู่ระบบ</button>
+        </form>
+      </div>
+      <div id="adminRequestsPanel" hidden>
+        <div class="section-heading"><div><h2>รายการรอตรวจสอบ</h2><p>ตรวจข้อมูลผู้เสนอและวัสดุก่อนอนุมัติ</p></div><button id="adminLogout" type="button">ออกจากระบบ</button></div>
+        <div id="baseRequestList" class="request-list"></div>
+      </div>
     </section>
 
     <div class="calculator-layout tab-panel" data-panel="calculator">

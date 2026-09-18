@@ -286,6 +286,32 @@ td select:focus,
   padding: 16px;
 }
 
+.base-editor { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; margin-top: 14px; padding: 18px; box-shadow: 0 7px 22px rgba(53, 34, 69, 0.055); }
+.section-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
+.section-heading p, .request-card p { margin-top: 5px; color: var(--muted); font-size: 13px; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.form-grid label, .note-field, .admin-login label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+.form-grid input, .form-grid select, .note-field textarea, .admin-login input { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; font: inherit; }
+.request-material-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.request-material-head h3 { margin: 0; font-size: 16px; }
+.request-table th:nth-child(1) { width: 52%; }
+.request-table th:nth-child(2) { width: 25%; }
+.request-table th:nth-child(3) { width: 15%; }
+.request-table th:nth-child(4) { width: 8%; }
+.note-field { margin-top: 14px; }
+.note-field textarea { resize: vertical; }
+.admin-login { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.admin-login label { min-width: 230px; }
+.request-list { display: grid; gap: 14px; }
+.request-card { border: 1px solid var(--line); border-left: 5px solid var(--gold); border-radius: 12px; padding: 14px; background: #fff; }
+.request-card.status-approved { border-left-color: #198754; }
+.request-card.status-rejected { border-left-color: var(--danger); }
+.request-card h3 { margin: 0; }
+.request-card .table-wrap { margin-top: 10px; }
+.request-card-footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 12px; }
+.request-card-footer strong { margin-right: auto; }
+button.compact { min-height: 32px; padding: 5px 9px; }
+
 .saved-head p,
 .saved-meta {
   margin-top: 5px;
@@ -654,7 +680,8 @@ td select {
   }
 
   .topbar,
-  .upload-grid {
+  .upload-grid,
+  .form-grid {
     grid-template-columns: 1fr;
     display: grid;
   }

@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import cgi
+import base64
+import hashlib
+import hmac
 import json
 import mimetypes
 import os
 import traceback
+import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from material_logic import MaterialWorkbook
+import pandas as pd
+
+from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL
 from cloud_store import GoogleSheetProjectStore
 
 
@@ -23,10 +29,66 @@ DEFAULT_SET = ROOT.parent / "New folder" / "Allset.xlsx"
 
 WORKBOOK = MaterialWorkbook()
 CLOUD_STORE = GoogleSheetProjectStore()
+ADMIN_USERNAME = os.environ.get("BASE_ADMIN_USERNAME", "").strip()
+ADMIN_PASSWORD = os.environ.get("BASE_ADMIN_PASSWORD", "")
+ADMIN_SECRET = os.environ.get("BASE_ADMIN_SESSION_SECRET", "").strip() or ADMIN_PASSWORD
 if DEFAULT_BASE.exists():
     WORKBOOK.load_base(DEFAULT_BASE)
 if DEFAULT_SET.exists():
     WORKBOOK.load_set(DEFAULT_SET)
+
+
+def reload_approved_base() -> None:
+    if not DEFAULT_BASE.exists():
+        return
+    WORKBOOK.load_base(DEFAULT_BASE)
+    try:
+        approved = CLOUD_STORE.list_approved_base_rows()
+    except Exception:
+        traceback.print_exc()
+        return
+    if not approved:
+        return
+    grouped: dict[str, list[dict]] = {}
+    for row in approved:
+        grouped.setdefault(str(row.get("request_id", "")), []).append(row)
+    for request_rows in grouped.values():
+        first = request_rows[0]
+        size, head = str(first.get("size", "")).strip(), str(first.get("head", "")).strip()
+        if first.get("action") == "replace":
+            WORKBOOK.base_df = WORKBOOK.base_df[
+                ~((WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == size) & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == head))
+            ]
+        additions = [{
+            SIZE_COL: size, HEAD_COL: head, MATERIAL_COL: str(row.get("material", "")).strip(),
+            CODE_COL: str(row.get("code", "")).strip(), QTY_COL: float(row.get("quantity", 0)),
+        } for row in request_rows]
+        WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
+
+
+def create_admin_token() -> str:
+    expires = int(time.time()) + 8 * 60 * 60
+    payload = f"{ADMIN_USERNAME}:{expires}"
+    signature = hmac.new(ADMIN_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(f"{payload}:{signature}".encode()).decode()
+
+
+def verify_admin_token(token: str) -> str:
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD or not ADMIN_SECRET:
+        raise PermissionError("ยังไม่ได้ตั้งค่าบัญชี Admin บน Render")
+    try:
+        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        username, expires_text, signature = decoded.rsplit(":", 2)
+        payload = f"{username}:{expires_text}"
+        expected = hmac.new(ADMIN_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if username != ADMIN_USERNAME or int(expires_text) < int(time.time()) or not hmac.compare_digest(signature, expected):
+            raise ValueError
+    except Exception as exc:
+        raise PermissionError("เซสชัน Admin ไม่ถูกต้องหรือหมดอายุ") from exc
+    return username
+
+
+reload_approved_base()
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -48,6 +110,12 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/cloud-projects":
             self.cloud_projects()
             return
+        if parsed.path == "/api/base-admin/config":
+            self.send_json({"configured": bool(ADMIN_USERNAME and ADMIN_PASSWORD and CLOUD_STORE.service_configured)})
+            return
+        if parsed.path == "/api/base-requests/admin":
+            self.list_base_requests()
+            return
         if parsed.path.startswith("/static/"):
             target = STATIC / parsed.path.removeprefix("/static/")
             self.send_file(target)
@@ -68,6 +136,9 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/export-page-crossarms": self.export_page_crossarms,
             "/api/cloud-projects": self.save_cloud_project,
             "/api/cloud-projects/delete": self.delete_cloud_project,
+            "/api/base-requests": self.submit_base_request,
+            "/api/base-admin/login": self.admin_login,
+            "/api/base-requests/review": self.review_base_request,
         }
         route = routes.get(parsed.path)
         if route is None:
@@ -155,6 +226,54 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def submit_base_request(self) -> None:
+        try:
+            request = CLOUD_STORE.submit_base_request(self.read_json())
+            self.send_json({"request": request}, HTTPStatus.CREATED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def admin_login(self) -> None:
+        try:
+            payload = self.read_json()
+            username, password = str(payload.get("username", "")), str(payload.get("password", ""))
+            if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+                raise PermissionError("ยังไม่ได้ตั้งค่าบัญชี Admin บน Render")
+            if not hmac.compare_digest(username, ADMIN_USERNAME) or not hmac.compare_digest(password, ADMIN_PASSWORD):
+                raise PermissionError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+            self.send_json({"token": create_admin_token(), "username": ADMIN_USERNAME})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+
+    def list_base_requests(self) -> None:
+        try:
+            verify_admin_token(self.admin_token())
+            self.send_json({"requests": CLOUD_STORE.list_base_requests()})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def review_base_request(self) -> None:
+        try:
+            admin = verify_admin_token(self.admin_token())
+            payload = self.read_json()
+            request = CLOUD_STORE.review_base_request(
+                str(payload.get("requestId", "")), bool(payload.get("approve")), admin,
+                str(payload.get("note", "")),
+            )
+            if payload.get("approve"):
+                reload_approved_base()
+            self.send_json({"request": request})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def admin_token(self) -> str:
+        header = self.headers.get("Authorization", "")
+        return header.removeprefix("Bearer ").strip() if header.startswith("Bearer ") else ""
 
     def cloud_projects(self) -> None:
         try:
