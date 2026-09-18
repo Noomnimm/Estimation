@@ -525,7 +525,8 @@ class MaterialWorkbook:
         detail_totals: dict[tuple[int, str, str, str], dict[str, Any]] = {}
 
         def add_detail(page_number: int, size: str, head: str, head_count: float, material: str, code: str, amount: float) -> None:
-            if not code.startswith("10001") or amount == 0:
+            is_crossarm = code.startswith("10001") or bool(re.match(r"^STEEL\s*CHANNEL", material, re.IGNORECASE))
+            if not is_crossarm or amount == 0:
                 return
             key = (page_number, size, head, code)
             if key not in detail_totals:

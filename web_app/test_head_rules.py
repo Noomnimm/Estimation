@@ -194,14 +194,21 @@ class HeadRuleTests(unittest.TestCase):
         ])
         workbook.set_df = pd.DataFrame([
             {'Set': 'set-ba', CODE_COL: '1000110003', 'คำอธิบาย': 'คอนคอนกรีต 2 เมตร', 'ติดตั้ง': 2},
+            {'Set': 'set-ba', CODE_COL: '1010000302', 'คำอธิบาย': 'STEEL CHANNEL, 150x75x6.5 MM. 4,500 MM.LONG', 'ติดตั้ง': 2},
             {'Set': 'set-ba', CODE_COL: '1010200001', 'คำอธิบาย': 'เหล็กค้ำคอน', 'ติดตั้ง': 4},
         ])
         pages = [[{'size': '14.3', 'head': 'BA', 'count': 3}]]
         exported = load_workbook(BytesIO(workbook.export_page_crossarms(pages)), data_only=True)
         summary = list(exported['สรุปคอนแยกหน้า'].iter_rows(min_row=2, values_only=True))
-        self.assertEqual(summary, [('คอน 2.5 เมตร', '1000110004', 6, 6)])
+        self.assertEqual(summary, [
+            ('คอน 2.5 เมตร', '1000110004', 6, 6),
+            ('STEEL CHANNEL, 150x75x6.5 MM. 4,500 MM.LONG', '1010000302', 6, 6),
+        ])
         details = list(exported['ที่มาคอน'].iter_rows(min_row=2, values_only=True))
-        self.assertEqual(details, [(1, '14.3', 'BA', 3, 'คอน 2.5 เมตร', '1000110004', 6)])
+        self.assertEqual(details, [
+            (1, '14.3', 'BA', 3, 'คอน 2.5 เมตร', '1000110004', 6),
+            (1, '14.3', 'BA', 3, 'STEEL CHANNEL, 150x75x6.5 MM. 4,500 MM.LONG', '1010000302', 6),
+        ])
 
 
 if __name__ == '__main__':
