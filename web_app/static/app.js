@@ -30,6 +30,7 @@ const els = {
   exportPages: document.getElementById("exportPages"),
   exportPageHardware: document.getElementById("exportPageHardware"),
   exportPageInsulators: document.getElementById("exportPageInsulators"),
+  exportPageCrossarms: document.getElementById("exportPageCrossarms"),
   resultRows: document.getElementById("resultRows"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
@@ -746,6 +747,32 @@ els.exportPageInsulators.addEventListener("click", async () => {
     link.click();
     URL.revokeObjectURL(url);
     setStatus("Export ลูกถ้วยแยกหน้าสำเร็จ");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+els.exportPageCrossarms.addEventListener("click", async () => {
+  try {
+    saveCurrentPageFromDom();
+    setStatus("กำลังนับคอนแยกตามหน้าและหัวเสา...");
+    const response = await fetch("/api/export-page-crossarms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pages: state.pages }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Export คอนแยกหน้าไม่สำเร็จ");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "page_crossarms.xlsx";
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus("Export คอนแยกหน้าสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
   }

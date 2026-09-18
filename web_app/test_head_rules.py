@@ -185,6 +185,24 @@ class HeadRuleTests(unittest.TestCase):
         self.assertEqual(details[1], (1, '14.3', 'DE', 1, 0, 12, 0, 12))
         self.assertEqual(details[2], (2, '12.2', 'SP 1-P', 3, 2, 0, 6, 0))
 
+    def test_page_crossarm_export_expands_sets_and_applies_adjustments(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: '14.3', HEAD_COL: 'BA', MATERIAL_COL: 'BA SET', CODE_COL: 'set-ba', QTY_COL: 1},
+            {SIZE_COL: '14.3', HEAD_COL: 'BA', MATERIAL_COL: 'คอน 2.5 เมตร', CODE_COL: '1000110004', QTY_COL: 2},
+            {SIZE_COL: '14.3', HEAD_COL: 'BA', MATERIAL_COL: 'คอน 2 เมตร', CODE_COL: '1000110003', QTY_COL: -2},
+        ])
+        workbook.set_df = pd.DataFrame([
+            {'Set': 'set-ba', CODE_COL: '1000110003', 'คำอธิบาย': 'คอนคอนกรีต 2 เมตร', 'ติดตั้ง': 2},
+            {'Set': 'set-ba', CODE_COL: '1010200001', 'คำอธิบาย': 'เหล็กค้ำคอน', 'ติดตั้ง': 4},
+        ])
+        pages = [[{'size': '14.3', 'head': 'BA', 'count': 3}]]
+        exported = load_workbook(BytesIO(workbook.export_page_crossarms(pages)), data_only=True)
+        summary = list(exported['สรุปคอนแยกหน้า'].iter_rows(min_row=2, values_only=True))
+        self.assertEqual(summary, [('คอน 2.5 เมตร', '1000110004', 6, 6)])
+        details = list(exported['ที่มาคอน'].iter_rows(min_row=2, values_only=True))
+        self.assertEqual(details, [(1, '14.3', 'BA', 3, 'คอน 2.5 เมตร', '1000110004', 6)])
+
 
 if __name__ == '__main__':
     unittest.main()

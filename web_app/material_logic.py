@@ -516,6 +516,108 @@ class MaterialWorkbook:
                 cell.fill = PatternFill("solid", fgColor="E8DDF2")
         return output.getvalue()
 
+    def export_page_crossarms(self, pages: list[list[dict[str, Any]]]) -> bytes:
+        if self.base_df is None or self.set_df is None:
+            raise ValueError("กรุณาโหลด BaseData และ SET ก่อน export คอน")
+
+        set_lookup = self.set_df.copy()
+        set_lookup["_set_key"] = set_lookup[SET_COL].astype(str).str.strip().str.lower()
+        detail_totals: dict[tuple[int, str, str, str], dict[str, Any]] = {}
+
+        def add_detail(page_number: int, size: str, head: str, head_count: float, material: str, code: str, amount: float) -> None:
+            if not code.startswith("10001") or amount == 0:
+                return
+            key = (page_number, size, head, code)
+            if key not in detail_totals:
+                detail_totals[key] = {
+                    "หน้า": page_number, SIZE_COL: size, HEAD_COL: head, "จำนวนหัว": head_count,
+                    MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: 0.0,
+                }
+            detail_totals[key][TOTAL_COL] += amount
+
+        for page_number, page in enumerate(pages, start=1):
+            for item in page:
+                size = clean_text(item.get("size"))
+                head = clean_text(item.get("head"))
+                if not size or not head:
+                    continue
+                count = parse_number(item.get("count"))
+                if count == 0:
+                    continue
+                matches = self.base_df[
+                    (self.base_df[SIZE_COL].astype(str).str.strip() == size)
+                    & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
+                ]
+                for _, base_row in matches.iterrows():
+                    base_code = clean_text(base_row[CODE_COL])
+                    base_quantity = parse_number(base_row[QTY_COL]) * count
+                    if base_code.lower().startswith("set"):
+                        set_rows = set_lookup[set_lookup["_set_key"] == base_code.lower()]
+                        for _, set_row in set_rows.iterrows():
+                            code = clean_text(set_row[CODE_COL])
+                            add_detail(
+                                page_number, size, head, count,
+                                clean_text(set_row[SET_DESC_COL]), code,
+                                base_quantity * parse_number(set_row[SET_INSTALL_COL]),
+                            )
+                    else:
+                        add_detail(
+                            page_number, size, head, count,
+                            clean_text(base_row[MATERIAL_COL]), base_code, base_quantity,
+                        )
+
+        details = [row for row in detail_totals.values() if row[TOTAL_COL] != 0]
+        if not details:
+            raise ValueError("ไม่พบรายการคอนจากหัวเสาที่เลือก")
+
+        page_count = max(len(pages), 1)
+        summary_totals: dict[str, dict[str, Any]] = {}
+        for row in details:
+            code = row[CODE_COL]
+            page_number = int(row["หน้า"])
+            summary = summary_totals.setdefault(code, {MATERIAL_COL: row[MATERIAL_COL], "pages": {}})
+            summary["pages"][page_number] = summary["pages"].get(page_number, 0.0) + parse_number(row[TOTAL_COL])
+        summary_rows = []
+        for code, summary in sorted(summary_totals.items()):
+            amounts = summary["pages"]
+            row: dict[str, Any] = {MATERIAL_COL: summary[MATERIAL_COL], CODE_COL: code}
+            for page_number in range(1, page_count + 1):
+                row[f"หน้า {page_number}"] = amounts.get(page_number, 0.0)
+            row[TOTAL_COL] = sum(amounts.values())
+            summary_rows.append(row)
+
+        detail_columns = ["หน้า", SIZE_COL, HEAD_COL, "จำนวนหัว", MATERIAL_COL, CODE_COL, TOTAL_COL]
+        summary_columns = [MATERIAL_COL, CODE_COL, *(f"หน้า {number}" for number in range(1, page_count + 1)), TOTAL_COL]
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            pd.DataFrame(summary_rows, columns=summary_columns).to_excel(writer, index=False, sheet_name="สรุปคอนแยกหน้า")
+            pd.DataFrame(details, columns=detail_columns).sort_values(["หน้า", HEAD_COL, CODE_COL]).to_excel(
+                writer, index=False, sheet_name="ที่มาคอน"
+            )
+            for sheet_name in ("สรุปคอนแยกหน้า", "ที่มาคอน"):
+                sheet = writer.sheets[sheet_name]
+                for cell in sheet[1]:
+                    cell.font = Font(name="Tahoma", bold=True, color="FFFFFF")
+                    cell.fill = PatternFill("solid", fgColor="4B216E")
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row):
+                    for cell in row:
+                        cell.font = Font(name="Tahoma", size=10)
+                    for cell in row[2:]:
+                        cell.number_format = "#,##0.###"
+                sheet.freeze_panes = "C2" if sheet_name == "สรุปคอนแยกหน้า" else "A2"
+                sheet.auto_filter.ref = sheet.dimensions
+                sheet.sheet_view.showGridLines = False
+            summary_sheet = writer.sheets["สรุปคอนแยกหน้า"]
+            summary_sheet.column_dimensions["A"].width = 64
+            summary_sheet.column_dimensions["B"].width = 18
+            for column in range(3, summary_sheet.max_column + 1):
+                summary_sheet.column_dimensions[get_column_letter(column)].width = 14
+            detail_sheet = writer.sheets["ที่มาคอน"]
+            for column, width in enumerate([10, 18, 34, 14, 64, 18, 16], start=1):
+                detail_sheet.column_dimensions[get_column_letter(column)].width = width
+        return output.getvalue()
+
 
 def classify_wire_head(head: str) -> str | None:
     normalized = clean_text(head).upper()
