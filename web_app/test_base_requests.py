@@ -33,12 +33,14 @@ class BaseRequestTests(unittest.TestCase):
         request = store.submit_base_request({
             "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
             "action": "replace", "size": "14.3", "head": "TEST HEAD",
+            "original_rows": [{"material": "OLD SET", "code": "Set00001", "quantity": 1}],
             "rows": [
                 {"material": "SET TEST", "code": "Set99999", "quantity": 1},
                 {"material": "BOLT TEST", "code": "1010110001", "quantity": 3},
             ],
         })
         self.assertEqual(request["status"], "pending")
+        self.assertEqual(request["originalRows"], [{"material": "OLD SET", "code": "Set00001", "quantity": 1.0}])
         self.assertEqual(store.approved, [])
 
         reviewed = store.review_base_request(request["id"], True, "admin")

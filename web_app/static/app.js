@@ -9,6 +9,7 @@ const state = {
   cloudProjects: [],
   cloudUser: null,
   adminToken: sessionStorage.getItem("material-calculator-admin-token") || "",
+  baseRequestOriginalRows: [],
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
@@ -39,6 +40,11 @@ const els = {
   requestAction: document.getElementById("requestAction"),
   requestSize: document.getElementById("requestSize"),
   requestHead: document.getElementById("requestHead"),
+  requestAddTarget: document.getElementById("requestAddTarget"),
+  requestReplaceTarget: document.getElementById("requestReplaceTarget"),
+  replaceSize: document.getElementById("replaceSize"),
+  replaceHead: document.getElementById("replaceHead"),
+  existingDataHint: document.getElementById("existingDataHint"),
   requestMaterialRows: document.getElementById("requestMaterialRows"),
   addRequestMaterial: document.getElementById("addRequestMaterial"),
   requestNote: document.getElementById("requestNote"),
@@ -797,8 +803,9 @@ els.exportPageCrossarms.addEventListener("click", async () => {
   }
 });
 
-function addRequestMaterialRow(value = {}) {
+function addRequestMaterialRow(value = {}, isOriginal = false) {
   const row = document.createElement("tr");
+  if (isOriginal) row.dataset.original = JSON.stringify({ material: value.material || "", code: value.code || "", quantity: Number(value.quantity) });
   for (const [className, placeholder, type] of [
     ["request-material", "ชื่อรายการวัสดุ", "text"],
     ["request-code", "รหัสพัสดุหรือ Set", "text"],
@@ -813,24 +820,57 @@ function addRequestMaterialRow(value = {}) {
     if (type === "number") input.step = "any";
     input.value = className === "request-material" ? (value.material || "")
       : className === "request-code" ? (value.code || "") : (value.quantity ?? "");
+    input.addEventListener("input", () => updateRequestRowStatus(row));
     cell.appendChild(input);
     row.appendChild(cell);
   }
+  const statusCell = document.createElement("td");
+  const status = document.createElement("span");
+  status.className = "change-badge";
+  statusCell.appendChild(status);
+  row.appendChild(statusCell);
   const actionCell = document.createElement("td");
   const remove = document.createElement("button");
   remove.type = "button";
   remove.className = "danger compact";
-  remove.textContent = "ลบ";
+  remove.textContent = isOriginal ? "นำออก" : "ลบ";
   remove.addEventListener("click", () => {
-    if (els.requestMaterialRows.children.length > 1) row.remove();
+    if (row.dataset.original) {
+      const removed = row.classList.toggle("row-removed");
+      remove.textContent = removed ? "คืนค่า" : "นำออก";
+      row.querySelectorAll("input").forEach((input) => { input.disabled = removed; });
+      updateRequestRowStatus(row);
+    } else if (els.requestMaterialRows.children.length > 1) {
+      row.remove();
+    }
   });
   actionCell.appendChild(remove);
   row.appendChild(actionCell);
   els.requestMaterialRows.appendChild(row);
+  updateRequestRowStatus(row);
+}
+
+function updateRequestRowStatus(row) {
+  const badge = row.querySelector(".change-badge");
+  if (row.classList.contains("row-removed")) {
+    badge.textContent = "นำออก"; badge.dataset.kind = "removed"; return;
+  }
+  if (!row.dataset.original) {
+    badge.textContent = "เพิ่มใหม่"; badge.dataset.kind = "added"; return;
+  }
+  const original = JSON.parse(row.dataset.original);
+  const current = {
+    material: row.querySelector(".request-material").value.trim(),
+    code: row.querySelector(".request-code").value.trim(),
+    quantity: Number(row.querySelector(".request-quantity").value),
+  };
+  const changed = original.material !== current.material || original.code !== current.code || original.quantity !== current.quantity;
+  badge.textContent = changed ? "แก้ไข" : "คงเดิม";
+  badge.dataset.kind = changed ? "changed" : "same";
 }
 
 function requestMaterialValues() {
-  return [...els.requestMaterialRows.querySelectorAll("tr")].map((row) => ({
+  return [...els.requestMaterialRows.querySelectorAll("tr:not(.row-removed)")].map((row) => ({
     material: row.querySelector(".request-material").value.trim(),
     code: row.querySelector(".request-code").value.trim(),
     quantity: row.querySelector(".request-quantity").value,
@@ -841,13 +881,15 @@ async function submitBaseRequest(event) {
   event.preventDefault();
   try {
     setStatus("กำลังส่งคำขอให้ Admin ตรวจ...");
+    const replacing = els.requestAction.value === "replace";
+    const size = replacing ? els.replaceSize.value : els.requestSize.value;
+    const head = replacing ? els.replaceHead.value : els.requestHead.value;
     const response = await fetch("/api/base-requests", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         submitter_name: els.requesterName.value, employee_id: els.requesterEmployeeId.value,
         department: els.requesterDepartment.value, action: els.requestAction.value,
-        size: els.requestSize.value, head: els.requestHead.value,
-        rows: requestMaterialValues(), note: els.requestNote.value,
+        size, head, rows: requestMaterialValues(), original_rows: replacing ? state.baseRequestOriginalRows : [], note: els.requestNote.value,
       }),
     });
     const data = await response.json();
@@ -856,11 +898,64 @@ async function submitBaseRequest(event) {
     els.requestHead.value = "";
     els.requestNote.value = "";
     els.requestMaterialRows.innerHTML = "";
-    addRequestMaterialRow();
+    state.baseRequestOriginalRows = [];
+    els.requestAction.value = "add";
+    await switchRequestAction();
     setStatus(`ส่งคำขอ ${data.request.id.slice(0, 8)} ให้ Admin แล้ว`);
   } catch (error) {
     setStatus(error.message, true);
   }
+}
+
+function setSelectOptions(select, values, placeholder) {
+  select.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = ""; empty.textContent = placeholder; select.appendChild(empty);
+  values.forEach((value) => {
+    const option = document.createElement("option"); option.value = value; option.textContent = value; select.appendChild(option);
+  });
+}
+
+async function switchRequestAction() {
+  const replacing = els.requestAction.value === "replace";
+  els.requestAddTarget.hidden = replacing;
+  els.requestReplaceTarget.hidden = !replacing;
+  els.existingDataHint.hidden = !replacing;
+  els.requestMaterialRows.innerHTML = "";
+  state.baseRequestOriginalRows = [];
+  if (!replacing) {
+    addRequestMaterialRow();
+    return;
+  }
+  setSelectOptions(els.replaceSize, state.sizes, "เลือกขนาดเสา");
+  setSelectOptions(els.replaceHead, [], "เลือกหัวเสา");
+  els.existingDataHint.textContent = "เลือกขนาดเสาและหัวเสาเพื่อโหลดข้อมูลเดิม";
+}
+
+async function loadReplaceHeads() {
+  setSelectOptions(els.replaceHead, [], "กำลังโหลด...");
+  els.requestMaterialRows.innerHTML = "";
+  state.baseRequestOriginalRows = [];
+  if (!els.replaceSize.value) return;
+  try {
+    const response = await fetch(`/api/heads?size=${encodeURIComponent(els.replaceSize.value)}`);
+    const data = await readJson(response);
+    setSelectOptions(els.replaceHead, data.heads, "เลือกหัวเสา");
+    els.existingDataHint.textContent = "เลือกหัวเสาเพื่อดูรายการเดิม";
+  } catch (error) { setStatus(error.message, true); }
+}
+
+async function loadExistingBaseEntry() {
+  els.requestMaterialRows.innerHTML = "";
+  state.baseRequestOriginalRows = [];
+  if (!els.replaceSize.value || !els.replaceHead.value) return;
+  try {
+    const response = await fetch(`/api/base-entry?size=${encodeURIComponent(els.replaceSize.value)}&head=${encodeURIComponent(els.replaceHead.value)}`);
+    const data = await readJson(response);
+    state.baseRequestOriginalRows = data.rows.map((row) => ({ ...row }));
+    data.rows.forEach((row) => addRequestMaterialRow(row, true));
+    els.existingDataHint.textContent = `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว แก้ไข เพิ่ม หรือนำรายการออกได้`;
+  } catch (error) { setStatus(error.message, true); }
 }
 
 async function adminFetch(url, options = {}) {
@@ -906,12 +1001,20 @@ function renderBaseRequests(requests) {
     const meta = document.createElement("p");
     meta.textContent = `${request.submitterName} · ${request.employeeId} · ${request.department} · ${request.action === "replace" ? "แทนที่ข้อมูลเดิม" : "เพิ่มข้อมูล"}`;
     const table = document.createElement("table");
-    table.innerHTML = "<thead><tr><th>รายการวัสดุ</th><th>รหัส</th><th>จำนวน</th></tr></thead>";
+    const isReplace = request.action === "replace";
+    table.innerHTML = isReplace
+      ? "<thead><tr><th>สถานะ</th><th>รายการวัสดุ</th><th>รหัส</th><th>เดิม</th><th>ใหม่</th></tr></thead>"
+      : "<thead><tr><th>รายการวัสดุ</th><th>รหัส</th><th>จำนวน</th></tr></thead>";
     const body = document.createElement("tbody");
-    request.rows.forEach((item) => {
+    const displayedRows = isReplace ? compareBaseRows(request.originalRows || [], request.rows) : request.rows;
+    displayedRows.forEach((item) => {
       const row = document.createElement("tr");
-      [item.material, item.code, item.quantity].forEach((value) => {
+      const values = isReplace
+        ? [item.statusLabel, item.material, item.code, item.oldQuantity ?? "", item.newQuantity ?? ""]
+        : [item.material, item.code, item.quantity];
+      values.forEach((value, index) => {
         const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell);
+        if (isReplace && index === 0) cell.className = `diff-${item.status}`;
       });
       body.appendChild(row);
     });
@@ -933,6 +1036,35 @@ function renderBaseRequests(requests) {
     if (request.note) { const note = document.createElement("p"); note.textContent = `หมายเหตุ: ${request.note}`; card.appendChild(note); }
     const wrap = document.createElement("div"); wrap.className = "table-wrap"; wrap.appendChild(table); card.append(wrap, footer);
     els.baseRequestList.appendChild(card);
+  });
+}
+
+function compareBaseRows(originalRows, newRows) {
+  const keyOf = (row) => `${String(row.material).trim()}\u0000${String(row.code).trim()}`;
+  const aggregate = (rows) => {
+    const result = new Map();
+    rows.forEach((row) => {
+      const key = keyOf(row);
+      if (!result.has(key)) result.set(key, { ...row, quantity: 0 });
+      result.get(key).quantity += Number(row.quantity || 0);
+    });
+    return result;
+  };
+  const original = aggregate(originalRows);
+  const proposed = aggregate(newRows);
+  const keys = [...new Set([...original.keys(), ...proposed.keys()])];
+  return keys.map((key) => {
+    const oldRow = original.get(key);
+    const newRow = proposed.get(key);
+    let status = "same";
+    if (!oldRow) status = "added";
+    else if (!newRow) status = "removed";
+    else if (Number(oldRow.quantity) !== Number(newRow.quantity)) status = "changed";
+    return {
+      status, statusLabel: { same: "คงเดิม", added: "เพิ่ม", removed: "นำออก", changed: "เปลี่ยนจำนวน" }[status],
+      material: (newRow || oldRow).material, code: (newRow || oldRow).code,
+      oldQuantity: oldRow?.quantity, newQuantity: newRow?.quantity,
+    };
   });
 }
 
@@ -958,6 +1090,9 @@ async function reviewBaseRequest(requestId, approve) {
 
 els.addRequestMaterial.addEventListener("click", () => addRequestMaterialRow());
 els.baseRequestForm.addEventListener("submit", submitBaseRequest);
+els.requestAction.addEventListener("change", switchRequestAction);
+els.replaceSize.addEventListener("change", loadReplaceHeads);
+els.replaceHead.addEventListener("change", loadExistingBaseEntry);
 els.adminLoginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {

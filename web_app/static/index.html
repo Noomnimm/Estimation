@@ -67,11 +67,18 @@
           <label><span>รหัสพนักงาน</span><input id="requesterEmployeeId" required></label>
           <label><span>สังกัด</span><input id="requesterDepartment" required></label>
           <label><span>ประเภทคำขอ</span><select id="requestAction"><option value="add">เพิ่มข้อมูล</option><option value="replace">แทนที่หัวเสาเดิมทั้งหมด</option></select></label>
-          <label><span>ขนาดเสา (m)</span><input id="requestSize" required placeholder="เช่น 14.3 หรือ 99"></label>
-          <label><span>รหัสหัวเสา</span><input id="requestHead" required placeholder="เช่น DDE.st 4.5m"></label>
+          <div id="requestAddTarget" class="target-fields">
+            <label><span>ขนาดเสา (m)</span><input id="requestSize" placeholder="เช่น 14.3 หรือ 99"></label>
+            <label><span>รหัสหัวเสาใหม่</span><input id="requestHead" placeholder="เช่น DDE.st 4.5m"></label>
+          </div>
+          <div id="requestReplaceTarget" class="target-fields" hidden>
+            <label><span>เลือกขนาดเสาเดิม</span><select id="replaceSize"></select></label>
+            <label><span>เลือกหัวเสาเดิม</span><select id="replaceHead"></select></label>
+          </div>
         </div>
+        <div id="existingDataHint" class="existing-data-hint" hidden></div>
         <div class="request-material-head"><h3>รายการวัสดุ</h3><button id="addRequestMaterial" type="button">เพิ่มรายการ</button></div>
-        <div class="table-wrap"><table class="request-table"><thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ/SET</th><th>จำนวน</th><th></th></tr></thead><tbody id="requestMaterialRows"></tbody></table></div>
+        <div class="table-wrap"><table class="request-table"><thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ/SET</th><th>จำนวน</th><th>การเปลี่ยนแปลง</th><th></th></tr></thead><tbody id="requestMaterialRows"></tbody></table></div>
         <label class="note-field"><span>เหตุผลหรือหมายเหตุ</span><textarea id="requestNote" rows="3"></textarea></label>
         <div class="actions"><button class="primary" type="submit">ส่งให้ Admin ตรวจ</button></div>
       </form>

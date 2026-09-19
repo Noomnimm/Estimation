@@ -290,14 +290,24 @@ td select:focus,
 .section-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
 .section-heading p, .request-card p { margin-top: 5px; color: var(--muted); font-size: 13px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.target-fields { display: contents; }
 .form-grid label, .note-field, .admin-login label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
 .form-grid input, .form-grid select, .note-field textarea, .admin-login input { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; font: inherit; }
 .request-material-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
 .request-material-head h3 { margin: 0; font-size: 16px; }
-.request-table th:nth-child(1) { width: 52%; }
-.request-table th:nth-child(2) { width: 25%; }
-.request-table th:nth-child(3) { width: 15%; }
-.request-table th:nth-child(4) { width: 8%; }
+.request-table th:nth-child(1) { width: 43%; }
+.request-table th:nth-child(2) { width: 22%; }
+.request-table th:nth-child(3) { width: 12%; }
+.request-table th:nth-child(4) { width: 15%; }
+.request-table th:nth-child(5) { width: 8%; }
+.existing-data-hint { margin-top: 14px; padding: 10px 12px; border: 1px solid #d8c6e5; border-radius: 10px; background: var(--accent-light); color: var(--accent-dark); font-size: 13px; }
+.change-badge { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #eef1f4; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.change-badge[data-kind="added"], .diff-added { color: #157347; background: #e9f7ef; }
+.change-badge[data-kind="changed"], .diff-changed { color: #8a5a00; background: #fff4d6; }
+.change-badge[data-kind="removed"], .diff-removed { color: var(--danger); background: #fff0ef; }
+.diff-same { color: var(--muted); background: #f3f4f6; }
+.row-removed { opacity: 0.58; }
+.row-removed input { text-decoration: line-through; }
 .note-field { margin-top: 14px; }
 .note-field textarea { resize: vertical; }
 .admin-login { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }

@@ -101,6 +101,10 @@ class AppHandler(SimpleHTTPRequestHandler):
             query = parse_qs(parsed.query)
             self.handle_json(lambda: {"heads": WORKBOOK.get_heads(query.get("size", [""])[0])})
             return
+        if parsed.path == "/api/base-entry":
+            query = parse_qs(parsed.query)
+            self.base_entry(query.get("size", [""])[0], query.get("head", [""])[0])
+            return
         if parsed.path == "/api/status":
             self.handle_json(WORKBOOK.get_status)
             return
@@ -151,6 +155,24 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def load_set(self) -> None:
         self.handle_json(lambda: WORKBOOK.load_set(save_upload(self, "set")))
+
+    def base_entry(self, size: str, head: str) -> None:
+        try:
+            if WORKBOOK.base_df is None:
+                raise ValueError("ยังไม่ได้โหลด BaseData")
+            size, head = str(size).strip(), str(head).strip()
+            matches = WORKBOOK.base_df[
+                (WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == size)
+                & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == head)
+            ]
+            rows = [{
+                "material": str(row[MATERIAL_COL]).strip(),
+                "code": str(row[CODE_COL]).strip(),
+                "quantity": float(row[QTY_COL]),
+            } for _, row in matches.iterrows()]
+            self.send_json({"size": size, "head": head, "rows": rows})
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
     def calculate(self) -> None:
         payload = self.read_json()

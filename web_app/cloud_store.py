@@ -93,12 +93,29 @@ class GoogleSheetProjectStore:
         action = str(payload.get("action", "add")).strip().lower()
         if action not in {"add", "replace"}:
             action = "add"
+        original_rows = payload.get("original_rows", []) if action == "replace" else []
+        if not isinstance(original_rows, list):
+            original_rows = []
+        clean_original_rows = []
+        for row in original_rows:
+            try:
+                quantity = float(row.get("quantity", 0))
+            except (TypeError, ValueError):
+                quantity = 0
+            clean_original_rows.append({
+                "material": str(row.get("material", "")).strip(),
+                "code": str(row.get("code", "")).strip(),
+                "quantity": quantity,
+            })
         record = {
             "request_id": uuid.uuid4().hex,
             "submitted_at": datetime.now(timezone.utc).isoformat(),
             **values,
             "action": action,
-            "rows_json": json.dumps(clean_rows, ensure_ascii=False, separators=(",", ":")),
+            "rows_json": json.dumps(
+                {"new": clean_rows, "original": clean_original_rows},
+                ensure_ascii=False, separators=(",", ":"),
+            ),
             "note": str(payload.get("note", "")).strip(),
             "status": "pending", "reviewed_at": "", "reviewed_by": "", "review_note": "",
         }
@@ -128,7 +145,9 @@ class GoogleSheetProjectStore:
             self._update_named_record(REQUEST_SHEET, REQUEST_HEADERS, record, record["_row_number"])
             if approve:
                 self._ensure_named_sheet(APPROVED_SHEET, APPROVED_HEADERS)
-                for item in json.loads(record["rows_json"]):
+                stored_rows = json.loads(record["rows_json"])
+                new_rows = stored_rows.get("new", []) if isinstance(stored_rows, dict) else stored_rows
+                for item in new_rows:
                     self._append_named_record(APPROVED_SHEET, APPROVED_HEADERS, {
                         "size": record["size"], "head": record["head"],
                         "material": item["material"], "code": item["code"], "quantity": item["quantity"],
@@ -204,14 +223,21 @@ class GoogleSheetProjectStore:
     @staticmethod
     def _request_to_public(record: dict[str, Any]) -> dict[str, Any]:
         try:
-            rows = json.loads(record.get("rows_json", "[]"))
+            stored_rows = json.loads(record.get("rows_json", "[]"))
         except json.JSONDecodeError:
-            rows = []
+            stored_rows = []
+        if isinstance(stored_rows, dict):
+            rows = stored_rows.get("new", [])
+            original_rows = stored_rows.get("original", [])
+        else:
+            rows = stored_rows
+            original_rows = []
         return {
             "id": record.get("request_id", ""), "submittedAt": record.get("submitted_at", ""),
             "submitterName": record.get("submitter_name", ""), "employeeId": record.get("employee_id", ""),
             "department": record.get("department", ""), "action": record.get("action", "add"),
             "size": record.get("size", ""), "head": record.get("head", ""), "rows": rows,
+            "originalRows": original_rows,
             "note": record.get("note", ""), "status": record.get("status", "pending"),
             "reviewedAt": record.get("reviewed_at", ""), "reviewedBy": record.get("reviewed_by", ""),
             "reviewNote": record.get("review_note", ""),
