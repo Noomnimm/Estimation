@@ -20,6 +20,8 @@ MATERIAL_COL = "รายการวัสดุ"
 CODE_COL = "รหัสพัสดุ"
 QTY_COL = "จำนวน"
 TOTAL_COL = "จำนวนรวม"
+DEPARTMENT_COL = "แผนก"
+DEFAULT_DEPARTMENT = "แผนกแรงสูง"
 
 SET_COL = "Set"
 SET_DESC_COL = "คำอธิบาย"
@@ -63,10 +65,11 @@ class MaterialWorkbook:
         self.base_path: Path | None = None
         self.set_path: Path | None = None
 
-    def load_base(self, path: str | Path) -> dict[str, Any]:
+    def load_base(self, path: str | Path, department: str = DEFAULT_DEPARTMENT) -> dict[str, Any]:
         df = pd.read_excel(path, sheet_name=BASE_SHEET)
         require_columns(df, [SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL], "BaseData")
         df = df[[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL]].copy()
+        df[DEPARTMENT_COL] = department
         df = df.dropna(subset=[SIZE_COL, HEAD_COL, CODE_COL])
         self.base_df = df
         self.base_path = Path(path)
@@ -90,17 +93,44 @@ class MaterialWorkbook:
             "sets": int(df[SET_COL].astype(str).str.strip().str.lower().nunique()),
         }
 
-    def get_sizes(self) -> list[str]:
+    def load_keycode_catalog(self, path: str | Path, department: str) -> int:
+        raw = pd.read_excel(path, header=None)
+        rows = []
+        for _, source in raw.iloc[7:].iterrows():
+            keycode = clean_text(source.iloc[1] if len(source) > 1 else "")
+            description = clean_text(source.iloc[2] if len(source) > 2 else "")
+            set_code = clean_text(source.iloc[5] if len(source) > 5 else "")
+            material_code = clean_text(source.iloc[8] if len(source) > 8 else "")
+            code = set_code or material_code
+            if not keycode or not description or not code:
+                continue
+            rows.append({
+                SIZE_COL: keycode, HEAD_COL: description, MATERIAL_COL: description,
+                CODE_COL: code, QTY_COL: 1.0, DEPARTMENT_COL: department,
+            })
+        if rows:
+            self.base_df = pd.concat([self.base_df, pd.DataFrame(rows)], ignore_index=True)
+        return len(rows)
+
+    def get_departments(self) -> list[str]:
+        configured = [DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC", "แผนกหม้อแปลง", "แผนกสายส่ง"]
+        return configured
+
+    def get_sizes(self, department: str = DEFAULT_DEPARTMENT) -> list[str]:
         if self.base_df is None:
             return []
-        sizes = self.base_df[SIZE_COL].dropna().astype(str).str.strip().unique().tolist()
+        matches = self.base_df[self._department_mask(department)]
+        sizes = matches[SIZE_COL].dropna().astype(str).str.strip().unique().tolist()
         return sorted(sizes, key=natural_key)
 
-    def get_heads(self, size: str) -> list[str]:
+    def get_heads(self, size: str, department: str = DEFAULT_DEPARTMENT) -> list[str]:
         if self.base_df is None:
             raise ValueError("ยังไม่ได้โหลดไฟล์ BaseData")
         selected = str(size).strip()
-        matches = self.base_df[self.base_df[SIZE_COL].astype(str).str.strip() == selected]
+        matches = self.base_df[
+            (self.base_df[SIZE_COL].astype(str).str.strip() == selected)
+            & self._department_mask(department)
+        ]
         heads = matches[HEAD_COL].dropna().astype(str).str.strip().unique().tolist()
         return sorted(heads, key=natural_key)
 
@@ -111,6 +141,7 @@ class MaterialWorkbook:
                 "file": self.base_path.name,
                 "rows": int(len(self.base_df)),
                 "sizes": self.get_sizes(),
+                "departments": self.get_departments(),
             }
 
         set_data = None
@@ -135,12 +166,14 @@ class MaterialWorkbook:
             for row_number, item in enumerate(page, start=1):
                 size = str(item.get("size", "")).strip()
                 head = str(item.get("head", "")).strip()
+                department = clean_text(item.get("department")) or DEFAULT_DEPARTMENT
                 count = parse_number(item.get("count"))
                 if not size or not head or count <= 0:
                     continue
 
                 input_count += 1
-                wire_kind = classify_wire_head(head)
+                high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
+                wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
                 wire2 = clean_text(item.get("wire2"))
                 validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head)
@@ -150,6 +183,7 @@ class MaterialWorkbook:
                 matches = self.base_df[
                     (self.base_df[SIZE_COL].astype(str).str.strip() == size)
                     & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
+                    & self._department_mask(department)
                 ]
 
                 for _, row in matches.iterrows():
@@ -162,7 +196,7 @@ class MaterialWorkbook:
                     matched_rows += 1
 
                 matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head))
-                if has_combined_lat(head):
+                if high_voltage and has_combined_lat(head):
                     matched_rows += add_wire_materials(totals, "de", lat_wire, "", count)
 
         self.summary = sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
@@ -172,6 +206,14 @@ class MaterialWorkbook:
             "matchedRows": matched_rows,
             "summaryRows": len(self.summary),
         }
+
+    def _department_mask(self, department: str) -> pd.Series:
+        """Keep older in-memory/test BaseData compatible with the new department column."""
+        if self.base_df is None:
+            return pd.Series(dtype=bool)
+        if DEPARTMENT_COL not in self.base_df.columns:
+            return pd.Series(department == DEFAULT_DEPARTMENT, index=self.base_df.index)
+        return self.base_df[DEPARTMENT_COL].astype(str).str.strip() == department
 
     def expand_set(self) -> dict[str, Any]:
         if self.set_df is None:
@@ -240,6 +282,7 @@ class MaterialWorkbook:
             for item in page:
                 size = clean_text(item.get("size"))
                 head = clean_text(item.get("head"))
+                department = clean_text(item.get("department")) or DEFAULT_DEPARTMENT
                 count = parse_number(item.get("count"))
                 if not size or not head or count <= 0:
                     continue
@@ -322,6 +365,7 @@ class MaterialWorkbook:
             for row_number, item in enumerate(page, start=1):
                 size = clean_text(item.get("size"))
                 head = clean_text(item.get("head"))
+                department = clean_text(item.get("department")) or DEFAULT_DEPARTMENT
                 count = parse_number(item.get("count"))
                 if not size or not head or count <= 0:
                     continue
@@ -338,6 +382,7 @@ class MaterialWorkbook:
                     matches = self.base_df[
                         (self.base_df[SIZE_COL].astype(str).str.strip() == size)
                         & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
+                        & self._department_mask(department)
                     ]
                     for _, base_row in matches.iterrows():
                         set_code = clean_text(base_row[CODE_COL])
@@ -353,7 +398,8 @@ class MaterialWorkbook:
                             add_page_item("อุปกรณ์ยึดสาย", material, code, page_number, amount)
                             details.append({"หน้า": page_number, HEAD_COL: head, "ที่มา": set_code, MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: amount})
 
-                wire_kind = classify_wire_head(head)
+                high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
+                wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
                 wire2 = clean_text(item.get("wire2"))
                 validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head)
@@ -361,7 +407,7 @@ class MaterialWorkbook:
                 add_wire_materials(wire_totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head))
 
                 lat_wire = clean_text(item.get("latWire"))
-                if has_combined_lat(head):
+                if high_voltage and has_combined_lat(head):
                     validate_wire_selection("de", lat_wire, "", page_number, row_number, f"{head} — LAT.SLK")
                     add_wire_materials(wire_totals, "de", lat_wire, "", count)
 
@@ -450,6 +496,7 @@ class MaterialWorkbook:
             for item in page:
                 size = clean_text(item.get("size"))
                 head = clean_text(item.get("head"))
+                department = clean_text(item.get("department")) or DEFAULT_DEPARTMENT
                 if not size or not head:
                     continue
                 count = parse_number(item.get("count"))
@@ -540,6 +587,7 @@ class MaterialWorkbook:
             for item in page:
                 size = clean_text(item.get("size"))
                 head = clean_text(item.get("head"))
+                department = clean_text(item.get("department")) or DEFAULT_DEPARTMENT
                 if not size or not head:
                     continue
                 count = parse_number(item.get("count"))
@@ -548,6 +596,7 @@ class MaterialWorkbook:
                 matches = self.base_df[
                     (self.base_df[SIZE_COL].astype(str).str.strip() == size)
                     & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
+                    & self._department_mask(department)
                 ]
                 for _, base_row in matches.iterrows():
                     base_code = clean_text(base_row[CODE_COL])

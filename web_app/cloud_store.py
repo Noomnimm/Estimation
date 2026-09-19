@@ -32,7 +32,7 @@ REQUEST_HEADERS = [
 APPROVED_SHEET = "ApprovedBaseData"
 APPROVED_HEADERS = [
     "size", "head", "material", "code", "quantity", "action", "request_id",
-    "approved_at", "approved_by",
+    "approved_at", "approved_by", "department",
 ]
 
 
@@ -107,13 +107,14 @@ class GoogleSheetProjectStore:
                 "code": str(row.get("code", "")).strip(),
                 "quantity": quantity,
             })
+        target_department = str(payload.get("target_department", "แผนกแรงสูง")).strip() or "แผนกแรงสูง"
         record = {
             "request_id": uuid.uuid4().hex,
             "submitted_at": datetime.now(timezone.utc).isoformat(),
             **values,
             "action": action,
             "rows_json": json.dumps(
-                {"new": clean_rows, "original": clean_original_rows},
+                {"new": clean_rows, "original": clean_original_rows, "department": target_department},
                 ensure_ascii=False, separators=(",", ":"),
             ),
             "note": str(payload.get("note", "")).strip(),
@@ -153,6 +154,7 @@ class GoogleSheetProjectStore:
                         "material": item["material"], "code": item["code"], "quantity": item["quantity"],
                         "action": record["action"], "request_id": request_id,
                         "approved_at": now, "approved_by": reviewer,
+                        "department": stored_rows.get("department", "แผนกแรงสูง") if isinstance(stored_rows, dict) else "แผนกแรงสูง",
                     })
         return self._request_to_public(record)
 
@@ -182,7 +184,13 @@ class GoogleSheetProjectStore:
                 valueInputOption="RAW", body={"values": [headers]},
             ).execute()
         elif current[0] != headers:
-            raise ValueError(f"หัวตารางในแท็บ {sheet_name} ไม่ตรงกับรูปแบบของระบบ")
+            if headers[:len(current[0])] == current[0]:
+                service.spreadsheets().values().update(
+                    spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A1",
+                    valueInputOption="RAW", body={"values": [headers]},
+                ).execute()
+            else:
+                raise ValueError(f"หัวตารางในแท็บ {sheet_name} ไม่ตรงกับรูปแบบของระบบ")
 
     def _read_named_rows(self, sheet_name: str, headers: list[str], key: str) -> list[dict[str, Any]]:
         self._ensure_named_sheet(sheet_name, headers)
@@ -229,13 +237,16 @@ class GoogleSheetProjectStore:
         if isinstance(stored_rows, dict):
             rows = stored_rows.get("new", [])
             original_rows = stored_rows.get("original", [])
+            department = stored_rows.get("department", "แผนกแรงสูง")
         else:
             rows = stored_rows
             original_rows = []
+            department = "แผนกแรงสูง"
         return {
             "id": record.get("request_id", ""), "submittedAt": record.get("submitted_at", ""),
             "submitterName": record.get("submitter_name", ""), "employeeId": record.get("employee_id", ""),
             "department": record.get("department", ""), "action": record.get("action", "add"),
+            "targetDepartment": department,
             "size": record.get("size", ""), "head": record.get("head", ""), "rows": rows,
             "originalRows": original_rows,
             "note": record.get("note", ""), "status": record.get("status", "pending"),

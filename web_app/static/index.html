@@ -26,6 +26,10 @@
     <section class="project-bar tab-panel" data-panel="calculator">
       <div class="project-fields">
         <label>
+          <span>แผนก</span>
+          <select id="departmentSelect"></select>
+        </label>
+        <label>
           <span>ชื่องาน</span>
           <input id="projectName" type="text" placeholder="เช่น งานปรับปรุงระบบจำหน่าย">
         </label>
@@ -66,10 +70,11 @@
           <label><span>ชื่อ–นามสกุล</span><input id="requesterName" required></label>
           <label><span>รหัสพนักงาน</span><input id="requesterEmployeeId" required></label>
           <label><span>สังกัด</span><input id="requesterDepartment" required></label>
+          <label><span>BaseData ของแผนก</span><select id="requestTargetDepartment"></select></label>
           <label><span>ประเภทคำขอ</span><select id="requestAction"><option value="add">เพิ่มข้อมูล</option><option value="replace">แทนที่หัวเสาเดิมทั้งหมด</option></select></label>
           <div id="requestAddTarget" class="target-fields">
-            <label><span>ขนาดเสา (m)</span><input id="requestSize" placeholder="เช่น 14.3 หรือ 99"></label>
-            <label><span>รหัสหัวเสาใหม่</span><input id="requestHead" placeholder="เช่น DDE.st 4.5m"></label>
+            <label><span>ขนาดเสา / KeyCode</span><input id="requestSize" placeholder="เช่น 14.3 หรือ 99"></label>
+            <label><span>รหัสหัวเสา / รายการใหม่</span><input id="requestHead" placeholder="เช่น DDE.st 4.5m"></label>
           </div>
           <div id="requestReplaceTarget" class="target-fields" hidden>
             <label><span>เลือกขนาดเสาเดิม</span><select id="replaceSize"></select></label>

@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 
-from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL
+from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL, DEFAULT_DEPARTMENT
 from cloud_store import GoogleSheetProjectStore
 
 
@@ -26,6 +26,8 @@ OUTPUTS = ROOT / "outputs"
 STATIC = ROOT / "static"
 DEFAULT_BASE = ROOT.parent / "Newdata.xlsx"
 DEFAULT_SET = ROOT.parent / "New folder" / "Allset.xlsx"
+DEFAULT_TRANSFORMER = ROOT.parent / "หม้อแปลง.xlsx"
+DEFAULT_TRANSMISSION = ROOT.parent / "สายส่ง 115kV.xlsx"
 
 WORKBOOK = MaterialWorkbook()
 CLOUD_STORE = GoogleSheetProjectStore()
@@ -34,6 +36,10 @@ ADMIN_PASSWORD = os.environ.get("BASE_ADMIN_PASSWORD", "")
 ADMIN_SECRET = os.environ.get("BASE_ADMIN_SESSION_SECRET", "").strip() or ADMIN_PASSWORD
 if DEFAULT_BASE.exists():
     WORKBOOK.load_base(DEFAULT_BASE)
+if DEFAULT_TRANSFORMER.exists():
+    WORKBOOK.load_keycode_catalog(DEFAULT_TRANSFORMER, "แผนกหม้อแปลง")
+if DEFAULT_TRANSMISSION.exists():
+    WORKBOOK.load_keycode_catalog(DEFAULT_TRANSMISSION, "แผนกสายส่ง")
 if DEFAULT_SET.exists():
     WORKBOOK.load_set(DEFAULT_SET)
 
@@ -42,6 +48,10 @@ def reload_approved_base() -> None:
     if not DEFAULT_BASE.exists():
         return
     WORKBOOK.load_base(DEFAULT_BASE)
+    if DEFAULT_TRANSFORMER.exists():
+        WORKBOOK.load_keycode_catalog(DEFAULT_TRANSFORMER, "แผนกหม้อแปลง")
+    if DEFAULT_TRANSMISSION.exists():
+        WORKBOOK.load_keycode_catalog(DEFAULT_TRANSMISSION, "แผนกสายส่ง")
     try:
         approved = CLOUD_STORE.list_approved_base_rows()
     except Exception:
@@ -55,13 +65,17 @@ def reload_approved_base() -> None:
     for request_rows in grouped.values():
         first = request_rows[0]
         size, head = str(first.get("size", "")).strip(), str(first.get("head", "")).strip()
+        department = str(first.get("department", "")).strip() or DEFAULT_DEPARTMENT
         if first.get("action") == "replace":
             WORKBOOK.base_df = WORKBOOK.base_df[
-                ~((WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == size) & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == head))
+                ~((WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == size)
+                  & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == head)
+                  & (WORKBOOK.base_df[DEPARTMENT_COL].astype(str).str.strip() == department))
             ]
         additions = [{
             SIZE_COL: size, HEAD_COL: head, MATERIAL_COL: str(row.get("material", "")).strip(),
             CODE_COL: str(row.get("code", "")).strip(), QTY_COL: float(row.get("quantity", 0)),
+            DEPARTMENT_COL: department,
         } for row in request_rows]
         WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
 
@@ -99,11 +113,16 @@ class AppHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/heads":
             query = parse_qs(parsed.query)
-            self.handle_json(lambda: {"heads": WORKBOOK.get_heads(query.get("size", [""])[0])})
+            self.handle_json(lambda: {"heads": WORKBOOK.get_heads(query.get("size", [""])[0], query.get("department", [DEFAULT_DEPARTMENT])[0])})
+            return
+        if parsed.path == "/api/sizes":
+            query = parse_qs(parsed.query)
+            department = query.get("department", [DEFAULT_DEPARTMENT])[0]
+            self.handle_json(lambda: {"sizes": WORKBOOK.get_sizes(department)})
             return
         if parsed.path == "/api/base-entry":
             query = parse_qs(parsed.query)
-            self.base_entry(query.get("size", [""])[0], query.get("head", [""])[0])
+            self.base_entry(query.get("size", [""])[0], query.get("head", [""])[0], query.get("department", [DEFAULT_DEPARTMENT])[0])
             return
         if parsed.path == "/api/status":
             self.handle_json(WORKBOOK.get_status)
@@ -156,7 +175,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def load_set(self) -> None:
         self.handle_json(lambda: WORKBOOK.load_set(save_upload(self, "set")))
 
-    def base_entry(self, size: str, head: str) -> None:
+    def base_entry(self, size: str, head: str, department: str = DEFAULT_DEPARTMENT) -> None:
         try:
             if WORKBOOK.base_df is None:
                 raise ValueError("ยังไม่ได้โหลด BaseData")
@@ -164,6 +183,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             matches = WORKBOOK.base_df[
                 (WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == size)
                 & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == head)
+                & (WORKBOOK.base_df[DEPARTMENT_COL].astype(str).str.strip() == department)
             ]
             rows = [{
                 "material": str(row[MATERIAL_COL]).strip(),

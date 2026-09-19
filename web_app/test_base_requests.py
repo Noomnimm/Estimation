@@ -32,6 +32,7 @@ class BaseRequestTests(unittest.TestCase):
         store = MemoryBaseRequestStore()
         request = store.submit_base_request({
             "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "target_department": "แผนกแรงสูง TAC",
             "action": "replace", "size": "14.3", "head": "TEST HEAD",
             "original_rows": [{"material": "OLD SET", "code": "Set00001", "quantity": 1}],
             "rows": [
@@ -40,6 +41,7 @@ class BaseRequestTests(unittest.TestCase):
             ],
         })
         self.assertEqual(request["status"], "pending")
+        self.assertEqual(request["targetDepartment"], "แผนกแรงสูง TAC")
         self.assertEqual(request["originalRows"], [{"material": "OLD SET", "code": "Set00001", "quantity": 1.0}])
         self.assertEqual(store.approved, [])
 
@@ -48,6 +50,7 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(len(store.approved), 2)
         self.assertTrue(all(row["request_id"] == request["id"] for row in store.approved))
         self.assertTrue(all(row["action"] == "replace" for row in store.approved))
+        self.assertTrue(all(row["department"] == "แผนกแรงสูง TAC" for row in store.approved))
 
     def test_reject_does_not_publish_rows(self):
         store = MemoryBaseRequestStore()

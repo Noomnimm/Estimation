@@ -15,3 +15,7 @@ venv/
 .env
 .idea/
 .vscode/
+
+# Runtime BaseData catalogs deployed with the web app
+!หม้อแปลง.xlsx
+!สายส่ง 115kV.xlsx

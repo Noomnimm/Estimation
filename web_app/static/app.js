@@ -1,4 +1,8 @@
+const DEPARTMENTS = ["แผนกแรงสูง", "แผนกแรงสูง TAC", "แผนกหม้อแปลง", "แผนกสายส่ง"];
+const DEFAULT_DEPARTMENT = DEPARTMENTS[0];
+
 const state = {
+  department: DEFAULT_DEPARTMENT,
   sizes: [],
   pages: [[blankRow(), blankRow()]],
   currentPage: 0,
@@ -16,6 +20,7 @@ const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
 
 const els = {
   status: document.getElementById("status"),
+  departmentSelect: document.getElementById("departmentSelect"),
   totalPages: document.getElementById("totalPages"),
   applyPages: document.getElementById("applyPages"),
   prevPage: document.getElementById("prevPage"),
@@ -37,6 +42,7 @@ const els = {
   requesterName: document.getElementById("requesterName"),
   requesterEmployeeId: document.getElementById("requesterEmployeeId"),
   requesterDepartment: document.getElementById("requesterDepartment"),
+  requestTargetDepartment: document.getElementById("requestTargetDepartment"),
   requestAction: document.getElementById("requestAction"),
   requestSize: document.getElementById("requestSize"),
   requestHead: document.getElementById("requestHead"),
@@ -72,8 +78,8 @@ const els = {
   cloudNotice: document.getElementById("cloudNotice"),
 };
 
-function blankRow() {
-  return { size: "", head: "", count: "", wire1: "", wire2: "", latWire: "" };
+function blankRow(department = DEFAULT_DEPARTMENT) {
+  return { department, size: "", head: "", count: "", wire1: "", wire2: "", latWire: "" };
 }
 
 function setStatus(message, isError = false) {
@@ -102,6 +108,7 @@ function saveCurrentPageFromDom() {
   const rows = [...els.inputRows.querySelectorAll("tr.input-row")];
   rows.forEach((tr, index) => {
     Object.assign(state.pages[state.currentPage][index], {
+      department: state.department,
       size: tr.querySelector(".size").value,
       head: tr.querySelector(".head").value,
       count: tr.querySelector(".count").value,
@@ -131,6 +138,7 @@ function renderInputs() {
     fillSelect(headSelect, [], "เลือกรหัสหัวเสา");
 
     sizeSelect.addEventListener("change", () => {
+      page[index].department = state.department;
       page[index].size = sizeSelect.value;
       page[index].head = "";
       page[index].wire1 = "";
@@ -156,7 +164,7 @@ function renderInputs() {
       els.inputRows.appendChild(createWireDetailsRow(row, index, wireKind));
     }
     if (row.size) {
-      loadHeads(row.size, headSelect, row.head);
+      loadHeads(row.size, headSelect, row.head, row.department || state.department);
     }
   });
   renderPageControls();
@@ -267,13 +275,13 @@ function fillSelect(select, values, placeholder) {
   });
 }
 
-async function loadHeads(size, select, selected) {
+async function loadHeads(size, select, selected, department = state.department) {
   if (!size) {
     fillSelect(select, [], "เลือกรหัสหัวเสา");
     return;
   }
   try {
-    const response = await fetch(`/api/heads?size=${encodeURIComponent(size)}`);
+    const response = await fetch(`/api/heads?size=${encodeURIComponent(size)}&department=${encodeURIComponent(department)}`);
     const data = await readJson(response);
     fillSelect(select, data.heads, "เลือกรหัสหัวเสา");
     select.value = selected || "";
@@ -336,7 +344,7 @@ function escapeHtml(value) {
 }
 
 function clonePages(pages) {
-  return pages.map((page) => page.map((row) => ({ ...blankRow(), ...row })));
+  return pages.map((page) => page.map((row) => ({ ...blankRow(state.department), ...row })));
 }
 
 function getSavedProjects() {
@@ -393,6 +401,7 @@ function renderSavedProjects() {
       <div class="saved-info">
         <h3>${escapeHtml(project.name)}</h3>
         <div class="saved-meta">
+          <span>${escapeHtml(project.department || project.pages?.[0]?.[0]?.department || DEFAULT_DEPARTMENT)}</span>
           <span>เลขผัง: ${escapeHtml(project.planNumber || "-")}</span>
           <span>${Number(project.pages?.length || 0)} หน้า</span>
           <span>แก้ไขล่าสุด ${escapeHtml(formatSavedDate(project.updatedAt))}</span>
@@ -408,7 +417,7 @@ function renderSavedProjects() {
 
 function resetProject() {
   state.activeProjectId = "";
-  state.pages = [[blankRow(), blankRow()]];
+  state.pages = [[blankRow(state.department), blankRow(state.department)]];
   state.currentPage = 0;
   state.results = [];
   els.projectName.value = "";
@@ -420,7 +429,7 @@ function resetProject() {
   setStatus("สร้างงานใหม่แล้ว");
 }
 
-function openSavedProject(projectId, source = "local") {
+async function openSavedProject(projectId, source = "local") {
   const projects = source === "cloud" ? state.cloudProjects : getSavedProjects();
   const project = projects.find((item) => item.id === projectId);
   if (!project) {
@@ -429,7 +438,11 @@ function openSavedProject(projectId, source = "local") {
     return;
   }
   state.activeProjectId = project.id;
+  state.department = project.department || project.pages?.[0]?.[0]?.department || DEFAULT_DEPARTMENT;
+  els.departmentSelect.value = state.department;
+  await loadDepartmentSizes(state.department);
   state.pages = clonePages(project.pages?.length ? project.pages : [[blankRow(), blankRow()]]);
+  state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
   state.currentPage = Math.min(Number(project.currentPage || 0), state.pages.length - 1);
   els.projectName.value = project.name || "";
   els.planNumber.value = project.planNumber || "";
@@ -455,6 +468,7 @@ async function saveProject() {
     id,
     name,
     planNumber: els.planNumber.value.trim(),
+    department: state.department,
     pages: clonePages(state.pages),
     currentPage: state.currentPage,
     results: state.results,
@@ -612,7 +626,7 @@ els.savedProjectList.addEventListener("click", (event) => {
 els.applyPages.addEventListener("click", () => {
   saveCurrentPageFromDom();
   const total = Math.max(1, Number.parseInt(els.totalPages.value || "1", 10));
-  while (state.pages.length < total) state.pages.push([blankRow(), blankRow()]);
+  while (state.pages.length < total) state.pages.push([blankRow(state.department), blankRow(state.department)]);
   state.pages = state.pages.slice(0, total);
   state.currentPage = Math.min(state.currentPage, state.pages.length - 1);
   renderInputs();
@@ -633,7 +647,7 @@ els.nextPage.addEventListener("click", () => {
 
 els.addRow.addEventListener("click", () => {
   saveCurrentPageFromDom();
-  state.pages[state.currentPage].push(blankRow());
+  state.pages[state.currentPage].push(blankRow(state.department));
   renderInputs();
 });
 
@@ -646,7 +660,7 @@ els.removeRow.addEventListener("click", () => {
 });
 
 els.clearPage.addEventListener("click", () => {
-  state.pages[state.currentPage] = [blankRow(), blankRow()];
+  state.pages[state.currentPage] = [blankRow(state.department), blankRow(state.department)];
   renderInputs();
   setStatus("ล้างข้อมูลหน้านี้แล้ว");
 });
@@ -889,6 +903,7 @@ async function submitBaseRequest(event) {
       body: JSON.stringify({
         submitter_name: els.requesterName.value, employee_id: els.requesterEmployeeId.value,
         department: els.requesterDepartment.value, action: els.requestAction.value,
+        target_department: els.requestTargetDepartment.value,
         size, head, rows: requestMaterialValues(), original_rows: replacing ? state.baseRequestOriginalRows : [], note: els.requestNote.value,
       }),
     });
@@ -916,6 +931,46 @@ function setSelectOptions(select, values, placeholder) {
   });
 }
 
+function populateDepartmentSelectors(departments = DEPARTMENTS) {
+  const values = departments.length ? departments : DEPARTMENTS;
+  for (const select of [els.departmentSelect, els.requestTargetDepartment]) {
+    select.innerHTML = "";
+    values.forEach((value) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    });
+    select.value = DEFAULT_DEPARTMENT;
+  }
+}
+
+async function loadDepartmentSizes(department) {
+  const response = await fetch(`/api/sizes?department=${encodeURIComponent(department)}`);
+  const data = await readJson(response);
+  state.sizes = data.sizes || [];
+}
+
+async function changeDepartment(department) {
+  saveCurrentPageFromDom();
+  state.department = department || DEFAULT_DEPARTMENT;
+  state.activeProjectId = "";
+  state.pages = [[blankRow(state.department), blankRow(state.department)]];
+  state.currentPage = 0;
+  state.results = [];
+  els.projectName.value = "";
+  els.planNumber.value = "";
+  try {
+    await loadDepartmentSizes(state.department);
+    renderInputs();
+    renderResults([], "ยังไม่มีข้อมูล");
+    els.saveHint.textContent = "ยังไม่ได้บันทึกงานนี้";
+    setStatus(state.sizes.length ? `เปิดข้อมูล ${state.department} แล้ว` : `${state.department} ยังไม่มีข้อมูล เริ่มเพิ่มผ่านเมนูเสนอหัวเสาได้เลย`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
 async function switchRequestAction() {
   const replacing = els.requestAction.value === "replace";
   els.requestAddTarget.hidden = replacing;
@@ -927,9 +982,18 @@ async function switchRequestAction() {
     addRequestMaterialRow();
     return;
   }
-  setSelectOptions(els.replaceSize, state.sizes, "เลือกขนาดเสา");
+  await loadRequestDepartmentSizes();
   setSelectOptions(els.replaceHead, [], "เลือกหัวเสา");
   els.existingDataHint.textContent = "เลือกขนาดเสาและหัวเสาเพื่อโหลดข้อมูลเดิม";
+}
+
+async function loadRequestDepartmentSizes() {
+  try {
+    const response = await fetch(`/api/sizes?department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
+    const data = await readJson(response);
+    setSelectOptions(els.replaceSize, data.sizes, data.sizes.length ? "เลือกขนาด/KeyCode" : "แผนกนี้ยังไม่มีข้อมูล");
+    setSelectOptions(els.replaceHead, [], "เลือกหัวเสา/รายการ");
+  } catch (error) { setStatus(error.message, true); }
 }
 
 async function loadReplaceHeads() {
@@ -938,7 +1002,7 @@ async function loadReplaceHeads() {
   state.baseRequestOriginalRows = [];
   if (!els.replaceSize.value) return;
   try {
-    const response = await fetch(`/api/heads?size=${encodeURIComponent(els.replaceSize.value)}`);
+    const response = await fetch(`/api/heads?size=${encodeURIComponent(els.replaceSize.value)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
     setSelectOptions(els.replaceHead, data.heads, "เลือกหัวเสา");
     els.existingDataHint.textContent = "เลือกหัวเสาเพื่อดูรายการเดิม";
@@ -950,7 +1014,7 @@ async function loadExistingBaseEntry() {
   state.baseRequestOriginalRows = [];
   if (!els.replaceSize.value || !els.replaceHead.value) return;
   try {
-    const response = await fetch(`/api/base-entry?size=${encodeURIComponent(els.replaceSize.value)}&head=${encodeURIComponent(els.replaceHead.value)}`);
+    const response = await fetch(`/api/base-entry?size=${encodeURIComponent(els.replaceSize.value)}&head=${encodeURIComponent(els.replaceHead.value)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
     state.baseRequestOriginalRows = data.rows.map((row) => ({ ...row }));
     data.rows.forEach((row) => addRequestMaterialRow(row, true));
@@ -999,7 +1063,7 @@ function renderBaseRequests(requests) {
     const title = document.createElement("h3");
     title.textContent = `${request.size} · ${request.head}`;
     const meta = document.createElement("p");
-    meta.textContent = `${request.submitterName} · ${request.employeeId} · ${request.department} · ${request.action === "replace" ? "แทนที่ข้อมูลเดิม" : "เพิ่มข้อมูล"}`;
+    meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${request.action === "replace" ? "แทนที่ข้อมูลเดิม" : "เพิ่มข้อมูล"}`;
     const table = document.createElement("table");
     const isReplace = request.action === "replace";
     table.innerHTML = isReplace
@@ -1076,9 +1140,7 @@ async function reviewBaseRequest(requestId, approve) {
       body: JSON.stringify({ requestId, approve, note }),
     });
     if (approve) {
-      const statusResponse = await fetch("/api/status");
-      const statusData = await readJson(statusResponse);
-      state.sizes = statusData.base?.sizes || state.sizes;
+      await loadDepartmentSizes(state.department);
       renderInputs();
     }
     setStatus(approve ? "อนุมัติและอัปเดต BaseData แล้ว" : "ปฏิเสธคำขอแล้ว");
@@ -1091,6 +1153,8 @@ async function reviewBaseRequest(requestId, approve) {
 els.addRequestMaterial.addEventListener("click", () => addRequestMaterialRow());
 els.baseRequestForm.addEventListener("submit", submitBaseRequest);
 els.requestAction.addEventListener("change", switchRequestAction);
+els.requestTargetDepartment.addEventListener("change", switchRequestAction);
+els.departmentSelect.addEventListener("change", () => changeDepartment(els.departmentSelect.value));
 els.replaceSize.addEventListener("change", loadReplaceHeads);
 els.replaceHead.addEventListener("change", loadExistingBaseEntry);
 els.adminLoginForm.addEventListener("submit", async (event) => {
@@ -1116,6 +1180,7 @@ els.adminLogout.addEventListener("click", () => {
 });
 
 async function initialize() {
+  populateDepartmentSelectors();
   if (!els.requestMaterialRows.children.length) addRequestMaterialRow();
   renderSavedProjects();
   renderInputs();
@@ -1124,7 +1189,8 @@ async function initialize() {
     const data = await readJson(statusResponse);
     const cloudConfig = await readJson(cloudResponse);
     if (data.base) {
-      state.sizes = data.base.sizes;
+      populateDepartmentSelectors(data.base.departments || DEPARTMENTS);
+      await loadDepartmentSizes(state.department);
     }
     renderInputs();
     setStatus(data.base ? "โหลดฐานข้อมูลเริ่มต้นแล้ว" : "กรุณาโหลด BaseData");

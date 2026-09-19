@@ -253,7 +253,8 @@ h2 {
   font-size: 13px;
 }
 
-.project-fields input {
+.project-fields input,
+.project-fields select {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
