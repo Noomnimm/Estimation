@@ -695,6 +695,11 @@ td select {
 
 .insulator-panel p { margin-top: 12px; line-height: 1.6; }
 .insulator-panel details { margin-top: 10px; overflow-wrap: anywhere; }
+.export-actions { display: grid; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.export-actions h3 { margin: 0 0 2px; color: var(--accent-dark); font-size: 15px; }
+.export-actions button { width: 100%; min-height: 40px; text-align: left; background: #fff; }
+.export-actions button:hover { border-color: var(--accent); background: var(--accent-light); }
+.export-actions #exportPageHardware { border-color: #d7b34c; background: #fff9e8; color: #5e4310; font-weight: 700; }
 
 @media (max-width: 1050px) {
   .calculator-layout { grid-template-columns: minmax(0, 1fr); }
