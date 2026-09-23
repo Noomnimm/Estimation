@@ -292,6 +292,15 @@ td select:focus,
 .section-heading p, .request-card p { margin-top: 5px; color: var(--muted); font-size: 13px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .target-fields { display: contents; }
+.insulator-fields { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, .55fr) minmax(180px, .55fr); gap: 12px; align-items: end; margin-top: 4px; padding: 14px; border: 1px solid #d7b8e8; border-radius: 13px; background: linear-gradient(135deg, #f8efff 0%, #fff8e7 100%); box-shadow: 0 6px 16px rgba(83, 38, 112, .08); }
+.insulator-fields-title { display: flex; align-items: center; gap: 10px; color: var(--accent-dark); }
+.insulator-fields-title > span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: #6f3294; color: #fff; }
+.insulator-fields-title strong, .insulator-fields-title small { display: block; }
+.insulator-fields-title small { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.form-grid .insulator-field { padding: 9px 11px; border: 1px solid rgba(111, 50, 148, .2); border-radius: 11px; background: rgba(255,255,255,.82); color: var(--accent-dark); font-weight: 700; }
+.form-grid .insulator-field.upright { border-left: 5px solid #6f3294; }
+.form-grid .insulator-field.horizontal { border-left: 5px solid #d99b19; }
+.form-grid .insulator-field input { border-color: #c9a9dc; background: #fff; font-weight: 800; color: #4b216e; }
 .form-grid label, .note-field, .admin-login label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
 .form-grid input, .form-grid select, .note-field textarea, .admin-login input { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; font: inherit; }
 .request-material-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
@@ -326,6 +335,16 @@ td select:focus,
 .request-card-footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 12px; }
 .request-card-footer strong { margin-right: auto; }
 button.compact { min-height: 32px; padding: 5px 9px; }
+
+@media (max-width: 820px) {
+  .insulator-fields { grid-template-columns: 1fr 1fr; }
+  .insulator-fields-title { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  .insulator-fields { grid-template-columns: 1fr; }
+  .insulator-fields-title { grid-column: auto; }
+}
 
 .saved-head p,
 .saved-meta {
