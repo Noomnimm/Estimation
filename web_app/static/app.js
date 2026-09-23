@@ -14,6 +14,8 @@ const state = {
   cloudUser: null,
   adminToken: sessionStorage.getItem("material-calculator-admin-token") || "",
   baseRequestOriginalRows: [],
+  baseRequests: [],
+  activeRequestStatus: "pending",
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
@@ -61,6 +63,9 @@ const els = {
   adminPassword: document.getElementById("adminPassword"),
   adminLogout: document.getElementById("adminLogout"),
   baseRequestList: document.getElementById("baseRequestList"),
+  pendingRequestCount: document.getElementById("pendingRequestCount"),
+  approvedRequestCount: document.getElementById("approvedRequestCount"),
+  rejectedRequestCount: document.getElementById("rejectedRequestCount"),
   resultRows: document.getElementById("resultRows"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
@@ -1039,7 +1044,8 @@ function showAdminPanel() {
 async function loadBaseRequests() {
   try {
     const data = await adminFetch("/api/base-requests/admin");
-    renderBaseRequests(data.requests);
+    state.baseRequests = data.requests || [];
+    renderBaseRequests();
   } catch (error) {
     state.adminToken = "";
     sessionStorage.removeItem("material-calculator-admin-token");
@@ -1048,12 +1054,21 @@ async function loadBaseRequests() {
   }
 }
 
-function renderBaseRequests(requests) {
+function renderBaseRequests() {
+  const counts = { pending: 0, approved: 0, rejected: 0 };
+  state.baseRequests.forEach((request) => { if (request.status in counts) counts[request.status] += 1; });
+  els.pendingRequestCount.textContent = counts.pending;
+  els.approvedRequestCount.textContent = counts.approved;
+  els.rejectedRequestCount.textContent = counts.rejected;
+  document.querySelectorAll(".request-status-tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.requestStatus === state.activeRequestStatus);
+  });
+  const requests = state.baseRequests.filter((request) => request.status === state.activeRequestStatus);
   els.baseRequestList.innerHTML = "";
   if (!requests.length) {
     const empty = document.createElement("div");
     empty.className = "empty-saved";
-    empty.textContent = "ยังไม่มีคำขอแก้ไข BaseData";
+    empty.textContent = state.activeRequestStatus === "pending" ? "ไม่มีคำขอที่รอตรวจ" : state.activeRequestStatus === "approved" ? "ยังไม่มีคำขอที่อนุมัติแล้ว" : "ยังไม่มีคำขอที่ปฏิเสธ";
     els.baseRequestList.appendChild(empty);
     return;
   }
@@ -1139,10 +1154,10 @@ async function reviewBaseRequest(requestId, approve) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requestId, approve, note }),
     });
-    if (approve) {
-      await loadDepartmentSizes(state.department);
-      renderInputs();
-    }
+    await loadDepartmentSizes(state.department);
+    renderInputs();
+    if (els.requestAction.value === "replace") await loadRequestDepartmentSizes();
+    state.activeRequestStatus = approve ? "approved" : "rejected";
     setStatus(approve ? "อนุมัติและอัปเดต BaseData แล้ว" : "ปฏิเสธคำขอแล้ว");
     await loadBaseRequests();
   } catch (error) {
@@ -1154,6 +1169,12 @@ els.addRequestMaterial.addEventListener("click", () => addRequestMaterialRow());
 els.baseRequestForm.addEventListener("submit", submitBaseRequest);
 els.requestAction.addEventListener("change", switchRequestAction);
 els.requestTargetDepartment.addEventListener("change", switchRequestAction);
+document.querySelectorAll(".request-status-tab").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.activeRequestStatus = button.dataset.requestStatus;
+    renderBaseRequests();
+  });
+});
 els.departmentSelect.addEventListener("change", () => changeDepartment(els.departmentSelect.value));
 els.replaceSize.addEventListener("change", loadReplaceHeads);
 els.replaceHead.addEventListener("change", loadExistingBaseEntry);

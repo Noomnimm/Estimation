@@ -314,6 +314,10 @@ td select:focus,
 .admin-login { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
 .admin-login label { min-width: 230px; }
 .request-list { display: grid; gap: 14px; }
+.request-status-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: #f7f2fb; }
+.request-status-tab { border-color: transparent; background: transparent; color: var(--muted); font-weight: 700; }
+.request-status-tab.active { border-color: #6f3294; background: #6f3294; color: #fff; box-shadow: 0 4px 10px rgba(80, 35, 110, .2); }
+.request-status-tab span { display: inline-grid; min-width: 22px; height: 22px; padding: 0 6px; place-items: center; border-radius: 999px; background: rgba(255,255,255,.22); }
 .request-card { border: 1px solid var(--line); border-left: 5px solid var(--gold); border-radius: 12px; padding: 14px; background: #fff; }
 .request-card.status-approved { border-left-color: #198754; }
 .request-card.status-rejected { border-left-color: var(--danger); }

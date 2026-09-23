@@ -99,7 +99,12 @@
         </form>
       </div>
       <div id="adminRequestsPanel" hidden>
-        <div class="section-heading"><div><h2>รายการรอตรวจสอบ</h2><p>ตรวจข้อมูลผู้เสนอและวัสดุก่อนอนุมัติ</p></div><button id="adminLogout" type="button">ออกจากระบบ</button></div>
+        <div class="section-heading"><div><h2>ตรวจสอบ BaseData</h2><p>แยกรายการตามสถานะ และอัปเดตฐานข้อมูลทันทีหลังอนุมัติ</p></div><button id="adminLogout" type="button">ออกจากระบบ</button></div>
+        <div class="request-status-tabs" role="tablist" aria-label="สถานะคำขอ">
+          <button type="button" class="request-status-tab active" data-request-status="pending">รอตรวจ <span id="pendingRequestCount">0</span></button>
+          <button type="button" class="request-status-tab" data-request-status="approved">อนุมัติแล้ว <span id="approvedRequestCount">0</span></button>
+          <button type="button" class="request-status-tab" data-request-status="rejected">ปฏิเสธแล้ว <span id="rejectedRequestCount">0</span></button>
+        </div>
         <div id="baseRequestList" class="request-list"></div>
       </div>
     </section>
