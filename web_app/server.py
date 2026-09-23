@@ -240,7 +240,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def export_page_hardware(self) -> None:
         try:
-            data = WORKBOOK.export_page_hardware(self.read_json().get("pages", []))
+            data = WORKBOOK.export_page_hardware_combined(self.read_json().get("pages", []))
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             self.send_header("Content-Disposition", 'attachment; filename="page_insulators_hardware.xlsx"')

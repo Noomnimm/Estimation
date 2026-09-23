@@ -40,7 +40,6 @@ const els = {
   exportExcel: document.getElementById("exportExcel"),
   exportPages: document.getElementById("exportPages"),
   exportPageHardware: document.getElementById("exportPageHardware"),
-  exportPageInsulators: document.getElementById("exportPageInsulators"),
   exportPageCrossarms: document.getElementById("exportPageCrossarms"),
   baseRequestForm: document.getElementById("baseRequestForm"),
   requesterName: document.getElementById("requesterName"),
@@ -728,10 +727,10 @@ els.clearPage.addEventListener("click", () => {
 els.calculate.addEventListener("click", async () => {
   try {
     saveCurrentPageFromDom();
-    setStatus("กำลังคำนวณ...");
+    setStatus("กำลังแสดง Detail พัสดุ...");
     const data = await postJson("/api/calculate", { pages: state.pages });
     renderResults(data.items, `รวม ${data.summaryRows} รายการ จากข้อมูลที่เลือก ${data.inputRows} แถว`);
-    setStatus("คำนวณสำเร็จ");
+    setStatus("แสดง Detail พัสดุสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -739,14 +738,14 @@ els.calculate.addEventListener("click", async () => {
 
 els.expandSet.addEventListener("click", async () => {
   try {
-    setStatus("กำลังแตก SET...");
+    setStatus("กำลังสร้างรายการประมาณการ...");
     const data = await postJson("/api/expand-set");
     let meta = `รวม ${data.summaryRows} รายการ | พบ SET ${data.setFound} รายการ | แตกได้ ${data.expandedLines} แถว`;
     if (data.setMissing.length) {
       meta += ` | ไม่พบ: ${data.setMissing.slice(0, 6).join(", ")}`;
     }
     renderResults(data.items, meta);
-    setStatus("แตก SET สำเร็จ");
+    setStatus("สร้างรายการประมาณการสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -802,7 +801,7 @@ els.exportPages.addEventListener("click", async () => {
 els.exportPageHardware.addEventListener("click", async () => {
   try {
     saveCurrentPageFromDom();
-    setStatus("กำลังสร้างสรุปลูกถ้วยและอุปกรณ์ยึดสาย...");
+    setStatus("กำลังสร้างไฟล์ลูกถ้วย/Preform และสรุปลูกถ้วยแยกหน้า...");
     const response = await fetch("/api/export-page-hardware", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -819,33 +818,7 @@ els.exportPageHardware.addEventListener("click", async () => {
     link.download = "page_insulators_hardware.xlsx";
     link.click();
     URL.revokeObjectURL(url);
-    setStatus("Export ลูกถ้วยและอุปกรณ์ยึดสายสำเร็จ");
-  } catch (error) {
-    setStatus(error.message, true);
-  }
-});
-
-els.exportPageInsulators.addEventListener("click", async () => {
-  try {
-    saveCurrentPageFromDom();
-    setStatus("กำลังสร้างสรุปลูกถ้วยแยกหน้า...");
-    const response = await fetch("/api/export-page-insulators", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pages: state.pages }),
-    });
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || "Export ลูกถ้วยแยกหน้าไม่สำเร็จ");
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "page_insulators.xlsx";
-    link.click();
-    URL.revokeObjectURL(url);
-    setStatus("Export ลูกถ้วยแยกหน้าสำเร็จ");
+    setStatus("Export ลูกถ้วย/Preform และสรุปลูกถ้วยแยกหน้าสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -854,7 +827,7 @@ els.exportPageInsulators.addEventListener("click", async () => {
 els.exportPageCrossarms.addEventListener("click", async () => {
   try {
     saveCurrentPageFromDom();
-    setStatus("กำลังนับคอนแยกตามหน้าและหัวเสา...");
+    setStatus("กำลัง Export คอนแยกตามหน้าและหัวเสา...");
     const response = await fetch("/api/export-page-crossarms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

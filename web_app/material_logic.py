@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import ast
 import re
+from copy import copy
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -582,6 +584,12 @@ class MaterialWorkbook:
                 cell.fill = PatternFill("solid", fgColor="E8DDF2")
         return output.getvalue()
 
+    def export_page_hardware_combined(self, pages: list[list[dict[str, Any]]]) -> bytes:
+        """Combine hardware/preform and insulator-audit exports into separate sheets."""
+        hardware = self.export_page_hardware(pages)
+        insulators = self.export_page_insulators(pages)
+        return merge_excel_workbooks(hardware, insulators)
+
     def export_page_crossarms(self, pages: list[list[dict[str, Any]]]) -> bytes:
         if self.base_df is None or self.set_df is None:
             raise ValueError("กรุณาโหลด BaseData และ SET ก่อน export คอน")
@@ -905,6 +913,48 @@ def clean_text(value: Any) -> str:
     if pd.isna(value):
         return ""
     return str(value).strip()
+
+
+def merge_excel_workbooks(*workbook_bytes: bytes) -> bytes:
+    """Merge worksheets from generated workbooks while preserving their presentation."""
+    target = Workbook()
+    target.remove(target.active)
+    used_names: set[str] = set()
+    for data in workbook_bytes:
+        source = load_workbook(BytesIO(data))
+        for source_sheet in source.worksheets:
+            title = source_sheet.title[:31]
+            base, suffix = title, 2
+            while title in used_names:
+                marker = f" ({suffix})"
+                title = f"{base[:31 - len(marker)]}{marker}"
+                suffix += 1
+            used_names.add(title)
+            sheet = target.create_sheet(title)
+            for row in source_sheet.iter_rows():
+                for source_cell in row:
+                    cell = sheet.cell(source_cell.row, source_cell.column, source_cell.value)
+                    if source_cell.has_style:
+                        cell.font = copy(source_cell.font)
+                        cell.fill = copy(source_cell.fill)
+                        cell.border = copy(source_cell.border)
+                        cell.alignment = copy(source_cell.alignment)
+                        cell.number_format = source_cell.number_format
+                        cell.protection = copy(source_cell.protection)
+            for merged_range in source_sheet.merged_cells.ranges:
+                sheet.merge_cells(str(merged_range))
+            for key, dimension in source_sheet.column_dimensions.items():
+                sheet.column_dimensions[key].width = dimension.width
+                sheet.column_dimensions[key].hidden = dimension.hidden
+            for index, dimension in source_sheet.row_dimensions.items():
+                sheet.row_dimensions[index].height = dimension.height
+                sheet.row_dimensions[index].hidden = dimension.hidden
+            sheet.freeze_panes = source_sheet.freeze_panes
+            sheet.auto_filter.ref = source_sheet.auto_filter.ref
+            sheet.sheet_view.showGridLines = source_sheet.sheet_view.showGridLines
+    output = BytesIO()
+    target.save(output)
+    return output.getvalue()
 
 
 def parse_number(value: Any) -> float:
