@@ -996,7 +996,7 @@ async function changeDepartment(department) {
     renderInputs();
     renderResults([], "ยังไม่มีข้อมูล");
     els.saveHint.textContent = "ยังไม่ได้บันทึกงานนี้";
-    setStatus(state.sizes.length ? `เปิดข้อมูล ${state.department} แล้ว` : `${state.department} ยังไม่มีข้อมูล เริ่มเพิ่มผ่านเมนูเสนอหัวเสาได้เลย`);
+    setStatus(state.sizes.length ? `เปิดข้อมูล ${state.department} แล้ว` : `${state.department} ยังไม่มีข้อมูล เริ่มเพิ่มผ่านเมนูเพิ่มเติม/แก้ไขหัวเสาได้เลย`);
   } catch (error) {
     setStatus(error.message, true);
   }

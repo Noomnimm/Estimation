@@ -19,8 +19,8 @@
     <nav class="app-tabs" aria-label="เมนูหลัก">
       <button class="app-tab active" data-tab="calculator" type="button"><span class="tab-icon">⌁</span> คำนวณงาน</button>
       <button class="app-tab" data-tab="saved" type="button"><span class="tab-icon">▣</span> งานที่บันทึก <span id="savedCount" class="tab-count">0</span></button>
-      <button class="app-tab" data-tab="base-request" type="button"><span class="tab-icon">＋</span> เสนอหัวเสา</button>
-      <button class="app-tab" data-tab="base-admin" type="button"><span class="tab-icon">✓</span> ตรวจ BaseData</button>
+      <button class="app-tab" data-tab="base-request" type="button"><span class="tab-icon">＋</span> เพิ่มเติม/แก้ไขหัวเสา</button>
+      <button class="app-tab" data-tab="base-admin" type="button"><span class="tab-icon">✓</span> รายการอนุมัติ (Admin)</button>
     </nav>
 
     <section class="project-bar tab-panel" data-panel="calculator">
@@ -64,7 +64,7 @@
     </section>
 
     <section class="base-editor tab-panel" data-panel="base-request" hidden>
-      <div class="section-heading"><div><h2>เสนอเพิ่มหรือแก้ไขหัวเสา</h2><p>ข้อมูลจะเข้าสู่ระบบหลัง Admin ตรวจและอนุมัติแล้วเท่านั้น</p></div></div>
+      <div class="section-heading"><div><h2>เพิ่มเติม/แก้ไขหัวเสา</h2><p>ข้อมูลจะเข้าสู่ระบบหลัง Admin ตรวจและอนุมัติแล้วเท่านั้น</p></div></div>
       <form id="baseRequestForm">
         <div class="form-grid">
           <label><span>ชื่อ–นามสกุล</span><input id="requesterName" required></label>
@@ -101,7 +101,7 @@
         </form>
       </div>
       <div id="adminRequestsPanel" hidden>
-        <div class="section-heading"><div><h2>ตรวจสอบ BaseData</h2><p>แยกรายการตามสถานะ และอัปเดตฐานข้อมูลทันทีหลังอนุมัติ</p></div><button id="adminLogout" type="button">ออกจากระบบ</button></div>
+        <div class="section-heading"><div><h2>รายการอนุมัติ (Admin)</h2><p>แยกรายการตามสถานะ และอัปเดตฐานข้อมูลทันทีหลังอนุมัติ</p></div><button id="adminLogout" type="button">ออกจากระบบ</button></div>
         <div class="request-status-tabs" role="tablist" aria-label="สถานะคำขอ">
           <button type="button" class="request-status-tab active" data-request-status="pending">รอตรวจ <span id="pendingRequestCount">0</span></button>
           <button type="button" class="request-status-tab" data-request-status="approved">อนุมัติแล้ว <span id="approvedRequestCount">0</span></button>
