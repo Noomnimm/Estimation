@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from web_app.cloud_store import GoogleSheetProjectStore
@@ -28,6 +29,19 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
 
 
 class BaseRequestTests(unittest.TestCase):
+    def test_cloud_project_reads_multi_department_payload(self):
+        payload = {
+            "version": 2, "activeDepartment": "แผนกแรงสูง TAC",
+            "departments": {"แผนกแรงสูง": {"pages": [[{"head": "BA"}]]}, "แผนกแรงสูง TAC": {"pages": [[{"head": "TAC"}]]}},
+            "pages": [[{"head": "TAC"}]],
+        }
+        project = GoogleSheetProjectStore._row_to_project({
+            "project_id": "p1", "project_name": "งานเดียวหลายแผนก", "pages_json": json.dumps(payload),
+        })
+        self.assertEqual(project["department"], "แผนกแรงสูง TAC")
+        self.assertEqual(len(project["departments"]), 2)
+        self.assertEqual(project["pages"][0][0]["head"], "TAC")
+
     def test_request_stays_pending_until_admin_approval(self):
         store = MemoryBaseRequestStore()
         request = store.submit_base_request({

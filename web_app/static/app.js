@@ -17,6 +17,7 @@ const state = {
   baseRequests: [],
   activeRequestStatus: "pending",
   insulatorRates: {},
+  departmentWork: {},
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
@@ -374,6 +375,27 @@ function clonePages(pages) {
   return pages.map((page) => page.map((row) => ({ ...blankRow(state.department), ...row })));
 }
 
+function emptyDepartmentWork(department) {
+  return { pages: [[blankRow(department), blankRow(department)]], currentPage: 0, results: [], resultMeta: "ยังไม่มีผลคำนวณ" };
+}
+
+function stashCurrentDepartment() {
+  saveCurrentPageFromDom();
+  state.departmentWork[state.department] = {
+    pages: clonePages(state.pages), currentPage: state.currentPage,
+    results: structuredClone(state.results), resultMeta: els.resultMeta.textContent || "ยังไม่มีผลคำนวณ",
+  };
+}
+
+function projectDepartmentCount(project) {
+  return Object.keys(project.departments || {}).length || 1;
+}
+
+function projectPageCount(project) {
+  if (project.departments) return Object.values(project.departments).reduce((sum, work) => sum + Number(work.pages?.length || 0), 0);
+  return Number(project.pages?.length || 0);
+}
+
 function getSavedProjects() {
   try {
     const value = JSON.parse(localStorage.getItem(SAVED_PROJECTS_KEY) || "[]");
@@ -428,9 +450,9 @@ function renderSavedProjects() {
       <div class="saved-info">
         <h3>${escapeHtml(project.name)}</h3>
         <div class="saved-meta">
-          <span>${escapeHtml(project.department || project.pages?.[0]?.[0]?.department || DEFAULT_DEPARTMENT)}</span>
+          <span>${projectDepartmentCount(project)} แผนก</span>
           <span>เลขผัง: ${escapeHtml(project.planNumber || "-")}</span>
-          <span>${Number(project.pages?.length || 0)} หน้า</span>
+          <span>${projectPageCount(project)} หน้ารวม</span>
           <span>แก้ไขล่าสุด ${escapeHtml(formatSavedDate(project.updatedAt))}</span>
         </div>
       </div>
@@ -444,6 +466,7 @@ function renderSavedProjects() {
 
 function resetProject() {
   state.activeProjectId = "";
+  state.departmentWork = {};
   state.pages = [[blankRow(state.department), blankRow(state.department)]];
   state.currentPage = 0;
   state.results = [];
@@ -466,22 +489,31 @@ async function openSavedProject(projectId, source = "local") {
   }
   state.activeProjectId = project.id;
   state.department = project.department || project.pages?.[0]?.[0]?.department || DEFAULT_DEPARTMENT;
+  state.departmentWork = project.departments ? structuredClone(project.departments) : {
+    [state.department]: {
+      pages: project.pages?.length ? structuredClone(project.pages) : [[blankRow(state.department), blankRow(state.department)]],
+      currentPage: Number(project.currentPage || 0), results: structuredClone(project.results || []),
+      resultMeta: project.resultMeta || "ยังไม่มีผลคำนวณ",
+    },
+  };
   els.departmentSelect.value = state.department;
   await loadDepartmentSizes(state.department);
-  state.pages = clonePages(project.pages?.length ? project.pages : [[blankRow(), blankRow()]]);
+  const work = state.departmentWork[state.department] || emptyDepartmentWork(state.department);
+  state.pages = clonePages(work.pages);
   state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
-  state.currentPage = Math.min(Number(project.currentPage || 0), state.pages.length - 1);
+  state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
+  state.results = structuredClone(work.results || []);
   els.projectName.value = project.name || "";
   els.planNumber.value = project.planNumber || "";
   els.saveHint.textContent = `เปิดงานที่บันทึกเมื่อ ${formatSavedDate(project.updatedAt)}`;
   renderInputs();
-  renderResults(project.results || [], project.resultMeta || "ยังไม่มีผลคำนวณ");
+  renderResults(state.results, work.resultMeta || "ยังไม่มีผลคำนวณ");
   switchTab("calculator");
   setStatus("เปิดงานเดิมสำเร็จ");
 }
 
 async function saveProject() {
-  saveCurrentPageFromDom();
+  stashCurrentDepartment();
   const name = els.projectName.value.trim();
   if (!name) {
     els.projectName.focus();
@@ -500,6 +532,7 @@ async function saveProject() {
     currentPage: state.currentPage,
     results: state.results,
     resultMeta: els.resultMeta.textContent,
+    departments: structuredClone(state.departmentWork),
     createdAt: projects.find((item) => item.id === id)?.createdAt || now,
     updatedAt: now,
   };
@@ -983,19 +1016,17 @@ async function loadDepartmentSizes(department) {
 }
 
 async function changeDepartment(department) {
-  saveCurrentPageFromDom();
+  stashCurrentDepartment();
   state.department = department || DEFAULT_DEPARTMENT;
-  state.activeProjectId = "";
-  state.pages = [[blankRow(state.department), blankRow(state.department)]];
-  state.currentPage = 0;
-  state.results = [];
-  els.projectName.value = "";
-  els.planNumber.value = "";
+  const work = state.departmentWork[state.department] || emptyDepartmentWork(state.department);
+  state.pages = clonePages(work.pages);
+  state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
+  state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
+  state.results = structuredClone(work.results || []);
   try {
     await loadDepartmentSizes(state.department);
     renderInputs();
-    renderResults([], "ยังไม่มีข้อมูล");
-    els.saveHint.textContent = "ยังไม่ได้บันทึกงานนี้";
+    renderResults(state.results, work.resultMeta || "ยังไม่มีผลคำนวณ");
     setStatus(state.sizes.length ? `เปิดข้อมูล ${state.department} แล้ว` : `${state.department} ยังไม่มีข้อมูล เริ่มเพิ่มผ่านเมนูเพิ่มเติม/แก้ไขหัวเสาได้เลย`);
   } catch (error) {
     setStatus(error.message, true);

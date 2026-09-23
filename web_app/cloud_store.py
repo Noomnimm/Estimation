@@ -319,7 +319,12 @@ class GoogleSheetProjectStore:
                 "project_id": project_id,
                 "project_name": name,
                 "plan_number": str(project.get("planNumber", "")).strip(),
-                "pages_json": json.dumps(project.get("pages", []), ensure_ascii=False, separators=(",", ":")),
+                "pages_json": json.dumps({
+                    "version": 2,
+                    "activeDepartment": project.get("department", "แผนกแรงสูง"),
+                    "departments": project.get("departments", {}),
+                    "pages": project.get("pages", []),
+                }, ensure_ascii=False, separators=(",", ":")),
                 "results_json": json.dumps(project.get("results", []), ensure_ascii=False, separators=(",", ":")),
                 "result_meta": str(project.get("resultMeta", "")),
                 "created_at": (existing or {}).get("created_at") or str(project.get("createdAt", "")) or now,
@@ -420,11 +425,20 @@ class GoogleSheetProjectStore:
             except json.JSONDecodeError:
                 return fallback
 
+        pages_data = parse_json(row.get("pages_json", ""), [])
+        if isinstance(pages_data, dict):
+            pages = pages_data.get("pages", [])
+            departments = pages_data.get("departments", {})
+            department = pages_data.get("activeDepartment", "แผนกแรงสูง")
+        else:
+            pages, departments, department = pages_data, {}, ""
         return {
             "id": row.get("project_id", ""),
             "name": row.get("project_name", ""),
             "planNumber": row.get("plan_number", ""),
-            "pages": parse_json(row.get("pages_json", ""), []),
+            "pages": pages,
+            "departments": departments,
+            "department": department,
             "results": parse_json(row.get("results_json", ""), []),
             "resultMeta": row.get("result_meta", ""),
             "createdAt": row.get("created_at", ""),
