@@ -16,6 +16,7 @@ const state = {
   baseRequestOriginalRows: [],
   baseRequests: [],
   activeRequestStatus: "pending",
+  insulatorRates: {},
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
@@ -48,6 +49,8 @@ const els = {
   requestAction: document.getElementById("requestAction"),
   requestSize: document.getElementById("requestSize"),
   requestHead: document.getElementById("requestHead"),
+  requestInsulatorUpright: document.getElementById("requestInsulatorUpright"),
+  requestInsulatorHorizontal: document.getElementById("requestInsulatorHorizontal"),
   requestAddTarget: document.getElementById("requestAddTarget"),
   requestReplaceTarget: document.getElementById("requestReplaceTarget"),
   replaceSize: document.getElementById("replaceSize"),
@@ -84,7 +87,11 @@ const els = {
 };
 
 function blankRow(department = DEFAULT_DEPARTMENT) {
-  return { department, size: "", head: "", count: "", wire1: "", wire2: "", latWire: "" };
+  return { department, size: "", head: "", count: "", wire1: "", wire2: "", latWire: "", insulatorUpright: null, insulatorHorizontal: null };
+}
+
+function insulatorRateKey(department, size, head) {
+  return `${department}\u0000${size}\u0000${head}`;
 }
 
 function setStatus(message, isError = false) {
@@ -153,6 +160,9 @@ function renderInputs() {
     });
     headSelect.addEventListener("change", () => {
       page[index].head = headSelect.value;
+      const rate = state.insulatorRates[insulatorRateKey(state.department, page[index].size, headSelect.value)];
+      page[index].insulatorUpright = rate ? Number(rate[0]) : null;
+      page[index].insulatorHorizontal = rate ? Number(rate[1]) : null;
       page[index].wire1 = "";
       page[index].wire2 = "";
       page[index].latWire = "";
@@ -169,7 +179,15 @@ function renderInputs() {
       els.inputRows.appendChild(createWireDetailsRow(row, index, wireKind));
     }
     if (row.size) {
-      loadHeads(row.size, headSelect, row.head, row.department || state.department);
+      loadHeads(row.size, headSelect, row.head, row.department || state.department).then((data) => {
+        if (!data || !row.head) return;
+        const rate = data.insulatorRates?.[row.head];
+        if (rate && (row.insulatorUpright === null || row.insulatorUpright === undefined)) {
+          row.insulatorUpright = Number(rate[0]);
+          row.insulatorHorizontal = Number(rate[1]);
+          renderInsulators();
+        }
+      });
     }
   });
   renderPageControls();
@@ -283,13 +301,17 @@ function fillSelect(select, values, placeholder) {
 async function loadHeads(size, select, selected, department = state.department) {
   if (!size) {
     fillSelect(select, [], "เลือกรหัสหัวเสา");
-    return;
+    return null;
   }
   try {
     const response = await fetch(`/api/heads?size=${encodeURIComponent(size)}&department=${encodeURIComponent(department)}`);
     const data = await readJson(response);
+    Object.entries(data.insulatorRates || {}).forEach(([head, rate]) => {
+      state.insulatorRates[insulatorRateKey(department, size, head)] = rate;
+    });
     fillSelect(select, data.heads, "เลือกรหัสหัวเสา");
     select.value = selected || "";
+    return data;
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -909,6 +931,8 @@ async function submitBaseRequest(event) {
         submitter_name: els.requesterName.value, employee_id: els.requesterEmployeeId.value,
         department: els.requesterDepartment.value, action: els.requestAction.value,
         target_department: els.requestTargetDepartment.value,
+        insulator_upright: els.requestInsulatorUpright.value,
+        insulator_horizontal: els.requestInsulatorHorizontal.value,
         size, head, rows: requestMaterialValues(), original_rows: replacing ? state.baseRequestOriginalRows : [], note: els.requestNote.value,
       }),
     });
@@ -916,6 +940,8 @@ async function submitBaseRequest(event) {
     if (!response.ok) throw new Error(data.error || "ส่งคำขอไม่สำเร็จ");
     els.requestSize.value = "";
     els.requestHead.value = "";
+    els.requestInsulatorUpright.value = "0";
+    els.requestInsulatorHorizontal.value = "0";
     els.requestNote.value = "";
     els.requestMaterialRows.innerHTML = "";
     state.baseRequestOriginalRows = [];
@@ -1022,6 +1048,8 @@ async function loadExistingBaseEntry() {
     const response = await fetch(`/api/base-entry?size=${encodeURIComponent(els.replaceSize.value)}&head=${encodeURIComponent(els.replaceHead.value)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
     state.baseRequestOriginalRows = data.rows.map((row) => ({ ...row }));
+    els.requestInsulatorUpright.value = String(data.insulatorUpright ?? 0);
+    els.requestInsulatorHorizontal.value = String(data.insulatorHorizontal ?? 0);
     data.rows.forEach((row) => addRequestMaterialRow(row, true));
     els.existingDataHint.textContent = `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว แก้ไข เพิ่ม หรือนำรายการออกได้`;
   } catch (error) { setStatus(error.message, true); }
@@ -1078,7 +1106,7 @@ function renderBaseRequests() {
     const title = document.createElement("h3");
     title.textContent = `${request.size} · ${request.head}`;
     const meta = document.createElement("p");
-    meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${request.action === "replace" ? "แทนที่ข้อมูลเดิม" : "เพิ่มข้อมูล"}`;
+    meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ลูกถ้วยตั้ง ${formatAmount(request.insulatorUpright)} / นอน ${formatAmount(request.insulatorHorizontal)} ต่อหัว · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${request.action === "replace" ? "แทนที่ข้อมูลเดิม" : "เพิ่มข้อมูล"}`;
     const table = document.createElement("table");
     const isReplace = request.action === "replace";
     table.innerHTML = isReplace

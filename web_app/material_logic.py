@@ -22,6 +22,8 @@ QTY_COL = "จำนวน"
 TOTAL_COL = "จำนวนรวม"
 DEPARTMENT_COL = "แผนก"
 DEFAULT_DEPARTMENT = "แผนกแรงสูง"
+INSULATOR_UPRIGHT_COL = "ลูกถ้วยตั้ง"
+INSULATOR_HORIZONTAL_COL = "ลูกถ้วยนอน"
 
 SET_COL = "Set"
 SET_DESC_COL = "คำอธิบาย"
@@ -70,6 +72,8 @@ class MaterialWorkbook:
         require_columns(df, [SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL], "BaseData")
         df = df[[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL]].copy()
         df[DEPARTMENT_COL] = department
+        df[INSULATOR_UPRIGHT_COL] = pd.NA
+        df[INSULATOR_HORIZONTAL_COL] = pd.NA
         df = df.dropna(subset=[SIZE_COL, HEAD_COL, CODE_COL])
         self.base_df = df
         self.base_path = Path(path)
@@ -107,6 +111,7 @@ class MaterialWorkbook:
             rows.append({
                 SIZE_COL: keycode, HEAD_COL: description, MATERIAL_COL: description,
                 CODE_COL: code, QTY_COL: 1.0, DEPARTMENT_COL: department,
+                INSULATOR_UPRIGHT_COL: pd.NA, INSULATOR_HORIZONTAL_COL: pd.NA,
             })
         if rows:
             self.base_df = pd.concat([self.base_df, pd.DataFrame(rows)], ignore_index=True)
@@ -133,6 +138,20 @@ class MaterialWorkbook:
         ]
         heads = matches[HEAD_COL].dropna().astype(str).str.strip().unique().tolist()
         return sorted(heads, key=natural_key)
+
+    def get_insulator_rate(self, size: str, head: str, department: str = DEFAULT_DEPARTMENT) -> tuple[float, float]:
+        if self.base_df is not None and INSULATOR_UPRIGHT_COL in self.base_df.columns:
+            matches = self.base_df[
+                (self.base_df[SIZE_COL].astype(str).str.strip() == str(size).strip())
+                & (self.base_df[HEAD_COL].astype(str).str.strip() == str(head).strip())
+                & self._department_mask(department)
+            ]
+            for _, row in matches.iterrows():
+                upright = row.get(INSULATOR_UPRIGHT_COL)
+                horizontal = row.get(INSULATOR_HORIZONTAL_COL)
+                if not pd.isna(upright) or not pd.isna(horizontal):
+                    return parse_number(upright), parse_number(horizontal)
+        return insulator_rate(head)
 
     def get_status(self) -> dict[str, Any]:
         base = None
@@ -370,7 +389,7 @@ class MaterialWorkbook:
                 if not size or not head or count <= 0:
                     continue
 
-                upright, horizontal = insulator_rate(head)
+                upright, horizontal = self.get_insulator_rate(size, head, department)
                 add_page_item("ลูกถ้วย", "ลูกถ้วยตั้ง", "", page_number, upright * count)
                 add_page_item("ลูกถ้วย", "ลูกถ้วยนอน", "", page_number, horizontal * count)
                 if upright:
@@ -502,7 +521,7 @@ class MaterialWorkbook:
                 count = parse_number(item.get("count"))
                 if count == 0:
                     continue
-                upright_rate, horizontal_rate = insulator_rate(head)
+                upright_rate, horizontal_rate = self.get_insulator_rate(size, head, department)
                 upright = upright_rate * count
                 horizontal = horizontal_rate * count
                 if upright == 0 and horizontal == 0:

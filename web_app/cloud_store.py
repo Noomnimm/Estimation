@@ -32,7 +32,7 @@ REQUEST_HEADERS = [
 APPROVED_SHEET = "ApprovedBaseData"
 APPROVED_HEADERS = [
     "size", "head", "material", "code", "quantity", "action", "request_id",
-    "approved_at", "approved_by", "department",
+    "approved_at", "approved_by", "department", "insulator_upright", "insulator_horizontal",
 ]
 
 
@@ -108,13 +108,16 @@ class GoogleSheetProjectStore:
                 "quantity": quantity,
             })
         target_department = str(payload.get("target_department", "แผนกแรงสูง")).strip() or "แผนกแรงสูง"
+        insulator_upright = self._nonnegative_number(payload.get("insulator_upright"), "ลูกถ้วยตั้ง")
+        insulator_horizontal = self._nonnegative_number(payload.get("insulator_horizontal"), "ลูกถ้วยนอน")
         record = {
             "request_id": uuid.uuid4().hex,
             "submitted_at": datetime.now(timezone.utc).isoformat(),
             **values,
             "action": action,
             "rows_json": json.dumps(
-                {"new": clean_rows, "original": clean_original_rows, "department": target_department},
+                {"new": clean_rows, "original": clean_original_rows, "department": target_department,
+                 "insulator_upright": insulator_upright, "insulator_horizontal": insulator_horizontal},
                 ensure_ascii=False, separators=(",", ":"),
             ),
             "note": str(payload.get("note", "")).strip(),
@@ -155,6 +158,8 @@ class GoogleSheetProjectStore:
                         "action": record["action"], "request_id": request_id,
                         "approved_at": now, "approved_by": reviewer,
                         "department": stored_rows.get("department", "แผนกแรงสูง") if isinstance(stored_rows, dict) else "แผนกแรงสูง",
+                        "insulator_upright": stored_rows.get("insulator_upright", "") if isinstance(stored_rows, dict) else "",
+                        "insulator_horizontal": stored_rows.get("insulator_horizontal", "") if isinstance(stored_rows, dict) else "",
                     })
         return self._request_to_public(record)
 
@@ -163,6 +168,16 @@ class GoogleSheetProjectStore:
             return []
         with self._lock:
             return self._read_named_rows(APPROVED_SHEET, APPROVED_HEADERS, "request_id")
+
+    @staticmethod
+    def _nonnegative_number(value: Any, label: str) -> float:
+        try:
+            number = float(value if value not in (None, "") else 0)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{label}ต้องเป็นตัวเลข") from exc
+        if number < 0:
+            raise ValueError(f"{label}ต้องไม่ติดลบ")
+        return number
 
     def _ensure_named_sheet(self, sheet_name: str, headers: list[str]) -> None:
         if not self.service_configured:
@@ -238,15 +253,20 @@ class GoogleSheetProjectStore:
             rows = stored_rows.get("new", [])
             original_rows = stored_rows.get("original", [])
             department = stored_rows.get("department", "แผนกแรงสูง")
+            insulator_upright = stored_rows.get("insulator_upright", "")
+            insulator_horizontal = stored_rows.get("insulator_horizontal", "")
         else:
             rows = stored_rows
             original_rows = []
             department = "แผนกแรงสูง"
+            insulator_upright = ""
+            insulator_horizontal = ""
         return {
             "id": record.get("request_id", ""), "submittedAt": record.get("submitted_at", ""),
             "submitterName": record.get("submitter_name", ""), "employeeId": record.get("employee_id", ""),
             "department": record.get("department", ""), "action": record.get("action", "add"),
             "targetDepartment": department,
+            "insulatorUpright": insulator_upright, "insulatorHorizontal": insulator_horizontal,
             "size": record.get("size", ""), "head": record.get("head", ""), "rows": rows,
             "originalRows": original_rows,
             "note": record.get("note", ""), "status": record.get("status", "pending"),

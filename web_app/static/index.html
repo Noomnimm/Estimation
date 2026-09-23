@@ -72,6 +72,8 @@
           <label><span>สังกัด</span><input id="requesterDepartment" required></label>
           <label><span>BaseData ของแผนก</span><select id="requestTargetDepartment"></select></label>
           <label><span>ประเภทคำขอ</span><select id="requestAction"><option value="add">เพิ่มข้อมูล</option><option value="replace">แทนที่หัวเสาเดิมทั้งหมด</option></select></label>
+          <label><span>ลูกถ้วยตั้งต่อ 1 หัว</span><input id="requestInsulatorUpright" type="number" min="0" step="any" value="0" required></label>
+          <label><span>ลูกถ้วยนอนต่อ 1 หัว</span><input id="requestInsulatorHorizontal" type="number" min="0" step="any" value="0" required></label>
           <div id="requestAddTarget" class="target-fields">
             <label><span>ขนาดเสา / KeyCode</span><input id="requestSize" placeholder="เช่น 14.3 หรือ 99"></label>
             <label><span>รหัสหัวเสา / รายการใหม่</span><input id="requestHead" placeholder="เช่น DDE.st 4.5m"></label>

@@ -34,5 +34,6 @@ const before = JSON.stringify(pages);
 assert.deepEqual(summarizeInsulators(pages), { upright: 26, horizontal: 72, warnings: [] });
 assert.equal(JSON.stringify(pages), before, 'Must not mutate saved project data');
 assert.deepEqual(summarizeInsulators([[]]), { upright: 0, horizontal: 0, warnings: [] });
+assert.deepEqual(summarizeInsulators([[{ ...row('CUSTOM', '2'), insulatorUpright: 5, insulatorHorizontal: 7 }]]), { upright: 10, horizontal: 14, warnings: [] });
 assert.equal(summarizeInsulators([[row('BA', '1+'), row('Unknown', '1'), row('BA', '-1')]]).warnings.length, 3);
 console.log('Insulator count tests passed');

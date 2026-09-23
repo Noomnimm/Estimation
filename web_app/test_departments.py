@@ -10,6 +10,8 @@ from web_app.material_logic import (
     QTY_COL,
     SIZE_COL,
     TOTAL_COL,
+    INSULATOR_UPRIGHT_COL,
+    INSULATOR_HORIZONTAL_COL,
     MaterialWorkbook,
 )
 
@@ -19,7 +21,7 @@ class DepartmentTests(unittest.TestCase):
         self.workbook = MaterialWorkbook()
         self.workbook.base_df = pd.DataFrame([
             {SIZE_COL: "1", HEAD_COL: "HEAD", MATERIAL_COL: "HV", CODE_COL: "100", QTY_COL: 1, DEPARTMENT_COL: "แผนกแรงสูง"},
-            {SIZE_COL: "1", HEAD_COL: "HEAD", MATERIAL_COL: "TX", CODE_COL: "200", QTY_COL: 1, DEPARTMENT_COL: "แผนกหม้อแปลง"},
+            {SIZE_COL: "1", HEAD_COL: "HEAD", MATERIAL_COL: "TX", CODE_COL: "200", QTY_COL: 1, DEPARTMENT_COL: "แผนกหม้อแปลง", INSULATOR_UPRIGHT_COL: 7, INSULATOR_HORIZONTAL_COL: 11},
         ])
 
     def test_department_filters_selectors_and_calculation(self):
@@ -29,6 +31,7 @@ class DepartmentTests(unittest.TestCase):
             {"department": "แผนกหม้อแปลง", "size": "1", "head": "HEAD", "count": "3"},
         ]])
         self.assertEqual(result["items"], [{MATERIAL_COL: "TX", CODE_COL: "200", TOTAL_COL: 3.0}])
+        self.assertEqual(self.workbook.get_insulator_rate("1", "HEAD", "แผนกหม้อแปลง"), (7.0, 11.0))
 
 
 if __name__ == "__main__":

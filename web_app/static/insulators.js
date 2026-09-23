@@ -81,7 +81,9 @@ function summarizeInsulators(pages) {
       return;
     }
     if (quantity === 0) return;
-    const rate = insulatorRate(row.head);
+    const hasOverride = row.insulatorUpright !== null && row.insulatorUpright !== undefined && row.insulatorUpright !== ""
+      && row.insulatorHorizontal !== null && row.insulatorHorizontal !== undefined && row.insulatorHorizontal !== "";
+    const rate = hasOverride ? [Number(row.insulatorUpright), Number(row.insulatorHorizontal)] : insulatorRate(row.head);
     if (!rate) {
       result.warnings.push(`${label} — ยังไม่มีอัตราลูกถ้วย`);
       return;

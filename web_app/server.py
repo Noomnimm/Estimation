@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 
-from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL, DEFAULT_DEPARTMENT
+from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL, DEFAULT_DEPARTMENT, INSULATOR_UPRIGHT_COL, INSULATOR_HORIZONTAL_COL
 from cloud_store import GoogleSheetProjectStore
 
 
@@ -76,6 +76,8 @@ def reload_approved_base() -> None:
             SIZE_COL: size, HEAD_COL: head, MATERIAL_COL: str(row.get("material", "")).strip(),
             CODE_COL: str(row.get("code", "")).strip(), QTY_COL: float(row.get("quantity", 0)),
             DEPARTMENT_COL: department,
+            INSULATOR_UPRIGHT_COL: pd.NA if row.get("insulator_upright", "") == "" else row.get("insulator_upright"),
+            INSULATOR_HORIZONTAL_COL: pd.NA if row.get("insulator_horizontal", "") == "" else row.get("insulator_horizontal"),
         } for row in request_rows]
         WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
 
@@ -113,7 +115,12 @@ class AppHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/heads":
             query = parse_qs(parsed.query)
-            self.handle_json(lambda: {"heads": WORKBOOK.get_heads(query.get("size", [""])[0], query.get("department", [DEFAULT_DEPARTMENT])[0])})
+            size = query.get("size", [""])[0]
+            department = query.get("department", [DEFAULT_DEPARTMENT])[0]
+            def heads_response():
+                heads = WORKBOOK.get_heads(size, department)
+                return {"heads": heads, "insulatorRates": {head: WORKBOOK.get_insulator_rate(size, head, department) for head in heads}}
+            self.handle_json(heads_response)
             return
         if parsed.path == "/api/sizes":
             query = parse_qs(parsed.query)
@@ -190,7 +197,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                 "code": str(row[CODE_COL]).strip(),
                 "quantity": float(row[QTY_COL]),
             } for _, row in matches.iterrows()]
-            self.send_json({"size": size, "head": head, "rows": rows})
+            upright, horizontal = WORKBOOK.get_insulator_rate(size, head, department)
+            self.send_json({"size": size, "head": head, "rows": rows, "insulatorUpright": upright, "insulatorHorizontal": horizontal})
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
