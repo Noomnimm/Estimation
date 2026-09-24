@@ -1,5 +1,6 @@
 import unittest
 from io import BytesIO
+from unittest.mock import patch
 
 import pandas as pd
 from openpyxl import load_workbook
@@ -43,6 +44,17 @@ class DepartmentTests(unittest.TestCase):
         self.assertEqual(workbook.sheetnames, [
             "ลูกถ้วยและอุปกรณ์", "ที่มารายการ", "สรุปลูกถ้วยแยกหน้า", "ที่มาลูกถ้วย",
         ])
+
+    def test_catalog_code_override_is_stored_as_ten_digit_text(self):
+        raw = pd.DataFrame([[None] * 9 for _ in range(8)])
+        raw.iloc[7, 1] = "15"
+        raw.iloc[7, 2] = "หม้อแปลงขนาด 30 เควีเอ"
+        raw.iloc[7, 8] = "1050010004"
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame(columns=[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL])
+        with patch("web_app.material_logic.pd.read_excel", return_value=raw):
+            workbook.load_keycode_catalog("unused.xlsx", "แผนกหม้อแปลง", {"15": "1050000011"})
+        self.assertEqual(workbook.base_df.iloc[0][CODE_COL], "1050000011")
 
 
 if __name__ == "__main__":

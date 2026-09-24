@@ -99,15 +99,16 @@ class MaterialWorkbook:
             "sets": int(df[SET_COL].astype(str).str.strip().str.lower().nunique()),
         }
 
-    def load_keycode_catalog(self, path: str | Path, department: str) -> int:
+    def load_keycode_catalog(self, path: str | Path, department: str, code_overrides: dict[str, str] | None = None) -> int:
         raw = pd.read_excel(path, header=None)
+        code_overrides = code_overrides or {}
         rows = []
         for _, source in raw.iloc[7:].iterrows():
             keycode = clean_text(source.iloc[1] if len(source) > 1 else "")
             description = clean_text(source.iloc[2] if len(source) > 2 else "")
             set_code = clean_text(source.iloc[5] if len(source) > 5 else "")
             material_code = clean_text(source.iloc[8] if len(source) > 8 else "")
-            code = set_code or material_code
+            code = code_overrides.get(keycode, set_code or material_code)
             if not keycode or not description or not code:
                 continue
             rows.append({
