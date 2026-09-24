@@ -60,6 +60,18 @@ TENSIONLESS_TAPES = (
     ("ERP TAPE", "1020180008"),
 )
 
+SURGE_ARRESTER_CROSSARM = {
+    (False, False): ("LIGHTNING ARRESTER 20-21 kV. 5 kA", "1040000000"),
+    (False, True): ("LIGHTNING ARRESTER,20-21 KV.10 KA.", "1040000001"),
+    (True, False): ("LIGHTNING ARRESTER 24-26 KV.5 KA.", "1040000002"),
+    (True, True): ("LIGHTNING ARRESTER 24-26 KV.10 KA.", "1040000003"),
+}
+SURGE_ARRESTER_TANK = {
+    False: ("S.A., 21 KV.5 KA.,WITHOUT BRACKET", "1040000007"),
+    True: ("S.A., 24 kV.5 kA.,WITHOUT BRACKET.", "1040000008"),
+}
+SURGE_ARRESTER_CODES = {code for _, code in (*SURGE_ARRESTER_CROSSARM.values(), *SURGE_ARRESTER_TANK.values())}
+
 
 class MaterialWorkbook:
     def __init__(self) -> None:
@@ -234,6 +246,10 @@ class MaterialWorkbook:
                     amount = parse_number(row[QTY_COL]) * count
                     if not code or amount == 0:
                         continue
+                    if department == "แผนกหม้อแปลง" and code in SURGE_ARRESTER_CODES:
+                        ngr = bool(item.get("surgeNgr"))
+                        within_3km = bool(item.get("surgeWithin3km"))
+                        material, code = SURGE_ARRESTER_TANK[ngr] if amount < 0 else SURGE_ARRESTER_CROSSARM[(ngr, within_3km)]
                     add_material(totals, material, code, amount)
                     matched_rows += 1
 

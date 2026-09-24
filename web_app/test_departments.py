@@ -69,6 +69,26 @@ class DepartmentTests(unittest.TestCase):
         self.assertEqual(row[CODE_COL], "1050000011")
         self.assertEqual(row[QTY_COL], -2)
 
+    def test_transformer_surge_arrester_follows_ngr_and_distance(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: "หม้อแปลง", HEAD_COL: "30kVA 1P", MATERIAL_COL: "OLD SA", CODE_COL: "1040000007", QTY_COL: -2, DEPARTMENT_COL: "แผนกหม้อแปลง"},
+            {SIZE_COL: "หม้อแปลง", HEAD_COL: "30kVA 1P", MATERIAL_COL: "NEW LA", CODE_COL: "1040000000", QTY_COL: 2, DEPARTMENT_COL: "แผนกหม้อแปลง"},
+        ])
+        cases = [
+            (False, False, "1040000007", "1040000000"),
+            (False, True, "1040000007", "1040000001"),
+            (True, False, "1040000008", "1040000002"),
+            (True, True, "1040000008", "1040000003"),
+        ]
+        for ngr, within, removed_code, installed_code in cases:
+            result = workbook.calculate([[
+                {"department": "แผนกหม้อแปลง", "size": "หม้อแปลง", "head": "30kVA 1P", "count": 1,
+                 "surgeNgr": ngr, "surgeWithin3km": within},
+            ]])
+            values = {row[CODE_COL]: row[TOTAL_COL] for row in result["items"]}
+            self.assertEqual(values, {removed_code: -2.0, installed_code: 2.0})
+
 
 if __name__ == "__main__":
     unittest.main()
