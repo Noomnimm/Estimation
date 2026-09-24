@@ -26,20 +26,7 @@ OUTPUTS = ROOT / "outputs"
 STATIC = ROOT / "static"
 DEFAULT_BASE = ROOT.parent / "Newdata.xlsx"
 DEFAULT_SET = ROOT.parent / "New folder" / "Allset.xlsx"
-DEFAULT_TRANSFORMER = ROOT.parent / "หม้อแปลง.xlsx"
 DEFAULT_TRANSMISSION = ROOT.parent / "สายส่ง 115kV.xlsx"
-
-# Current 22 kV SC transformer specification codes. Keys are KeyCode values in หม้อแปลง.xlsx.
-TRANSFORMER_CODE_OVERRIDES = {
-    "15": "1050000011",  # 30 kVA
-    "16": "1050010066",  # 50 kVA
-    "17": "1050010067",  # 100 kVA
-    "18": "1050010068",  # 160 kVA
-    "20": "1050010069",  # 250 kVA
-    "21": "1050010070",  # 315 kVA
-    "22": "1050010071",  # 400 kVA
-    "23": "1050010072",  # 500 kVA
-}
 
 WORKBOOK = MaterialWorkbook()
 CLOUD_STORE = GoogleSheetProjectStore()
@@ -48,8 +35,6 @@ ADMIN_PASSWORD = os.environ.get("BASE_ADMIN_PASSWORD", "")
 ADMIN_SECRET = os.environ.get("BASE_ADMIN_SESSION_SECRET", "").strip() or ADMIN_PASSWORD
 if DEFAULT_BASE.exists():
     WORKBOOK.load_base(DEFAULT_BASE)
-if DEFAULT_TRANSFORMER.exists():
-    WORKBOOK.load_keycode_catalog(DEFAULT_TRANSFORMER, "แผนกหม้อแปลง", TRANSFORMER_CODE_OVERRIDES)
 if DEFAULT_TRANSMISSION.exists():
     WORKBOOK.load_keycode_catalog(DEFAULT_TRANSMISSION, "แผนกสายส่ง")
 if DEFAULT_SET.exists():
@@ -60,8 +45,6 @@ def reload_approved_base() -> None:
     if not DEFAULT_BASE.exists():
         return
     WORKBOOK.load_base(DEFAULT_BASE)
-    if DEFAULT_TRANSFORMER.exists():
-        WORKBOOK.load_keycode_catalog(DEFAULT_TRANSFORMER, "แผนกหม้อแปลง", TRANSFORMER_CODE_OVERRIDES)
     if DEFAULT_TRANSMISSION.exists():
         WORKBOOK.load_keycode_catalog(DEFAULT_TRANSMISSION, "แผนกสายส่ง")
     try:
