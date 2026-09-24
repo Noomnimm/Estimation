@@ -24,6 +24,9 @@ const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
 
 const els = {
   status: document.getElementById("status"),
+  sizeColumnTitle: document.getElementById("sizeColumnTitle"),
+  headColumnTitle: document.getElementById("headColumnTitle"),
+  countColumnTitle: document.getElementById("countColumnTitle"),
   departmentSelect: document.getElementById("departmentSelect"),
   totalPages: document.getElementById("totalPages"),
   applyPages: document.getElementById("applyPages"),
@@ -129,6 +132,7 @@ function saveCurrentPageFromDom() {
 }
 
 function renderInputs() {
+  updateInputColumnTitles();
   els.inputRows.innerHTML = "";
   const page = state.pages[state.currentPage];
   page.forEach((row, index) => {
@@ -144,10 +148,10 @@ function renderInputs() {
     const headSelect = tr.querySelector(".head");
     const countInput = tr.querySelector(".count");
 
-    fillSelect(sizeSelect, state.sizes, "เลือกขนาดเสา");
+    fillSelect(sizeSelect, state.sizes, state.department === "แผนกหม้อแปลง" ? "เลือกแผนก" : "เลือกขนาดเสา");
     sizeSelect.value = row.size || "";
     countInput.value = row.count || "";
-    fillSelect(headSelect, [], "เลือกรหัสหัวเสา");
+    fillSelect(headSelect, [], state.department === "แผนกหม้อแปลง" ? "เลือกชนิดหม้อแปลง" : "เลือกรหัสหัวเสา");
 
     sizeSelect.addEventListener("change", () => {
       page[index].department = state.department;
@@ -195,6 +199,13 @@ function renderInputs() {
   });
   renderPageControls();
   renderInsulators();
+}
+
+function updateInputColumnTitles() {
+  const transformer = state.department === "แผนกหม้อแปลง";
+  els.sizeColumnTitle.textContent = transformer ? "แผนก" : "ขนาดเสา (m)";
+  els.headColumnTitle.textContent = transformer ? "ชนิดหม้อแปลง" : "รหัสหัวเสา";
+  els.countColumnTitle.textContent = "จำนวน";
 }
 
 function createSurgeDetailsRow(row, index) {
@@ -350,7 +361,7 @@ function fillSelect(select, values, placeholder) {
 
 async function loadHeads(size, select, selected, department = state.department) {
   if (!size) {
-    fillSelect(select, [], "เลือกรหัสหัวเสา");
+    fillSelect(select, [], department === "แผนกหม้อแปลง" ? "เลือกชนิดหม้อแปลง" : "เลือกรหัสหัวเสา");
     return null;
   }
   try {
@@ -359,7 +370,7 @@ async function loadHeads(size, select, selected, department = state.department) 
     Object.entries(data.insulatorRates || {}).forEach(([head, rate]) => {
       state.insulatorRates[insulatorRateKey(department, size, head)] = rate;
     });
-    fillSelect(select, data.heads, "เลือกรหัสหัวเสา");
+    fillSelect(select, data.heads, department === "แผนกหม้อแปลง" ? "เลือกชนิดหม้อแปลง" : "เลือกรหัสหัวเสา");
     select.value = selected || "";
     return data;
   } catch (error) {
