@@ -56,6 +56,19 @@ class DepartmentTests(unittest.TestCase):
             workbook.load_keycode_catalog("unused.xlsx", "แผนกหม้อแปลง", {"15": "1050000011"})
         self.assertEqual(workbook.base_df.iloc[0][CODE_COL], "1050000011")
 
+    def test_department_base_preserves_negative_quantities_and_normalizes_codes(self):
+        source = pd.DataFrame([{
+            "รายการ": "30kVA 1P", MATERIAL_COL: "อุปกรณ์ทดสอบ",
+            CODE_COL: "1-05-000-0011", QTY_COL: -2,
+        }])
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame(columns=[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL])
+        with patch("web_app.material_logic.pd.read_excel", return_value=source):
+            workbook.load_department_base("unused.xlsx", "แผนกหม้อแปลง", "หม้อแปลง")
+        row = workbook.base_df.iloc[0]
+        self.assertEqual(row[CODE_COL], "1050000011")
+        self.assertEqual(row[QTY_COL], -2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -120,6 +120,26 @@ class MaterialWorkbook:
             self.base_df = pd.concat([self.base_df, pd.DataFrame(rows)], ignore_index=True)
         return len(rows)
 
+    def load_department_base(self, path: str | Path, department: str, size_label: str) -> int:
+        """Append a simple department workbook: รายการ, รายการวัสดุ, รหัสพัสดุ, จำนวน."""
+        source = pd.read_excel(path, dtype={"รหัสพัสดุ": str})
+        require_columns(source, ["รายการ", MATERIAL_COL, CODE_COL, QTY_COL], department)
+        rows = []
+        for _, item in source.iterrows():
+            head = clean_text(item["รายการ"])
+            material = clean_text(item[MATERIAL_COL])
+            code = clean_text(item[CODE_COL]).replace("-", "")
+            if not head or not material or not code:
+                continue
+            rows.append({
+                SIZE_COL: size_label, HEAD_COL: head, MATERIAL_COL: material,
+                CODE_COL: code, QTY_COL: parse_number(item[QTY_COL]), DEPARTMENT_COL: department,
+                INSULATOR_UPRIGHT_COL: pd.NA, INSULATOR_HORIZONTAL_COL: pd.NA,
+            })
+        if rows:
+            self.base_df = pd.concat([self.base_df, pd.DataFrame(rows)], ignore_index=True)
+        return len(rows)
+
     def get_departments(self) -> list[str]:
         configured = [DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC", "แผนกหม้อแปลง", "แผนกสายส่ง"]
         return configured

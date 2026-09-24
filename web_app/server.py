@@ -26,6 +26,7 @@ OUTPUTS = ROOT / "outputs"
 STATIC = ROOT / "static"
 DEFAULT_BASE = ROOT.parent / "Newdata.xlsx"
 DEFAULT_SET = ROOT.parent / "New folder" / "Allset.xlsx"
+DEFAULT_TRANSFORMER_BASE = ROOT.parent / "แผนกหม้อแปลง.xlsx"
 DEFAULT_TRANSMISSION = ROOT.parent / "สายส่ง 115kV.xlsx"
 
 WORKBOOK = MaterialWorkbook()
@@ -35,6 +36,8 @@ ADMIN_PASSWORD = os.environ.get("BASE_ADMIN_PASSWORD", "")
 ADMIN_SECRET = os.environ.get("BASE_ADMIN_SESSION_SECRET", "").strip() or ADMIN_PASSWORD
 if DEFAULT_BASE.exists():
     WORKBOOK.load_base(DEFAULT_BASE)
+if DEFAULT_TRANSFORMER_BASE.exists():
+    WORKBOOK.load_department_base(DEFAULT_TRANSFORMER_BASE, "แผนกหม้อแปลง", "หม้อแปลง")
 if DEFAULT_TRANSMISSION.exists():
     WORKBOOK.load_keycode_catalog(DEFAULT_TRANSMISSION, "แผนกสายส่ง")
 if DEFAULT_SET.exists():
@@ -45,6 +48,8 @@ def reload_approved_base() -> None:
     if not DEFAULT_BASE.exists():
         return
     WORKBOOK.load_base(DEFAULT_BASE)
+    if DEFAULT_TRANSFORMER_BASE.exists():
+        WORKBOOK.load_department_base(DEFAULT_TRANSFORMER_BASE, "แผนกหม้อแปลง", "หม้อแปลง")
     if DEFAULT_TRANSMISSION.exists():
         WORKBOOK.load_keycode_catalog(DEFAULT_TRANSMISSION, "แผนกสายส่ง")
     try:

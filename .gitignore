@@ -17,4 +17,5 @@ venv/
 .vscode/
 
 # Runtime BaseData catalogs deployed with the web app
+!แผนกหม้อแปลง.xlsx
 !สายส่ง 115kV.xlsx
