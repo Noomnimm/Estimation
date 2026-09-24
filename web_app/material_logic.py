@@ -249,7 +249,15 @@ class MaterialWorkbook:
                     if department == "แผนกหม้อแปลง" and code in SURGE_ARRESTER_CODES:
                         ngr = bool(item.get("surgeNgr"))
                         within_3km = bool(item.get("surgeWithin3km"))
-                        material, code = SURGE_ARRESTER_TANK[ngr] if amount < 0 else SURGE_ARRESTER_CROSSARM[(ngr, within_3km)]
+                        mounting = clean_text(item.get("surgeMounting")) or "crossarm"
+                        if within_3km:
+                            mounting = "crossarm"  # WITHOUT BRACKET is not available in 10 kA.
+                        if mounting == "tank":
+                            if amount < 0:
+                                continue
+                            material, code = SURGE_ARRESTER_TANK[ngr]
+                        else:
+                            material, code = SURGE_ARRESTER_TANK[ngr] if amount < 0 else SURGE_ARRESTER_CROSSARM[(ngr, within_3km)]
                     add_material(totals, material, code, amount)
                     matched_rows += 1
 

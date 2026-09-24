@@ -620,7 +620,7 @@ td select {
 }
 
 .surge-details-row td { padding: 0 10px 12px; background: #fbf8fd; }
-.surge-details { display: grid; grid-template-columns: minmax(230px, 1fr) minmax(180px, .65fr) minmax(200px, .75fr); align-items: end; gap: 12px; padding: 13px; border-left: 4px solid var(--gold); border-radius: 10px; background: linear-gradient(135deg, #f4eafa, #fff8df); }
+.surge-details { display: grid; grid-template-columns: minmax(210px, 1fr) repeat(3, minmax(150px, .62fr)); align-items: end; gap: 12px; padding: 13px; border-left: 4px solid var(--gold); border-radius: 10px; background: linear-gradient(135deg, #f4eafa, #fff8df); }
 .surge-details label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; }
 .surge-details select { min-height: 36px; border: 1px solid #cfb5df; border-radius: 9px; padding: 7px 9px; background: #fff; }
 .surge-title { display: grid; gap: 5px; color: var(--accent-dark); }

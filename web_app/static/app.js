@@ -87,7 +87,7 @@ const els = {
 };
 
 function blankRow(department = DEFAULT_DEPARTMENT) {
-  return { department, size: "", head: "", count: "", wire1: "", wire2: "", latWire: "", surgeNgr: false, surgeWithin3km: false, insulatorUpright: null, insulatorHorizontal: null };
+  return { department, size: "", head: "", count: "", wire1: "", wire2: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
 }
 
 function insulatorRateKey(department, size, head) {
@@ -208,23 +208,36 @@ function createSurgeDetailsRow(row, index) {
     <div class="surge-title"><strong>เลือก Surge Arrester</strong><span class="surge-preview"></span></div>
     <label><span>ระบบ</span><select class="surge-ngr"><option value="normal">ระบบปกติ</option><option value="ngr">ระบบ NGR</option></select></label>
     <label><span>ระยะจากสถานี</span><select class="surge-distance"><option value="outside">นอกระยะ 3 กม.</option><option value="inside">ภายในระยะ 3 กม.</option></select></label>
+    <label><span>ตำแหน่งติดตั้ง</span><select class="surge-mounting"><option value="crossarm">ติดตั้งบนคอน</option><option value="tank">ติดตั้งตัวถังหม้อแปลง</option></select></label>
   `;
   const ngrSelect = panel.querySelector(".surge-ngr");
   const distanceSelect = panel.querySelector(".surge-distance");
+  const mountingSelect = panel.querySelector(".surge-mounting");
   const preview = panel.querySelector(".surge-preview");
   ngrSelect.value = row.surgeNgr ? "ngr" : "normal";
   distanceSelect.value = row.surgeWithin3km ? "inside" : "outside";
+  mountingSelect.value = row.surgeMounting || "crossarm";
   const update = () => {
     row.surgeNgr = ngrSelect.value === "ngr";
     row.surgeWithin3km = distanceSelect.value === "inside";
+    if (row.surgeWithin3km) {
+      mountingSelect.value = "crossarm";
+      mountingSelect.querySelector('option[value="tank"]').disabled = true;
+    } else {
+      mountingSelect.querySelector('option[value="tank"]').disabled = false;
+    }
+    row.surgeMounting = mountingSelect.value;
     const crossarmCodes = row.surgeNgr
       ? (row.surgeWithin3km ? "1040000003" : "1040000002")
       : (row.surgeWithin3km ? "1040000001" : "1040000000");
     const tankCode = row.surgeNgr ? "1040000008" : "1040000007";
-    preview.textContent = `ติดคอน ${crossarmCodes} · ติดตัวถัง ${tankCode}`;
+    preview.textContent = row.surgeMounting === "tank"
+      ? `เลือกติดตัวถัง: ${tankCode} · 5 kA WITHOUT BRACKET`
+      : `เลือกติดตั้งบนคอน: ${crossarmCodes}`;
   };
   ngrSelect.addEventListener("change", update);
   distanceSelect.addEventListener("change", update);
+  mountingSelect.addEventListener("change", update);
   update();
   cell.appendChild(panel);
   detailRow.appendChild(cell);

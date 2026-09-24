@@ -88,6 +88,12 @@ class DepartmentTests(unittest.TestCase):
             ]])
             values = {row[CODE_COL]: row[TOTAL_COL] for row in result["items"]}
             self.assertEqual(values, {removed_code: -2.0, installed_code: 2.0})
+        for ngr, tank_code in [(False, "1040000007"), (True, "1040000008")]:
+            result = workbook.calculate([[
+                {"department": "แผนกหม้อแปลง", "size": "หม้อแปลง", "head": "30kVA 1P", "count": 1,
+                 "surgeNgr": ngr, "surgeWithin3km": False, "surgeMounting": "tank"},
+            ]])
+            self.assertEqual({row[CODE_COL]: row[TOTAL_COL] for row in result["items"]}, {tank_code: 2.0})
 
 
 if __name__ == "__main__":
