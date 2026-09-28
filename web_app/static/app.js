@@ -1318,9 +1318,9 @@ async function initialize() {
     setStatus(data.base ? "โหลดฐานข้อมูลเริ่มต้นแล้ว" : "กรุณาโหลด BaseData");
     setupCloudLogin(cloudConfig);
     if (returnToApprovedRequests) {
-      state.activeRequestStatus = "approved";
+      state.activeRequestStatus = "pending";
       switchTab("base-admin");
-      setStatus("อนุมัติและรีเฟรช BaseData เรียบร้อยแล้ว");
+      setStatus("อนุมัติและรีเฟรช BaseData เรียบร้อยแล้ว — กลับสู่รายการรอตรวจ");
     }
   } catch (error) {
     setStatus(`โหลดฐานข้อมูลเริ่มต้นไม่สำเร็จ: ${error.message}`, true);
