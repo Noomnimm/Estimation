@@ -1201,7 +1201,7 @@ function renderBaseRequests() {
       for (const [label, approve, className] of [["อนุมัติ", true, "primary"], ["ปฏิเสธ", false, "danger"]]) {
         const button = document.createElement("button");
         button.type = "button"; button.textContent = label; button.className = className;
-        button.addEventListener("click", () => reviewBaseRequest(request.id, approve));
+        button.addEventListener("click", () => reviewBaseRequest(request.id, approve, button));
         footer.appendChild(button);
       }
     }
@@ -1241,8 +1241,15 @@ function compareBaseRows(originalRows, newRows) {
   });
 }
 
-async function reviewBaseRequest(requestId, approve) {
-  const note = window.prompt(approve ? "หมายเหตุการอนุมัติ (เว้นว่างได้)" : "เหตุผลที่ปฏิเสธ") ?? "";
+async function reviewBaseRequest(requestId, approve, button) {
+  const note = window.prompt(approve ? "หมายเหตุการอนุมัติ (เว้นว่างได้)" : "เหตุผลที่ปฏิเสธ");
+  if (note === null) return;
+  const originalButtonText = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = approve ? "กำลังอนุมัติ..." : "กำลังปฏิเสธ...";
+  }
+  setStatus(approve ? "กำลังอนุมัติและอัปเดต BaseData กรุณารอสักครู่..." : "กำลังปฏิเสธคำขอ...");
   try {
     await adminFetch("/api/base-requests/review", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -1250,7 +1257,9 @@ async function reviewBaseRequest(requestId, approve) {
     });
     if (approve) {
       sessionStorage.setItem(ADMIN_APPROVAL_REFRESH_KEY, "1");
-      window.location.reload();
+      const refreshedUrl = new URL(window.location.href);
+      refreshedUrl.searchParams.set("baseRefresh", Date.now().toString());
+      window.location.replace(refreshedUrl.toString());
       return;
     }
     await loadDepartmentSizes(state.department);
@@ -1261,6 +1270,10 @@ async function reviewBaseRequest(requestId, approve) {
     await loadBaseRequests();
   } catch (error) {
     setStatus(error.message, true);
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalButtonText;
+    }
   }
 }
 
