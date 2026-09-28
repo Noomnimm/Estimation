@@ -21,6 +21,7 @@ const state = {
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
+const ADMIN_APPROVAL_REFRESH_KEY = "material-calculator-admin-approval-refresh";
 
 const els = {
   status: document.getElementById("status"),
@@ -1247,6 +1248,11 @@ async function reviewBaseRequest(requestId, approve) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requestId, approve, note }),
     });
+    if (approve) {
+      sessionStorage.setItem(ADMIN_APPROVAL_REFRESH_KEY, "1");
+      window.location.reload();
+      return;
+    }
     await loadDepartmentSizes(state.department);
     renderInputs();
     if (els.requestAction.value === "replace") await loadRequestDepartmentSizes();
@@ -1294,6 +1300,8 @@ els.adminLogout.addEventListener("click", () => {
 });
 
 async function initialize() {
+  const returnToApprovedRequests = sessionStorage.getItem(ADMIN_APPROVAL_REFRESH_KEY) === "1";
+  sessionStorage.removeItem(ADMIN_APPROVAL_REFRESH_KEY);
   populateDepartmentSelectors();
   if (!els.requestMaterialRows.children.length) addRequestMaterialRow();
   renderSavedProjects();
@@ -1309,6 +1317,11 @@ async function initialize() {
     renderInputs();
     setStatus(data.base ? "โหลดฐานข้อมูลเริ่มต้นแล้ว" : "กรุณาโหลด BaseData");
     setupCloudLogin(cloudConfig);
+    if (returnToApprovedRequests) {
+      state.activeRequestStatus = "approved";
+      switchTab("base-admin");
+      setStatus("อนุมัติและรีเฟรช BaseData เรียบร้อยแล้ว");
+    }
   } catch (error) {
     setStatus(`โหลดฐานข้อมูลเริ่มต้นไม่สำเร็จ: ${error.message}`, true);
   }
