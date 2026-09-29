@@ -164,18 +164,34 @@ function renderInputs() {
     countInput.value = row.count || "";
     headSelect.placeholder = state.department === "แผนกหม้อแปลง" ? "เลือกหรือพิมพ์ค้นหาชนิดหม้อแปลง" : "เลือกหรือพิมพ์ค้นหาหัวเสา";
     headSelect.value = row.head || "";
+    const positionHeadOptions = () => {
+      if (headOptions.hidden) return;
+      const bounds = headCombobox.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - bounds.bottom;
+      const spaceAbove = bounds.top;
+      const naturalHeight = Math.min(headOptions.scrollHeight, 400);
+      const showBelow = spaceBelow >= naturalHeight + 4 || spaceBelow >= spaceAbove;
+      const availableHeight = Math.max(120, Math.min(400, (showBelow ? spaceBelow : spaceAbove) - 12));
+      headOptions.style.maxHeight = `${availableHeight}px`;
+      const renderedHeight = Math.min(headOptions.scrollHeight, availableHeight);
+      const top = showBelow ? bounds.bottom + 4 : Math.max(8, bounds.top - renderedHeight - 4);
+      headOptions.style.left = `${bounds.left}px`;
+      headOptions.style.top = `${top}px`;
+      headOptions.style.width = `${bounds.width}px`;
+    };
     const closeHeadOptions = () => {
       headOptions.hidden = true;
       headSelect.setAttribute("aria-expanded", "false");
+      window.removeEventListener("scroll", positionHeadOptions, true);
+      window.removeEventListener("resize", positionHeadOptions);
     };
     const openHeadOptions = () => {
       renderHeadOptions(headSelect, headOptions);
-      const bounds = headCombobox.getBoundingClientRect();
-      headOptions.style.left = `${bounds.left}px`;
-      headOptions.style.top = `${bounds.bottom + 4}px`;
-      headOptions.style.width = `${bounds.width}px`;
       headOptions.hidden = false;
       headSelect.setAttribute("aria-expanded", "true");
+      positionHeadOptions();
+      window.addEventListener("scroll", positionHeadOptions, true);
+      window.addEventListener("resize", positionHeadOptions);
     };
 
     sizeSelect.addEventListener("change", () => {
