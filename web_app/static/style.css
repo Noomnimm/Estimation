@@ -633,17 +633,21 @@ td select {
 
 .input-table th:nth-child(1),
 .input-table td:nth-child(1) {
-  width: 26%;
+  width: 24%;
 }
 
 .input-table th:nth-child(2),
 .input-table td:nth-child(2) {
-  width: 48%;
+  width: 52%;
 }
 
 .input-table th:nth-child(3),
 .input-table td:nth-child(3) {
-  width: 26%;
+  width: 24%;
+}
+
+.input-table {
+  min-width: 820px;
 }
 
 .actions {
