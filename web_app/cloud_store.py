@@ -139,6 +139,15 @@ class GoogleSheetProjectStore:
             rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
         return [self._request_to_public(row) for row in reversed(rows)]
 
+    def clear_approved_requests(self) -> int:
+        """Clear approved request history without touching published BaseData rows."""
+        with self._lock:
+            rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
+            row_numbers = [int(row["_row_number"]) for row in rows if row.get("status") == "approved"]
+            if row_numbers:
+                self._clear_named_rows(REQUEST_SHEET, len(REQUEST_HEADERS), row_numbers)
+        return len(row_numbers)
+
     def review_base_request(self, request_id: str, approve: bool, reviewer: str, note: str = "") -> dict[str, Any]:
         with self._lock:
             rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
@@ -241,6 +250,13 @@ class GoogleSheetProjectStore:
             spreadsheetId=self.spreadsheet_id,
             range=f"'{sheet_name}'!A{row_number}:{self._column_letter(len(headers))}{row_number}",
             valueInputOption="RAW", body={"values": [[record.get(header, "") for header in headers]]},
+        ).execute()
+
+    def _clear_named_rows(self, sheet_name: str, column_count: int, row_numbers: list[int]) -> None:
+        last_column = self._column_letter(column_count)
+        self._get_service().spreadsheets().values().batchClear(
+            spreadsheetId=self.spreadsheet_id,
+            body={"ranges": [f"'{sheet_name}'!A{row}:{last_column}{row}" for row in row_numbers]},
         ).execute()
 
     @staticmethod

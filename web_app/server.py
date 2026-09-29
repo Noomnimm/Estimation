@@ -172,6 +172,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/base-requests": self.submit_base_request,
             "/api/base-admin/login": self.admin_login,
             "/api/base-requests/review": self.review_base_request,
+            "/api/base-requests/clear-approved": self.clear_approved_requests,
         }
         route = routes.get(parsed.path)
         if route is None:
@@ -319,6 +320,15 @@ class AppHandler(SimpleHTTPRequestHandler):
             if payload.get("approve"):
                 reload_approved_base()
             self.send_json({"request": request})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def clear_approved_requests(self) -> None:
+        try:
+            verify_admin_token(self.admin_token())
+            self.send_json({"cleared": CLOUD_STORE.clear_approved_requests()})
         except PermissionError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
         except Exception as exc:

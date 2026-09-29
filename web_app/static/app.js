@@ -78,6 +78,7 @@ const els = {
   pendingRequestCount: document.getElementById("pendingRequestCount"),
   approvedRequestCount: document.getElementById("approvedRequestCount"),
   rejectedRequestCount: document.getElementById("rejectedRequestCount"),
+  clearApprovedRequests: document.getElementById("clearApprovedRequests"),
   resultRows: document.getElementById("resultRows"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
@@ -1292,6 +1293,7 @@ function renderBaseRequests() {
   els.pendingRequestCount.textContent = counts.pending;
   els.approvedRequestCount.textContent = counts.approved;
   els.rejectedRequestCount.textContent = counts.rejected;
+  els.clearApprovedRequests.hidden = state.activeRequestStatus !== "approved" || counts.approved === 0;
   document.querySelectorAll(".request-status-tab").forEach((button) => {
     button.classList.toggle("active", button.dataset.requestStatus === state.activeRequestStatus);
   });
@@ -1428,6 +1430,22 @@ document.querySelectorAll(".request-status-tab").forEach((button) => {
     state.activeRequestStatus = button.dataset.requestStatus;
     renderBaseRequests();
   });
+});
+els.clearApprovedRequests.addEventListener("click", async () => {
+  const count = Number(els.approvedRequestCount.textContent || 0);
+  if (!count || !window.confirm(`ล้างประวัติรายการอนุมัติแล้วทั้งหมด ${count} รายการใช่ไหม?\n\nข้อมูลหัวเสาที่อนุมัติและใช้งานอยู่จะไม่ถูกลบ`)) return;
+  try {
+    els.clearApprovedRequests.disabled = true;
+    els.clearApprovedRequests.textContent = "กำลังล้าง...";
+    const data = await adminFetch("/api/base-requests/clear-approved", { method: "POST" });
+    setStatus(`ล้างประวัติอนุมัติแล้ว ${data.cleared || 0} รายการ โดยไม่กระทบ BaseData`);
+    await loadBaseRequests();
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    els.clearApprovedRequests.disabled = false;
+    els.clearApprovedRequests.textContent = "ล้างประวัติอนุมัติแล้ว";
+  }
 });
 els.departmentSelect.addEventListener("change", () => changeDepartment(els.departmentSelect.value));
 els.replaceSize.addEventListener("change", loadReplaceHeads);

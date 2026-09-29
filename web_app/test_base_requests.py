@@ -27,6 +27,12 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
     def _update_named_record(self, sheet_name, headers, record, row_number):
         self.rows[row_number - 2] = dict(record)
 
+    def _clear_named_rows(self, sheet_name, column_count, row_numbers):
+        targets = set(row_numbers)
+        self.rows = [row for index, row in enumerate(self.rows, start=2) if index not in targets]
+        for index, row in enumerate(self.rows, start=2):
+            row["_row_number"] = index
+
 
 class BaseRequestTests(unittest.TestCase):
     def test_cloud_project_reads_multi_department_payload(self):
@@ -110,6 +116,21 @@ class BaseRequestTests(unittest.TestCase):
                 "action": "rename", "size": "12.2", "head": "ชื่อใหม่",
                 "rows": [{"material": "SET", "code": "Set1", "quantity": 1}],
             })
+
+    def test_clear_approved_history_keeps_published_rows_and_rejections(self):
+        store = MemoryBaseRequestStore()
+        base_payload = {
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "99", "rows": [{"material": "TEST", "code": "Set1", "quantity": 1}],
+        }
+        approved = store.submit_base_request({**base_payload, "head": "APPROVED"})
+        rejected = store.submit_base_request({**base_payload, "head": "REJECTED"})
+        store.review_base_request(approved["id"], True, "admin")
+        store.review_base_request(rejected["id"], False, "admin")
+        self.assertEqual(store.clear_approved_requests(), 1)
+        self.assertEqual(len(store.approved), 1)
+        remaining = store.list_base_requests()
+        self.assertEqual([item["head"] for item in remaining], ["REJECTED"])
 
 
 if __name__ == "__main__":
