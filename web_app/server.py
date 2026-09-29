@@ -66,10 +66,13 @@ def reload_approved_base() -> None:
         first = request_rows[0]
         size, head = str(first.get("size", "")).strip(), str(first.get("head", "")).strip()
         department = str(first.get("department", "")).strip() or DEFAULT_DEPARTMENT
-        if first.get("action") == "replace":
+        action = str(first.get("action", "add")).strip()
+        if action in {"replace", "rename"}:
+            remove_size = str(first.get("source_size", "")).strip() or size
+            remove_head = str(first.get("source_head", "")).strip() or head
             WORKBOOK.base_df = WORKBOOK.base_df[
-                ~((WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == size)
-                  & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == head)
+                ~((WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == remove_size)
+                  & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == remove_head)
                   & (WORKBOOK.base_df[DEPARTMENT_COL].astype(str).str.strip() == department))
             ]
         additions = [{

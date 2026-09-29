@@ -33,6 +33,7 @@ APPROVED_SHEET = "ApprovedBaseData"
 APPROVED_HEADERS = [
     "size", "head", "material", "code", "quantity", "action", "request_id",
     "approved_at", "approved_by", "department", "insulator_upright", "insulator_horizontal",
+    "source_size", "source_head",
 ]
 
 
@@ -91,9 +92,9 @@ class GoogleSheetProjectStore:
                 raise ValueError("ทุกรายการต้องมีชื่อวัสดุ รหัสพัสดุ/SET และจำนวนที่ไม่เป็นศูนย์")
             clean_rows.append({"material": material, "code": code, "quantity": quantity})
         action = str(payload.get("action", "add")).strip().lower()
-        if action not in {"add", "replace"}:
+        if action not in {"add", "replace", "rename", "copy"}:
             action = "add"
-        original_rows = payload.get("original_rows", []) if action == "replace" else []
+        original_rows = payload.get("original_rows", []) if action != "add" else []
         if not isinstance(original_rows, list):
             original_rows = []
         clean_original_rows = []
@@ -110,6 +111,10 @@ class GoogleSheetProjectStore:
         target_department = str(payload.get("target_department", "แผนกแรงสูง")).strip() or "แผนกแรงสูง"
         insulator_upright = self._nonnegative_number(payload.get("insulator_upright"), "ลูกถ้วยตั้ง")
         insulator_horizontal = self._nonnegative_number(payload.get("insulator_horizontal"), "ลูกถ้วยนอน")
+        source_size = str(payload.get("source_size", "")).strip() or (values["size"] if action == "replace" else "")
+        source_head = str(payload.get("source_head", "")).strip() or (values["head"] if action == "replace" else "")
+        if action in {"rename", "copy"} and (not source_size or not source_head):
+            raise ValueError("กรุณาเลือกขนาดเสาและหัวเสาต้นฉบับ")
         record = {
             "request_id": uuid.uuid4().hex,
             "submitted_at": datetime.now(timezone.utc).isoformat(),
@@ -117,7 +122,8 @@ class GoogleSheetProjectStore:
             "action": action,
             "rows_json": json.dumps(
                 {"new": clean_rows, "original": clean_original_rows, "department": target_department,
-                 "insulator_upright": insulator_upright, "insulator_horizontal": insulator_horizontal},
+                 "insulator_upright": insulator_upright, "insulator_horizontal": insulator_horizontal,
+                 "source_size": source_size, "source_head": source_head},
                 ensure_ascii=False, separators=(",", ":"),
             ),
             "note": str(payload.get("note", "")).strip(),
@@ -160,6 +166,8 @@ class GoogleSheetProjectStore:
                         "department": stored_rows.get("department", "แผนกแรงสูง") if isinstance(stored_rows, dict) else "แผนกแรงสูง",
                         "insulator_upright": stored_rows.get("insulator_upright", "") if isinstance(stored_rows, dict) else "",
                         "insulator_horizontal": stored_rows.get("insulator_horizontal", "") if isinstance(stored_rows, dict) else "",
+                        "source_size": stored_rows.get("source_size", "") if isinstance(stored_rows, dict) else "",
+                        "source_head": stored_rows.get("source_head", "") if isinstance(stored_rows, dict) else "",
                     })
         return self._request_to_public(record)
 
@@ -255,12 +263,16 @@ class GoogleSheetProjectStore:
             department = stored_rows.get("department", "แผนกแรงสูง")
             insulator_upright = stored_rows.get("insulator_upright", "")
             insulator_horizontal = stored_rows.get("insulator_horizontal", "")
+            source_size = stored_rows.get("source_size", "")
+            source_head = stored_rows.get("source_head", "")
         else:
             rows = stored_rows
             original_rows = []
             department = "แผนกแรงสูง"
             insulator_upright = ""
             insulator_horizontal = ""
+            source_size = ""
+            source_head = ""
         return {
             "id": record.get("request_id", ""), "submittedAt": record.get("submitted_at", ""),
             "submitterName": record.get("submitter_name", ""), "employeeId": record.get("employee_id", ""),
@@ -269,6 +281,7 @@ class GoogleSheetProjectStore:
             "insulatorUpright": insulator_upright, "insulatorHorizontal": insulator_horizontal,
             "size": record.get("size", ""), "head": record.get("head", ""), "rows": rows,
             "originalRows": original_rows,
+            "sourceSize": source_size, "sourceHead": source_head,
             "note": record.get("note", ""), "status": record.get("status", "pending"),
             "reviewedAt": record.get("reviewed_at", ""), "reviewedBy": record.get("reviewed_by", ""),
             "reviewNote": record.get("review_note", ""),

@@ -54,6 +54,8 @@ const els = {
   requestAction: document.getElementById("requestAction"),
   requestSize: document.getElementById("requestSize"),
   requestHead: document.getElementById("requestHead"),
+  requestSizeLabel: document.getElementById("requestSizeLabel"),
+  requestHeadLabel: document.getElementById("requestHeadLabel"),
   requestInsulatorUpright: document.getElementById("requestInsulatorUpright"),
   requestInsulatorHorizontal: document.getElementById("requestInsulatorHorizontal"),
   requestAddTarget: document.getElementById("requestAddTarget"),
@@ -1108,18 +1110,21 @@ async function submitBaseRequest(event) {
   event.preventDefault();
   try {
     setStatus("กำลังส่งคำขอให้ Admin ตรวจ...");
-    const replacing = els.requestAction.value === "replace";
-    const size = replacing ? els.replaceSize.value : els.requestSize.value;
-    const head = replacing ? els.replaceHead.value : els.requestHead.value;
+    const action = els.requestAction.value;
+    const usesSource = action !== "add";
+    const size = action === "replace" ? els.replaceSize.value : els.requestSize.value;
+    const head = action === "replace" ? els.replaceHead.value : els.requestHead.value;
     const response = await fetch("/api/base-requests", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         submitter_name: els.requesterName.value, employee_id: els.requesterEmployeeId.value,
-        department: els.requesterDepartment.value, action: els.requestAction.value,
+        department: els.requesterDepartment.value, action,
         target_department: els.requestTargetDepartment.value,
         insulator_upright: els.requestInsulatorUpright.value,
         insulator_horizontal: els.requestInsulatorHorizontal.value,
-        size, head, rows: requestMaterialValues(), original_rows: replacing ? state.baseRequestOriginalRows : [], note: els.requestNote.value,
+        size, head, rows: requestMaterialValues(), original_rows: usesSource ? state.baseRequestOriginalRows : [],
+        source_size: usesSource ? els.replaceSize.value : "", source_head: usesSource ? els.replaceHead.value : "",
+        note: els.requestNote.value,
       }),
     });
     const data = await response.json();
@@ -1187,13 +1192,16 @@ async function changeDepartment(department) {
 }
 
 async function switchRequestAction() {
-  const replacing = els.requestAction.value === "replace";
-  els.requestAddTarget.hidden = replacing;
-  els.requestReplaceTarget.hidden = !replacing;
-  els.existingDataHint.hidden = !replacing;
+  const action = els.requestAction.value;
+  const usesSource = action !== "add";
+  els.requestAddTarget.hidden = action === "replace";
+  els.requestReplaceTarget.hidden = !usesSource;
+  els.existingDataHint.hidden = !usesSource;
+  els.requestSizeLabel.textContent = action === "copy" ? "ขนาดเสา / KeyCode ของหัวใหม่" : action === "rename" ? "ขนาดเสา / KeyCode หลังเปลี่ยนชื่อ" : "ขนาดเสา / KeyCode";
+  els.requestHeadLabel.textContent = action === "copy" ? "ชื่อหัวเสาใหม่จากสำเนา" : action === "rename" ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
-  if (!replacing) {
+  if (!usesSource) {
     addRequestMaterialRow();
     return;
   }
@@ -1235,7 +1243,19 @@ async function loadExistingBaseEntry() {
     els.requestInsulatorUpright.value = String(data.insulatorUpright ?? 0);
     els.requestInsulatorHorizontal.value = String(data.insulatorHorizontal ?? 0);
     data.rows.forEach((row) => addRequestMaterialRow(row, true));
-    els.existingDataHint.textContent = `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว แก้ไข เพิ่ม หรือนำรายการออกได้`;
+    const action = els.requestAction.value;
+    if (action === "rename") {
+      els.requestSize.value = els.replaceSize.value;
+      els.requestHead.value = els.replaceHead.value;
+    } else if (action === "copy") {
+      els.requestSize.value = els.replaceSize.value;
+      els.requestHead.value = `${els.replaceHead.value} COPY`;
+    }
+    els.existingDataHint.textContent = action === "rename"
+      ? `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว ใส่ชื่อหัวเสาใหม่ด้านบน`
+      : action === "copy"
+        ? `คัดลอกข้อมูลเดิม ${data.rows.length} รายการแล้ว เปลี่ยนชื่อและแก้ไส้ในได้ทันที`
+        : `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว แก้ไข เพิ่ม หรือนำรายการออกได้`;
   } catch (error) { setStatus(error.message, true); }
 }
 
@@ -1288,24 +1308,28 @@ function renderBaseRequests() {
     const card = document.createElement("article");
     card.className = `request-card status-${request.status}`;
     const title = document.createElement("h3");
-    title.textContent = `${request.size} · ${request.head}`;
+    const sourceLabel = request.sourceHead ? `${request.sourceSize} · ${request.sourceHead}` : "";
+    title.textContent = sourceLabel && request.action !== "replace"
+      ? `${sourceLabel} → ${request.size} · ${request.head}`
+      : `${request.size} · ${request.head}`;
     const meta = document.createElement("p");
-    meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ลูกถ้วยตั้ง ${formatAmount(request.insulatorUpright)} / นอน ${formatAmount(request.insulatorHorizontal)} ต่อหัว · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${request.action === "replace" ? "แทนที่ข้อมูลเดิม" : "เพิ่มข้อมูล"}`;
+    const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขไส้ในหัวเดิม", rename: "เปลี่ยนชื่อหัวเสา", copy: "คัดลอกเป็นหัวใหม่" };
+    meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ลูกถ้วยตั้ง ${formatAmount(request.insulatorUpright)} / นอน ${formatAmount(request.insulatorHorizontal)} ต่อหัว · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${actionLabels[request.action] || "เพิ่มข้อมูล"}`;
     const table = document.createElement("table");
-    const isReplace = request.action === "replace";
-    table.innerHTML = isReplace
+    const comparesOriginal = request.action !== "add";
+    table.innerHTML = comparesOriginal
       ? "<thead><tr><th>สถานะ</th><th>รายการวัสดุ</th><th>รหัส</th><th>เดิม</th><th>ใหม่</th></tr></thead>"
       : "<thead><tr><th>รายการวัสดุ</th><th>รหัส</th><th>จำนวน</th></tr></thead>";
     const body = document.createElement("tbody");
-    const displayedRows = isReplace ? compareBaseRows(request.originalRows || [], request.rows) : request.rows;
+    const displayedRows = comparesOriginal ? compareBaseRows(request.originalRows || [], request.rows) : request.rows;
     displayedRows.forEach((item) => {
       const row = document.createElement("tr");
-      const values = isReplace
+      const values = comparesOriginal
         ? [item.statusLabel, item.material, item.code, item.oldQuantity ?? "", item.newQuantity ?? ""]
         : [item.material, item.code, item.quantity];
       values.forEach((value, index) => {
         const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell);
-        if (isReplace && index === 0) cell.className = `diff-${item.status}`;
+        if (comparesOriginal && index === 0) cell.className = `diff-${item.status}`;
       });
       body.appendChild(row);
     });

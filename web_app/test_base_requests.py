@@ -83,6 +83,34 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(store.approved, [])
         self.assertEqual(store.rows[0]["status"], "rejected")
 
+    def test_copy_request_keeps_source_and_new_target(self):
+        store = MemoryBaseRequestStore()
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "target_department": "แผนกแรงสูง", "action": "copy",
+            "source_size": "12.2", "source_head": "DDE",
+            "size": "12.2", "head": "DDE รุ่นแก้ไข",
+            "insulator_upright": 6, "insulator_horizontal": 24,
+            "original_rows": [{"material": "SET เดิม", "code": "Set1", "quantity": 1}],
+            "rows": [{"material": "SET ใหม่", "code": "Set2", "quantity": 1}],
+        })
+        self.assertEqual(request["action"], "copy")
+        self.assertEqual(request["sourceSize"], "12.2")
+        self.assertEqual(request["sourceHead"], "DDE")
+        store.review_base_request(request["id"], True, "admin")
+        self.assertEqual(store.approved[0]["action"], "copy")
+        self.assertEqual(store.approved[0]["source_size"], "12.2")
+        self.assertEqual(store.approved[0]["source_head"], "DDE")
+
+    def test_rename_request_requires_source(self):
+        store = MemoryBaseRequestStore()
+        with self.assertRaisesRegex(ValueError, "หัวเสาต้นฉบับ"):
+            store.submit_base_request({
+                "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+                "action": "rename", "size": "12.2", "head": "ชื่อใหม่",
+                "rows": [{"material": "SET", "code": "Set1", "quantity": 1}],
+            })
+
 
 if __name__ == "__main__":
     unittest.main()
