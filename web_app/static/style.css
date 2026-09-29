@@ -588,16 +588,9 @@ td select {
   background: #fff;
 }
 
-.head-picker {
-  display: grid;
-  gap: 6px;
-}
-
-.head-picker .head-search {
-  min-height: 34px;
+.searchable-dropdown {
   border-color: #cbb4dc;
   background: #fbf7fe;
-  font-size: 13px;
 }
 
 .wire-details-row td {
