@@ -54,6 +54,8 @@ const els = {
   requestAction: document.getElementById("requestAction"),
   requestSize: document.getElementById("requestSize"),
   requestHead: document.getElementById("requestHead"),
+  requestSizeField: document.getElementById("requestSizeField"),
+  requestHeadField: document.getElementById("requestHeadField"),
   requestSizeLabel: document.getElementById("requestSizeLabel"),
   requestHeadLabel: document.getElementById("requestHeadLabel"),
   requestInsulatorUpright: document.getElementById("requestInsulatorUpright"),
@@ -1112,7 +1114,7 @@ async function submitBaseRequest(event) {
     setStatus("กำลังส่งคำขอให้ Admin ตรวจ...");
     const action = els.requestAction.value;
     const usesSource = action !== "add";
-    const size = action === "replace" ? els.replaceSize.value : els.requestSize.value;
+    const size = action === "add" ? els.requestSize.value : els.replaceSize.value;
     const head = action === "replace" ? els.replaceHead.value : els.requestHead.value;
     const response = await fetch("/api/base-requests", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -1197,8 +1199,8 @@ async function switchRequestAction() {
   els.requestAddTarget.hidden = action === "replace";
   els.requestReplaceTarget.hidden = !usesSource;
   els.existingDataHint.hidden = !usesSource;
-  els.requestSizeLabel.textContent = action === "copy" ? "ขนาดเสา / KeyCode ของหัวใหม่" : action === "rename" ? "ขนาดเสา / KeyCode หลังเปลี่ยนชื่อ" : "ขนาดเสา / KeyCode";
-  els.requestHeadLabel.textContent = action === "copy" ? "ชื่อหัวเสาใหม่จากสำเนา" : action === "rename" ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
+  els.requestSizeField.hidden = action !== "add";
+  els.requestHeadLabel.textContent = usesSource ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
   if (!usesSource) {
@@ -1245,10 +1247,8 @@ async function loadExistingBaseEntry() {
     data.rows.forEach((row) => addRequestMaterialRow(row, true));
     const action = els.requestAction.value;
     if (action === "rename") {
-      els.requestSize.value = els.replaceSize.value;
       els.requestHead.value = els.replaceHead.value;
     } else if (action === "copy") {
-      els.requestSize.value = els.replaceSize.value;
       els.requestHead.value = `${els.replaceHead.value} COPY`;
     }
     els.existingDataHint.textContent = action === "rename"
@@ -1313,7 +1313,7 @@ function renderBaseRequests() {
       ? `${sourceLabel} → ${request.size} · ${request.head}`
       : `${request.size} · ${request.head}`;
     const meta = document.createElement("p");
-    const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขไส้ในหัวเดิม", rename: "เปลี่ยนชื่อหัวเสา", copy: "คัดลอกเป็นหัวใหม่" };
+    const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขไส้ในหัวเดิม", rename: "แก้ไขหัวเสา", copy: "คัดลอกเป็นหัวใหม่" };
     meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ลูกถ้วยตั้ง ${formatAmount(request.insulatorUpright)} / นอน ${formatAmount(request.insulatorHorizontal)} ต่อหัว · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${actionLabels[request.action] || "เพิ่มข้อมูล"}`;
     const table = document.createElement("table");
     const comparesOriginal = request.action !== "add";
