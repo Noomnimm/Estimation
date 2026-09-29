@@ -230,7 +230,8 @@ class MaterialWorkbook:
                 wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
                 wire2 = clean_text(item.get("wire2"))
-                validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head)
+                wire3 = clean_text(item.get("wire3"))
+                validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head, wire3)
                 lat_wire = clean_text(item.get("latWire"))
                 if has_combined_lat(head):
                     validate_wire_selection("de", lat_wire, "", page_number, row_number, f"{head} — LAT.SLK")
@@ -261,7 +262,7 @@ class MaterialWorkbook:
                     add_material(totals, material, code, amount)
                     matched_rows += 1
 
-                matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head))
+                matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head), wire3)
                 if high_voltage and has_combined_lat(head):
                     matched_rows += add_wire_materials(totals, "de", lat_wire, "", count)
 
@@ -468,9 +469,10 @@ class MaterialWorkbook:
                 wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
                 wire2 = clean_text(item.get("wire2"))
-                validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head)
+                wire3 = clean_text(item.get("wire3"))
+                validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head, wire3)
                 wire_totals: dict[tuple[str, str], dict[str, Any]] = {}
-                add_wire_materials(wire_totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head))
+                add_wire_materials(wire_totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head), wire3)
 
                 lat_wire = clean_text(item.get("latWire"))
                 if high_voltage and has_combined_lat(head):
@@ -745,6 +747,7 @@ def classify_wire_head(head: str) -> str | None:
     normalized = clean_text(head).upper()
     compact = re.sub(r"\s+", "", normalized)
     combined_rules = {
+        "DDE,DE(ST.4.5M)": "dde_de",
         "SP,DDE.BLST.4.5M": "dde_bl",
         "DP,DDE.BLST.4.5M": "dde_bl",
         "DP,DDEST.4.5M": "dde",
@@ -774,6 +777,7 @@ def insulator_rate(head: str) -> tuple[float, float]:
     name = re.sub(r"\s*,\s*", ",", clean_text(head).upper())
     compact = re.sub(r"\s+", "", name)
     exact = {
+        "DDE,DE(ST.4.5M)": (6, 36),
         "DP,DEST.4.5M": (6, 12), "DP,DDEST.4.5M": (12, 24),
         "DP,DDE.BLST.4.5M": (6, 24), "SP,DDE.BLST.4.5M": (3, 24),
         "2BAST.4.5M": (12, 24), "2BA.ST4.5M+DE.CON": (12, 36),
@@ -818,6 +822,7 @@ def validate_wire_selection(
     page_number: int,
     row_number: int,
     head: str,
+    wire3: str = "",
 ) -> None:
     if wire_kind is None:
         return
@@ -825,9 +830,11 @@ def validate_wire_selection(
         raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): กรุณาเลือกชนิดสายช่องแรก")
     if wire_kind in {"dde", "dde_bl", "ba"} and wire2 not in WIRE_MATERIALS:
         raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): กรุณาเลือกชนิดสายช่องที่สอง")
-    if wire_kind == "dde" and conductor_group(wire1) != conductor_group(wire2):
+    if wire_kind == "dde_de" and (wire2 not in WIRE_MATERIALS or wire3 not in WIRE_MATERIALS):
+        raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): กรุณาเลือกชนิดสาย DDE สองด้านและสาย DE ให้ครบ")
+    if wire_kind in {"dde", "dde_de"} and conductor_group(wire1) != conductor_group(wire2):
         raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): สายซ้ายและขวาต้องมีขนาดเดียวกันสำหรับ Tensionless")
-    if wire_kind == "dde" and conductor_group(wire1) not in TENSIONLESS_MATERIALS:
+    if wire_kind in {"dde", "dde_de"} and conductor_group(wire1) not in TENSIONLESS_MATERIALS:
         raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): ยังไม่มีรหัส Tensionless สำหรับสายขนาด {conductor_group(wire1)}")
 
 
@@ -856,6 +863,7 @@ def add_wire_materials(
     wire1: str,
     wire2: str,
     count: float,
+    wire3: str = "",
 ) -> int:
     if wire_kind is None:
         return 0
@@ -863,6 +871,8 @@ def add_wire_materials(
     selected_wires = [wire2] if wire_kind == "ba" else [wire1]
     if wire_kind in {"dde", "dde_bl"}:
         selected_wires.append(wire2)
+    if wire_kind == "dde_de":
+        selected_wires.extend([wire2, wire3])
 
     added = 0
     for wire in selected_wires:
@@ -874,7 +884,7 @@ def add_wire_materials(
             add_material(totals, clevis_material, clevis_code, 3 * count)
             added += 1
 
-    if wire_kind == "dde":
+    if wire_kind in {"dde", "dde_de"}:
         material, code = TENSIONLESS_MATERIALS[conductor_group(wire1)]
         tensionless_quantity = 3 * count
         add_material(totals, material, code, tensionless_quantity)

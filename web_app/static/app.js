@@ -91,7 +91,7 @@ const els = {
 };
 
 function blankRow(department = DEFAULT_DEPARTMENT) {
-  return { department, size: "", head: "", count: "", wire1: "", wire2: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
+  return { department, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
 }
 
 function insulatorRateKey(department, size, head) {
@@ -160,6 +160,7 @@ function renderInputs() {
       page[index].head = "";
       page[index].wire1 = "";
       page[index].wire2 = "";
+      page[index].wire3 = "";
       page[index].latWire = "";
       renderInputs();
     });
@@ -170,6 +171,7 @@ function renderInputs() {
       page[index].insulatorHorizontal = rate ? Number(rate[1]) : null;
       page[index].wire1 = "";
       page[index].wire2 = "";
+      page[index].wire3 = "";
       page[index].latWire = "";
       renderInputs();
     });
@@ -288,6 +290,7 @@ function classifyWireHead(head) {
   let normalized = String(head || "").trim().toUpperCase();
   const compact = normalized.replace(/\s+/g, "");
   const combinedRules = {
+    "DDE,DE(ST.4.5M)": "dde_de",
     "SP,DDE.BLST.4.5M": "dde_bl",
     "DP,DDE.BLST.4.5M": "dde_bl",
     "DP,DDEST.4.5M": "dde",
@@ -318,7 +321,9 @@ function createWireDetailsRow(row, index, wireKind) {
     ? [["สาย Dead End", "wire1"]]
     : wireKind === "ba"
       ? [["Main Line", "wire1"], ["Tap Line", "wire2"]]
-      : [["สายด้านซ้าย", "wire1"], ["สายด้านขวา", "wire2"]];
+      : wireKind === "dde_de"
+        ? [["สาย DDE ด้านซ้าย", "wire1"], ["สาย DDE ด้านขวา", "wire2"], ["สาย DE", "wire3"]]
+        : [["สายด้านซ้าย", "wire1"], ["สายด้านขวา", "wire2"]];
   if (String(row.head || "").toUpperCase().replace(/\s+/g, "") === "DDE.ST3M,LAT.SLK") {
     labels.push(["สาย LAT.SLK (ยึดแบบ DE)", "latWire"]);
   }

@@ -103,6 +103,19 @@ class HeadRuleTests(unittest.TestCase):
                 else:
                     self.assertNotIn('1020410027', values)
 
+    def test_dde_de_combined_head(self):
+        head = 'DDE,DE (St.4.5m)'
+        self.assertEqual(classify_wire_head(head), 'dde_de')
+        self.assertEqual(insulator_rate(head), (6, 36))
+        totals = {}
+        add_wire_materials(totals, 'dde_de', '185 SAC', '185 SAC', 1, '185 SAC')
+        values = {row[CODE_COL]: row[TOTAL_COL] for row in totals.values()}
+        self.assertEqual(values['1020260205'], 9)
+        self.assertEqual(values['1030140011'], 9)
+        self.assertEqual(values['1020410027'], 3)
+        self.assertEqual(values['1020180001'], 3)
+        self.assertEqual(values['1020180008'], 3)
+
     def test_page_hardware_export(self):
         workbook = MaterialWorkbook()
         workbook.base_df = pd.DataFrame([{
