@@ -593,6 +593,49 @@ td select {
   background: #fbf7fe;
 }
 
+.head-combobox { position: relative; width: 100%; }
+.head-combobox-control { display: flex; width: 100%; }
+.head-combobox-control .searchable-dropdown {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 9px 0 0 9px;
+}
+.head-combobox-control .head-toggle {
+  flex: 0 0 42px;
+  min-width: 42px;
+  min-height: 36px;
+  padding: 0;
+  border-left: 0;
+  border-radius: 0 9px 9px 0;
+  background: #f1e8f7;
+  color: var(--accent-dark);
+  font-size: 20px;
+}
+.head-options {
+  position: fixed;
+  z-index: 1000;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #7b3fa0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(53, 28, 72, .22);
+}
+.head-option {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 1px solid #eee5f4;
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+.head-option:hover, .head-option:focus { background: #efe3f7; color: var(--accent-dark); }
+.head-option-empty { min-height: 40px; padding: 10px 12px; color: var(--muted); }
+
 .wire-details-row td {
   padding: 0 10px 12px;
   background: #fbf8fd;

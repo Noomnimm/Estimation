@@ -145,16 +145,17 @@ function renderInputs() {
   const page = state.pages[state.currentPage];
   page.forEach((row, index) => {
     const tr = document.createElement("tr");
-    const headListId = `head-options-${state.currentPage}-${index}`;
     tr.className = "input-row";
     tr.innerHTML = `
       <td><select class="size"></select></td>
-      <td><input class="head searchable-dropdown" type="text" list="${headListId}" autocomplete="off"><datalist id="${headListId}" class="head-options"></datalist></td>
+      <td><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div></td>
       <td><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
     `;
 
     const sizeSelect = tr.querySelector(".size");
     const headSelect = tr.querySelector(".head");
+    const headCombobox = tr.querySelector(".head-combobox");
+    const headToggle = tr.querySelector(".head-toggle");
     const headOptions = tr.querySelector(".head-options");
     const countInput = tr.querySelector(".count");
 
@@ -163,6 +164,19 @@ function renderInputs() {
     countInput.value = row.count || "";
     headSelect.placeholder = state.department === "แผนกหม้อแปลง" ? "เลือกหรือพิมพ์ค้นหาชนิดหม้อแปลง" : "เลือกหรือพิมพ์ค้นหาหัวเสา";
     headSelect.value = row.head || "";
+    const closeHeadOptions = () => {
+      headOptions.hidden = true;
+      headSelect.setAttribute("aria-expanded", "false");
+    };
+    const openHeadOptions = () => {
+      renderHeadOptions(headSelect, headOptions);
+      const bounds = headCombobox.getBoundingClientRect();
+      headOptions.style.left = `${bounds.left}px`;
+      headOptions.style.top = `${bounds.bottom + 4}px`;
+      headOptions.style.width = `${bounds.width}px`;
+      headOptions.hidden = false;
+      headSelect.setAttribute("aria-expanded", "true");
+    };
 
     sizeSelect.addEventListener("change", () => {
       page[index].department = state.department;
@@ -192,9 +206,33 @@ function renderInputs() {
       renderInputs();
     };
     headSelect.addEventListener("input", () => {
+      openHeadOptions();
       if ((headSelect._allHeadOptions || []).includes(headSelect.value)) applyHeadSelection();
     });
     headSelect.addEventListener("change", applyHeadSelection);
+    headSelect.addEventListener("focus", openHeadOptions);
+    headToggle.addEventListener("mousedown", (event) => event.preventDefault());
+    headToggle.addEventListener("click", () => {
+      if (headOptions.hidden) {
+        headSelect.focus();
+        openHeadOptions();
+      } else {
+        closeHeadOptions();
+      }
+    });
+    headOptions.addEventListener("mousedown", (event) => {
+      const option = event.target.closest("button[data-head]");
+      if (!option) return;
+      event.preventDefault();
+      headSelect.value = option.dataset.head;
+      closeHeadOptions();
+      applyHeadSelection();
+    });
+    headCombobox.addEventListener("focusout", () => {
+      setTimeout(() => {
+        if (!headCombobox.contains(document.activeElement)) closeHeadOptions();
+      }, 0);
+    });
     countInput.addEventListener("input", () => {
       page[index].count = countInput.value;
       renderInsulators();
@@ -385,6 +423,29 @@ function fillSelect(select, values, placeholder) {
   });
 }
 
+function renderHeadOptions(input, optionsList) {
+  const query = input.value.trim().toLocaleLowerCase("th");
+  const matches = (input._allHeadOptions || []).filter((head) =>
+    !query || String(head).toLocaleLowerCase("th").includes(query)
+  );
+  if (!matches.length) {
+    const empty = document.createElement("div");
+    empty.className = "head-option-empty";
+    empty.textContent = "ไม่พบหัวเสาที่ค้นหา";
+    optionsList.replaceChildren(empty);
+    return;
+  }
+  optionsList.replaceChildren(...matches.map((head) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "head-option";
+    option.dataset.head = head;
+    option.setAttribute("role", "option");
+    option.textContent = head;
+    return option;
+  }));
+}
+
 async function loadHeads(size, select, selected, department = state.department, optionsList = null) {
   if (!size) {
     select.value = "";
@@ -411,11 +472,7 @@ async function loadHeads(size, select, selected, department = state.department, 
     });
     select._allHeadOptions = data.heads;
     if (optionsList) {
-      optionsList.replaceChildren(...data.heads.map((head) => {
-        const option = document.createElement("option");
-        option.value = head;
-        return option;
-      }));
+      renderHeadOptions(select, optionsList);
     }
     select.value = selected || "";
     return data;
