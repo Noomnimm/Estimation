@@ -141,18 +141,29 @@ function renderInputs() {
     tr.className = "input-row";
     tr.innerHTML = `
       <td><select class="size"></select></td>
-      <td><select class="head"></select></td>
+      <td><div class="head-picker"><input class="head-search" type="search" placeholder="พิมพ์ค้นหาหัวเสา"><select class="head"></select></div></td>
       <td><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
     `;
 
     const sizeSelect = tr.querySelector(".size");
     const headSelect = tr.querySelector(".head");
+    const headSearch = tr.querySelector(".head-search");
     const countInput = tr.querySelector(".count");
 
     fillSelect(sizeSelect, state.sizes, state.department === "แผนกหม้อแปลง" ? "เลือกแผนก" : "เลือกขนาดเสา");
     sizeSelect.value = row.size || "";
     countInput.value = row.count || "";
     fillSelect(headSelect, [], state.department === "แผนกหม้อแปลง" ? "เลือกชนิดหม้อแปลง" : "เลือกรหัสหัวเสา");
+    headSearch.placeholder = state.department === "แผนกหม้อแปลง" ? "พิมพ์ค้นหาชนิดหม้อแปลง" : "พิมพ์ค้นหาหัวเสา";
+    headSearch.addEventListener("input", () => filterHeadOptions(headSearch.value, headSelect, row.head));
+    headSearch.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const firstMatch = [...headSelect.options].find(option => option.value);
+      if (!firstMatch) return;
+      headSelect.value = firstMatch.value;
+      headSelect.dispatchEvent(new Event("change"));
+    });
 
     sizeSelect.addEventListener("change", () => {
       page[index].department = state.department;
@@ -189,7 +200,7 @@ function renderInputs() {
       els.inputRows.appendChild(createSurgeDetailsRow(row, index));
     }
     if (row.size) {
-      loadHeads(row.size, headSelect, row.head, row.department || state.department).then((data) => {
+      loadHeads(row.size, headSelect, row.head, row.department || state.department, headSearch).then((data) => {
         if (!data || !row.head) return;
         const rate = data.insulatorRates?.[row.head];
         if (rate && (row.insulatorUpright === null || row.insulatorUpright === undefined)) {
@@ -365,7 +376,18 @@ function fillSelect(select, values, placeholder) {
   });
 }
 
-async function loadHeads(size, select, selected, department = state.department) {
+function filterHeadOptions(query, select, selected = "") {
+  const values = select._allHeadOptions || [];
+  const normalized = String(query || "").trim().toLocaleLowerCase("th");
+  const filtered = normalized
+    ? values.filter(value => String(value).toLocaleLowerCase("th").includes(normalized))
+    : values;
+  const placeholder = select._headPlaceholder || "เลือกรหัสหัวเสา";
+  fillSelect(select, filtered, filtered.length ? placeholder : "ไม่พบรายการที่ค้นหา");
+  if (filtered.includes(selected)) select.value = selected;
+}
+
+async function loadHeads(size, select, selected, department = state.department, searchInput = null) {
   if (!size) {
     fillSelect(select, [], department === "แผนกหม้อแปลง" ? "เลือกชนิดหม้อแปลง" : "เลือกรหัสหัวเสา");
     return null;
@@ -376,7 +398,9 @@ async function loadHeads(size, select, selected, department = state.department) 
     Object.entries(data.insulatorRates || {}).forEach(([head, rate]) => {
       state.insulatorRates[insulatorRateKey(department, size, head)] = rate;
     });
-    fillSelect(select, data.heads, department === "แผนกหม้อแปลง" ? "เลือกชนิดหม้อแปลง" : "เลือกรหัสหัวเสา");
+    select._allHeadOptions = data.heads;
+    select._headPlaceholder = department === "แผนกหม้อแปลง" ? "เลือกชนิดหม้อแปลง" : "เลือกรหัสหัวเสา";
+    filterHeadOptions(searchInput?.value || "", select, selected);
     select.value = selected || "";
     return data;
   } catch (error) {
