@@ -17,6 +17,7 @@ const state = {
   baseRequests: [],
   activeRequestStatus: "pending",
   insulatorRates: {},
+  headDataCache: new Map(),
   departmentWork: {},
 };
 
@@ -123,10 +124,16 @@ async function readJson(response) {
 function saveCurrentPageFromDom() {
   const rows = [...els.inputRows.querySelectorAll("tr.input-row")];
   rows.forEach((tr, index) => {
+    const headInput = tr.querySelector(".head");
+    const typedHead = headInput.value.trim();
+    const validHeads = headInput._allHeadOptions || [];
+    const savedHead = !typedHead || validHeads.includes(typedHead)
+      ? typedHead
+      : state.pages[state.currentPage][index].head;
     Object.assign(state.pages[state.currentPage][index], {
       department: state.department,
       size: tr.querySelector(".size").value,
-      head: tr.querySelector(".head").value,
+      head: savedHead,
       count: tr.querySelector(".count").value,
     });
   });
@@ -167,12 +174,13 @@ function renderInputs() {
       page[index].latWire = "";
       renderInputs();
     });
-    headSelect.addEventListener("change", () => {
+    const applyHeadSelection = () => {
       if (headSelect.value && !(headSelect._allHeadOptions || []).includes(headSelect.value)) {
         setStatus("กรุณาเลือกหัวเสาจากรายการที่ค้นหา", true);
         headSelect.value = row.head || "";
         return;
       }
+      if (page[index].head === headSelect.value) return;
       page[index].head = headSelect.value;
       const rate = state.insulatorRates[insulatorRateKey(state.department, page[index].size, headSelect.value)];
       page[index].insulatorUpright = rate ? Number(rate[0]) : null;
@@ -182,7 +190,11 @@ function renderInputs() {
       page[index].wire3 = "";
       page[index].latWire = "";
       renderInputs();
+    };
+    headSelect.addEventListener("input", () => {
+      if ((headSelect._allHeadOptions || []).includes(headSelect.value)) applyHeadSelection();
     });
+    headSelect.addEventListener("change", applyHeadSelection);
     countInput.addEventListener("input", () => {
       page[index].count = countInput.value;
       renderInsulators();
@@ -381,8 +393,19 @@ async function loadHeads(size, select, selected, department = state.department, 
     return null;
   }
   try {
-    const response = await fetch(`/api/heads?size=${encodeURIComponent(size)}&department=${encodeURIComponent(department)}`);
-    const data = await readJson(response);
+    const cacheKey = `${department}\u0000${size}`;
+    let cached = state.headDataCache.get(cacheKey);
+    if (!cached) {
+      cached = fetch(`/api/heads?size=${encodeURIComponent(size)}&department=${encodeURIComponent(department)}`)
+        .then(readJson)
+        .catch((error) => {
+          state.headDataCache.delete(cacheKey);
+          throw error;
+        });
+      state.headDataCache.set(cacheKey, cached);
+    }
+    const data = await cached;
+    state.headDataCache.set(cacheKey, data);
     Object.entries(data.insulatorRates || {}).forEach(([head, rate]) => {
       state.insulatorRates[insulatorRateKey(department, size, head)] = rate;
     });
