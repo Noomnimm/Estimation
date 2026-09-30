@@ -342,7 +342,10 @@ class AppHandler(SimpleHTTPRequestHandler):
             content, mime_type, name = CLOUD_STORE.download_head_image(str(file_id).strip())
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", mime_type)
-            self.send_header("Content-Disposition", f'inline; filename="{name.replace(chr(34), "")}"')
+            # BaseHTTPRequestHandler encodes headers as Latin-1. Keep the inline
+            # header ASCII-only so Thai (or other Unicode) Drive filenames do
+            # not break the response after it has already started.
+            self.send_header("Content-Disposition", "inline")
             self.send_header("Cache-Control", "private, max-age=3600")
             self.send_header("Content-Length", str(len(content)))
             self.end_headers()
