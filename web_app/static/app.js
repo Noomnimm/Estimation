@@ -29,6 +29,8 @@ const ADMIN_APPROVAL_REFRESH_KEY = "material-calculator-admin-approval-refresh";
 const els = {
   status: document.getElementById("status"),
   sizeColumnTitle: document.getElementById("sizeColumnTitle"),
+  inputTable: document.getElementById("inputTable"),
+  headImageColumnTitle: document.getElementById("headImageColumnTitle"),
   headColumnTitle: document.getElementById("headColumnTitle"),
   countColumnTitle: document.getElementById("countColumnTitle"),
   departmentSelect: document.getElementById("departmentSelect"),
@@ -179,9 +181,10 @@ function renderInputs() {
     const tr = document.createElement("tr");
     tr.className = "input-row";
     tr.innerHTML = `
-      <td><select class="size"></select></td>
-      <td><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div></td>
-      <td><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
+      ${state.department === "แผนกแรงสูง TAC" ? '<td class="head-image-cell"></td>' : ""}
+      <td class="size-cell"><select class="size"></select></td>
+      <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div></td>
+      <td class="count-cell"><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
     `;
 
     const sizeSelect = tr.querySelector(".size");
@@ -190,6 +193,7 @@ function renderInputs() {
     const headToggle = tr.querySelector(".head-toggle");
     const headOptions = tr.querySelector(".head-options");
     const countInput = tr.querySelector(".count");
+    updateHeadImageCell(tr, row);
 
     fillSelect(sizeSelect, state.sizes, state.department === "แผนกหม้อแปลง" ? "เลือกแผนก" : "เลือกขนาดเสา");
     sizeSelect.value = row.size || "";
@@ -294,13 +298,10 @@ function renderInputs() {
     if ((row.department || state.department) === "แผนกหม้อแปลง" && row.head) {
       els.inputRows.appendChild(createSurgeDetailsRow(row, index));
     }
-    const headImage = state.headImages[headImageKey(row.department || state.department, row.size, row.head)];
-    if ((row.department || state.department) === "แผนกแรงสูง TAC" && headImage?.id) {
-      els.inputRows.appendChild(createHeadImageRow(row, headImage));
-    }
     if (row.size) {
       loadHeads(row.size, headSelect, row.head, row.department || state.department, headOptions).then((data) => {
         if (!data || !row.head) return;
+        updateHeadImageCell(tr, row);
         const rate = data.insulatorRates?.[row.head];
         if (rate && (row.insulatorUpright === null || row.insulatorUpright === undefined)) {
           row.insulatorUpright = Number(rate[0]);
@@ -314,28 +315,35 @@ function renderInputs() {
   renderInsulators();
 }
 
-function createHeadImageRow(row, image) {
-  const detailRow = document.createElement("tr");
-  detailRow.className = "head-image-row";
-  const cell = document.createElement("td");
-  cell.colSpan = 3;
+function updateHeadImageCell(rowElement, row) {
+  const cell = rowElement.querySelector(".head-image-cell");
+  if (!cell) return;
+  cell.replaceChildren();
+  const image = state.headImages[headImageKey(row.department || state.department, row.size, row.head)];
+  if (!image?.id) {
+    const empty = document.createElement("span");
+    empty.className = "head-image-empty";
+    empty.textContent = "ไม่มีรูป";
+    cell.appendChild(empty);
+    return;
+  }
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "head-image-card";
+  button.className = "head-image-thumbnail";
+  button.title = "คลิกเพื่อดูภาพขยาย";
   const preview = document.createElement("img");
   preview.src = imageUrl(image.id);
   preview.alt = `รูปประกอบ ${row.head}`;
-  const text = document.createElement("span");
-  text.innerHTML = `<strong>รูปประกอบหัวเสา</strong><small>คลิกเพื่อดูภาพขยาย</small>`;
-  button.append(preview, text);
+  button.appendChild(preview);
   button.addEventListener("click", () => openHeadImage(image, row.head));
   cell.appendChild(button);
-  detailRow.appendChild(cell);
-  return detailRow;
 }
 
 function updateInputColumnTitles() {
   const transformer = state.department === "แผนกหม้อแปลง";
+  const tac = state.department === "แผนกแรงสูง TAC";
+  els.headImageColumnTitle.hidden = !tac;
+  els.inputTable.classList.toggle("has-head-images", tac);
   els.sizeColumnTitle.textContent = transformer ? "แผนก" : "ขนาดเสา (m)";
   els.headColumnTitle.textContent = transformer ? "ชนิดหม้อแปลง" : "รหัสหัวเสา";
   els.countColumnTitle.textContent = "จำนวน";
@@ -345,7 +353,7 @@ function createSurgeDetailsRow(row, index) {
   const detailRow = document.createElement("tr");
   detailRow.className = "surge-details-row";
   const cell = document.createElement("td");
-  cell.colSpan = 3;
+  cell.colSpan = state.department === "แผนกแรงสูง TAC" ? 4 : 3;
   const panel = document.createElement("div");
   panel.className = "surge-details";
   panel.innerHTML = `
@@ -443,7 +451,7 @@ function createWireDetailsRow(row, index, wireKind) {
   const detailRow = document.createElement("tr");
   detailRow.className = "wire-details-row";
   const cell = document.createElement("td");
-  cell.colSpan = 3;
+  cell.colSpan = state.department === "แผนกแรงสูง TAC" ? 4 : 3;
   const panel = document.createElement("div");
   panel.className = "wire-details";
 
