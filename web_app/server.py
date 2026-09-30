@@ -4,6 +4,7 @@ import cgi
 import base64
 import hashlib
 import hmac
+import html
 import json
 import mimetypes
 import os
@@ -162,7 +163,14 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.cloud_projects()
             return
         if parsed.path == "/api/base-admin/config":
-            self.send_json({"configured": bool(ADMIN_USERNAME and ADMIN_PASSWORD and CLOUD_STORE.service_configured)})
+            self.send_json({
+                "configured": bool(ADMIN_USERNAME and ADMIN_PASSWORD and CLOUD_STORE.service_configured),
+                "driveOAuthReady": CLOUD_STORE.drive_oauth_ready,
+                "driveConnected": CLOUD_STORE.drive_oauth_configured,
+            })
+            return
+        if parsed.path == "/api/google-drive/oauth/callback":
+            self.google_drive_oauth_callback(parsed)
             return
         if parsed.path == "/api/base-requests/admin":
             self.list_base_requests()
@@ -192,6 +200,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/base-requests/review": self.review_base_request,
             "/api/base-requests/clear-approved": self.clear_approved_requests,
             "/api/base-images/upload": self.upload_base_image,
+            "/api/google-drive/oauth/start": self.google_drive_oauth_start,
         }
         route = routes.get(parsed.path)
         if route is None:
@@ -354,6 +363,68 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_json({"token": create_admin_token(), "username": ADMIN_USERNAME})
         except PermissionError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+
+    @staticmethod
+    def google_drive_redirect_uri() -> str:
+        base_url = os.environ.get("RENDER_EXTERNAL_URL", "http://localhost:8000").strip().rstrip("/")
+        return f"{base_url}/api/google-drive/oauth/callback"
+
+    def google_drive_oauth_start(self) -> None:
+        try:
+            verify_admin_token(self.admin_token())
+            if not CLOUD_STORE.drive_oauth_ready:
+                raise ValueError("กรุณาตั้งค่า GOOGLE_CLIENT_SECRET บน Render ก่อน")
+            from google_auth_oauthlib.flow import Flow
+            flow = Flow.from_client_config({
+                "web": {
+                    "client_id": CLOUD_STORE.client_id,
+                    "client_secret": CLOUD_STORE.oauth_client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+            }, scopes=["https://www.googleapis.com/auth/drive"], state=self.admin_token())
+            flow.redirect_uri = self.google_drive_redirect_uri()
+            authorization_url, _ = flow.authorization_url(
+                access_type="offline", prompt="consent", include_granted_scopes="true",
+            )
+            self.send_json({"authorizationUrl": authorization_url})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def google_drive_oauth_callback(self, parsed) -> None:
+        try:
+            query = parse_qs(parsed.query)
+            state = query.get("state", [""])[0]
+            verify_admin_token(state)
+            if query.get("error"):
+                raise ValueError(f"Google ปฏิเสธการเชื่อมต่อ: {query['error'][0]}")
+            from google_auth_oauthlib.flow import Flow
+            flow = Flow.from_client_config({
+                "web": {
+                    "client_id": CLOUD_STORE.client_id,
+                    "client_secret": CLOUD_STORE.oauth_client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+            }, scopes=["https://www.googleapis.com/auth/drive"], state=state)
+            flow.redirect_uri = self.google_drive_redirect_uri()
+            flow.fetch_token(code=query.get("code", [""])[0])
+            refresh_token = flow.credentials.refresh_token
+            if not refresh_token:
+                raise ValueError("Google ไม่ได้ส่ง Refresh Token กรุณาถอนสิทธิ์แอปแล้วเชื่อมต่อใหม่")
+            safe_token = html.escape(refresh_token)
+            body = f"""<!doctype html><html lang=\"th\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>เชื่อม Google Drive</title><style>body{{font-family:sans-serif;background:#f5eff9;padding:32px;color:#25113d}}main{{max-width:760px;margin:auto;background:white;padding:28px;border-radius:18px}}textarea{{width:100%;min-height:130px;box-sizing:border-box}}code{{font-weight:bold}}button{{padding:10px 18px;background:#5b2584;color:white;border:0;border-radius:9px}}</style><main><h1>เชื่อมต่อสำเร็จ</h1><p>คัดลอกค่าด้านล่างไปใส่ใน Render Environment โดยใช้ Key <code>GOOGLE_DRIVE_REFRESH_TOKEN</code></p><textarea id=\"token\" readonly>{safe_token}</textarea><p><button onclick=\"navigator.clipboard.writeText(document.getElementById('token').value)\">คัดลอก Token</button></p><p>จากนั้น Save และ Deploy ใหม่ แล้วปิดหน้านี้ได้เลย</p></main></html>"""
+            encoded = body.encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
     def list_base_requests(self) -> None:
         try:

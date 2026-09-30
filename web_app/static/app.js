@@ -80,6 +80,8 @@ const els = {
   adminUsername: document.getElementById("adminUsername"),
   adminPassword: document.getElementById("adminPassword"),
   adminLogout: document.getElementById("adminLogout"),
+  connectGoogleDrive: document.getElementById("connectGoogleDrive"),
+  driveConnectStatus: document.getElementById("driveConnectStatus"),
   baseRequestList: document.getElementById("baseRequestList"),
   pendingRequestCount: document.getElementById("pendingRequestCount"),
   approvedRequestCount: document.getElementById("approvedRequestCount"),
@@ -1364,8 +1366,38 @@ async function adminFetch(url, options = {}) {
 function showAdminPanel() {
   els.adminLoginPanel.hidden = Boolean(state.adminToken);
   els.adminRequestsPanel.hidden = !state.adminToken;
-  if (state.adminToken) loadBaseRequests();
+  if (state.adminToken) {
+    loadBaseRequests();
+    loadDriveOAuthStatus();
+  }
 }
+
+async function loadDriveOAuthStatus() {
+  try {
+    const response = await fetch("/api/base-admin/config", { cache: "no-store" });
+    const data = await readJson(response);
+    els.connectGoogleDrive.hidden = Boolean(data.driveConnected);
+    els.connectGoogleDrive.disabled = !data.driveOAuthReady;
+    els.driveConnectStatus.textContent = data.driveConnected
+      ? "เชื่อมต่อ OAuth แล้ว พร้อมเก็บรูปใน Drive ส่วนตัว"
+      : data.driveOAuthReady
+        ? "พร้อมเชื่อมต่อ กรุณากดปุ่มและอนุญาตบัญชีเจ้าของ Drive"
+        : "กรุณาตั้งค่า GOOGLE_CLIENT_SECRET บน Render ก่อน";
+  } catch (error) {
+    els.driveConnectStatus.textContent = error.message;
+  }
+}
+
+els.connectGoogleDrive.addEventListener("click", async () => {
+  try {
+    els.connectGoogleDrive.disabled = true;
+    const data = await adminFetch("/api/google-drive/oauth/start", { method: "POST" });
+    window.location.href = data.authorizationUrl;
+  } catch (error) {
+    setStatus(error.message, true);
+    els.connectGoogleDrive.disabled = false;
+  }
+});
 
 async function loadBaseRequests() {
   try {

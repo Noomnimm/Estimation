@@ -58,6 +58,8 @@ Render จะติดตั้ง dependencies จาก `requirements-web.txt`
 
 - `GOOGLE_SHEET_ID` — Spreadsheet ID ของไฟล์กลาง
 - `GOOGLE_CLIENT_ID` — OAuth Web Client ID สำหรับ Google Sign-in
+- `GOOGLE_CLIENT_SECRET` — OAuth Web Client secret สำหรับเชื่อม Google Drive ส่วนตัว
+- `GOOGLE_DRIVE_REFRESH_TOKEN` — Refresh token ที่ได้จากเมนู Admin หลังอนุญาต Google Drive
 - `GOOGLE_SERVICE_ACCOUNT_JSON` — เนื้อหา JSON Key ของ Service Account ทั้งไฟล์ (Secret)
 - `GOOGLE_ALLOWED_EMAILS` — อีเมลที่อนุญาต คั่นด้วย comma เช่น `user1@example.com,user2@example.com`
 

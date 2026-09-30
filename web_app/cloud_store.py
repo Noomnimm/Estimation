@@ -51,6 +51,8 @@ class GoogleSheetProjectStore:
         }
         self._credentials_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
         self.drive_folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+        self.oauth_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+        self.drive_refresh_token = os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN", "").strip()
         self._service = None
         self._drive_service = None
         self._lock = threading.RLock()
@@ -72,7 +74,15 @@ class GoogleSheetProjectStore:
 
     @property
     def drive_configured(self) -> bool:
-        return bool(self.drive_folder_id and self._credentials_json)
+        return bool(self.drive_folder_id and (self.drive_oauth_configured or self._credentials_json))
+
+    @property
+    def drive_oauth_ready(self) -> bool:
+        return bool(self.client_id and self.oauth_client_secret)
+
+    @property
+    def drive_oauth_configured(self) -> bool:
+        return bool(self.drive_oauth_ready and self.drive_refresh_token)
 
     def submit_base_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         required = {
@@ -442,12 +452,23 @@ class GoogleSheetProjectStore:
 
     def _get_drive_service(self):
         if self._drive_service is None:
-            from google.oauth2 import service_account
             from googleapiclient.discovery import build
-            info = json.loads(self._credentials_json)
-            credentials = service_account.Credentials.from_service_account_info(
-                info, scopes=["https://www.googleapis.com/auth/drive"],
-            )
+            if self.drive_oauth_configured:
+                from google.oauth2.credentials import Credentials
+                credentials = Credentials(
+                    token=None,
+                    refresh_token=self.drive_refresh_token,
+                    token_uri="https://oauth2.googleapis.com/token",
+                    client_id=self.client_id,
+                    client_secret=self.oauth_client_secret,
+                    scopes=["https://www.googleapis.com/auth/drive"],
+                )
+            else:
+                from google.oauth2 import service_account
+                info = json.loads(self._credentials_json)
+                credentials = service_account.Credentials.from_service_account_info(
+                    info, scopes=["https://www.googleapis.com/auth/drive"],
+                )
             self._drive_service = build("drive", "v3", credentials=credentials, cache_discovery=False)
         return self._drive_service
 
