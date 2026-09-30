@@ -74,7 +74,9 @@ class GoogleSheetProjectStore:
 
     @property
     def drive_configured(self) -> bool:
-        return bool(self.drive_folder_id and (self.drive_oauth_configured or self._credentials_json))
+        if self.drive_oauth_ready:
+            return bool(self.drive_folder_id and self.drive_oauth_configured)
+        return bool(self.drive_folder_id and self._credentials_json)
 
     @property
     def drive_oauth_ready(self) -> bool:
@@ -213,6 +215,8 @@ class GoogleSheetProjectStore:
 
     def upload_head_image(self, content: bytes, name: str, mime_type: str) -> dict[str, str]:
         if not self.drive_configured:
+            if self.drive_oauth_ready and not self.drive_refresh_token:
+                raise ValueError("ยังไม่ได้เชื่อมต่อ Google Drive OAuth กรุณาเข้าเมนูรายการอนุมัติ (Admin) แล้วกดเชื่อมต่อ Google Drive")
             raise ValueError("ยังไม่ได้ตั้งค่า GOOGLE_DRIVE_FOLDER_ID บน Render")
         if len(content) > 5 * 1024 * 1024:
             raise ValueError("รูปต้องมีขนาดไม่เกิน 5 MB")
@@ -233,6 +237,8 @@ class GoogleSheetProjectStore:
 
     def download_head_image(self, file_id: str) -> tuple[bytes, str, str]:
         if not self.drive_configured or not file_id:
+            if self.drive_oauth_ready and not self.drive_refresh_token:
+                raise ValueError("ยังไม่ได้เชื่อมต่อ Google Drive OAuth")
             raise ValueError("ไม่พบรูปประกอบ")
         service = self._get_drive_service()
         metadata = service.files().get(fileId=file_id, fields="id,name,mimeType,parents", supportsAllDrives=True).execute()
