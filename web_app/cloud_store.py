@@ -4,6 +4,7 @@ import json
 import os
 import threading
 import uuid
+from io import BytesIO
 from datetime import datetime, timezone
 from typing import Any
 
@@ -34,6 +35,7 @@ APPROVED_HEADERS = [
     "size", "head", "material", "code", "quantity", "action", "request_id",
     "approved_at", "approved_by", "department", "insulator_upright", "insulator_horizontal",
     "source_size", "source_head",
+    "image_file_id", "image_name", "image_mime_type",
 ]
 
 
@@ -48,7 +50,9 @@ class GoogleSheetProjectStore:
             if email.strip()
         }
         self._credentials_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+        self.drive_folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
         self._service = None
+        self._drive_service = None
         self._lock = threading.RLock()
 
     @property
@@ -65,6 +69,10 @@ class GoogleSheetProjectStore:
     @property
     def service_configured(self) -> bool:
         return bool(self.spreadsheet_id and self._credentials_json)
+
+    @property
+    def drive_configured(self) -> bool:
+        return bool(self.drive_folder_id and self._credentials_json)
 
     def submit_base_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         required = {
@@ -111,6 +119,9 @@ class GoogleSheetProjectStore:
         target_department = str(payload.get("target_department", "แผนกแรงสูง")).strip() or "แผนกแรงสูง"
         insulator_upright = self._nonnegative_number(payload.get("insulator_upright"), "ลูกถ้วยตั้ง")
         insulator_horizontal = self._nonnegative_number(payload.get("insulator_horizontal"), "ลูกถ้วยนอน")
+        image_file_id = str(payload.get("image_file_id", "")).strip()
+        image_name = str(payload.get("image_name", "")).strip()
+        image_mime_type = str(payload.get("image_mime_type", "")).strip()
         source_size = str(payload.get("source_size", "")).strip() or (values["size"] if action == "replace" else "")
         source_head = str(payload.get("source_head", "")).strip() or (values["head"] if action == "replace" else "")
         if action in {"rename", "copy"} and (not source_size or not source_head):
@@ -123,7 +134,8 @@ class GoogleSheetProjectStore:
             "rows_json": json.dumps(
                 {"new": clean_rows, "original": clean_original_rows, "department": target_department,
                  "insulator_upright": insulator_upright, "insulator_horizontal": insulator_horizontal,
-                 "source_size": source_size, "source_head": source_head},
+                 "source_size": source_size, "source_head": source_head,
+                 "image_file_id": image_file_id, "image_name": image_name, "image_mime_type": image_mime_type},
                 ensure_ascii=False, separators=(",", ":"),
             ),
             "note": str(payload.get("note", "")).strip(),
@@ -177,6 +189,9 @@ class GoogleSheetProjectStore:
                         "insulator_horizontal": stored_rows.get("insulator_horizontal", "") if isinstance(stored_rows, dict) else "",
                         "source_size": stored_rows.get("source_size", "") if isinstance(stored_rows, dict) else "",
                         "source_head": stored_rows.get("source_head", "") if isinstance(stored_rows, dict) else "",
+                        "image_file_id": stored_rows.get("image_file_id", "") if isinstance(stored_rows, dict) else "",
+                        "image_name": stored_rows.get("image_name", "") if isinstance(stored_rows, dict) else "",
+                        "image_mime_type": stored_rows.get("image_mime_type", "") if isinstance(stored_rows, dict) else "",
                     })
         return self._request_to_public(record)
 
@@ -185,6 +200,36 @@ class GoogleSheetProjectStore:
             return []
         with self._lock:
             return self._read_named_rows(APPROVED_SHEET, APPROVED_HEADERS, "request_id")
+
+    def upload_head_image(self, content: bytes, name: str, mime_type: str) -> dict[str, str]:
+        if not self.drive_configured:
+            raise ValueError("ยังไม่ได้ตั้งค่า GOOGLE_DRIVE_FOLDER_ID บน Render")
+        if len(content) > 5 * 1024 * 1024:
+            raise ValueError("รูปต้องมีขนาดไม่เกิน 5 MB")
+        allowed = {"image/jpeg": (b"\xff\xd8\xff",), "image/png": (b"\x89PNG\r\n\x1a\n",), "image/webp": (b"RIFF",)}
+        if mime_type not in allowed or not any(content.startswith(signature) for signature in allowed[mime_type]):
+            raise ValueError("รองรับเฉพาะรูป JPG, PNG หรือ WEBP")
+        if mime_type == "image/webp" and content[8:12] != b"WEBP":
+            raise ValueError("ไฟล์ WEBP ไม่ถูกต้อง")
+        from googleapiclient.http import MediaIoBaseUpload
+        safe_name = "".join(character for character in str(name) if character.isalnum() or character in "._- ").strip() or "head-image"
+        uploaded = self._get_drive_service().files().create(
+            body={"name": f"{uuid.uuid4().hex[:10]}-{safe_name}", "parents": [self.drive_folder_id]},
+            media_body=MediaIoBaseUpload(BytesIO(content), mimetype=mime_type, resumable=False),
+            fields="id,name,mimeType",
+            supportsAllDrives=True,
+        ).execute()
+        return {"id": uploaded["id"], "name": uploaded.get("name", safe_name), "mimeType": uploaded.get("mimeType", mime_type)}
+
+    def download_head_image(self, file_id: str) -> tuple[bytes, str, str]:
+        if not self.drive_configured or not file_id:
+            raise ValueError("ไม่พบรูปประกอบ")
+        service = self._get_drive_service()
+        metadata = service.files().get(fileId=file_id, fields="id,name,mimeType,parents", supportsAllDrives=True).execute()
+        if self.drive_folder_id not in metadata.get("parents", []):
+            raise PermissionError("รูปนี้ไม่ได้อยู่ในโฟลเดอร์รูปหัวเสา")
+        content = service.files().get_media(fileId=file_id, supportsAllDrives=True).execute()
+        return content, metadata.get("mimeType", "application/octet-stream"), metadata.get("name", "head-image")
 
     @staticmethod
     def _nonnegative_number(value: Any, label: str) -> float:
@@ -281,6 +326,9 @@ class GoogleSheetProjectStore:
             insulator_horizontal = stored_rows.get("insulator_horizontal", "")
             source_size = stored_rows.get("source_size", "")
             source_head = stored_rows.get("source_head", "")
+            image_file_id = stored_rows.get("image_file_id", "")
+            image_name = stored_rows.get("image_name", "")
+            image_mime_type = stored_rows.get("image_mime_type", "")
         else:
             rows = stored_rows
             original_rows = []
@@ -289,6 +337,9 @@ class GoogleSheetProjectStore:
             insulator_horizontal = ""
             source_size = ""
             source_head = ""
+            image_file_id = ""
+            image_name = ""
+            image_mime_type = ""
         return {
             "id": record.get("request_id", ""), "submittedAt": record.get("submitted_at", ""),
             "submitterName": record.get("submitter_name", ""), "employeeId": record.get("employee_id", ""),
@@ -298,6 +349,7 @@ class GoogleSheetProjectStore:
             "size": record.get("size", ""), "head": record.get("head", ""), "rows": rows,
             "originalRows": original_rows,
             "sourceSize": source_size, "sourceHead": source_head,
+            "imageFileId": image_file_id, "imageName": image_name, "imageMimeType": image_mime_type,
             "note": record.get("note", ""), "status": record.get("status", "pending"),
             "reviewedAt": record.get("reviewed_at", ""), "reviewedBy": record.get("reviewed_by", ""),
             "reviewNote": record.get("review_note", ""),
@@ -387,6 +439,17 @@ class GoogleSheetProjectStore:
             )
             self._service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
         return self._service
+
+    def _get_drive_service(self):
+        if self._drive_service is None:
+            from google.oauth2 import service_account
+            from googleapiclient.discovery import build
+            info = json.loads(self._credentials_json)
+            credentials = service_account.Credentials.from_service_account_info(
+                info, scopes=["https://www.googleapis.com/auth/drive"],
+            )
+            self._drive_service = build("drive", "v3", credentials=credentials, cache_discovery=False)
+        return self._drive_service
 
     def _ensure_sheet(self) -> None:
         service = self._get_service()

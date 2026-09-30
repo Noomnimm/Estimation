@@ -31,6 +31,7 @@ DEFAULT_TRANSMISSION = ROOT.parent / "สายส่ง 115kV.xlsx"
 
 WORKBOOK = MaterialWorkbook()
 CLOUD_STORE = GoogleSheetProjectStore()
+HEAD_IMAGES: dict[tuple[str, str, str], dict[str, str]] = {}
 ADMIN_USERNAME = os.environ.get("BASE_ADMIN_USERNAME", "").strip()
 ADMIN_PASSWORD = os.environ.get("BASE_ADMIN_PASSWORD", "")
 ADMIN_SECRET = os.environ.get("BASE_ADMIN_SESSION_SECRET", "").strip() or ADMIN_PASSWORD
@@ -45,6 +46,7 @@ if DEFAULT_SET.exists():
 
 
 def reload_approved_base() -> None:
+    HEAD_IMAGES.clear()
     if not DEFAULT_BASE.exists():
         return
     WORKBOOK.load_base(DEFAULT_BASE)
@@ -75,6 +77,7 @@ def reload_approved_base() -> None:
                   & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == remove_head)
                   & (WORKBOOK.base_df[DEPARTMENT_COL].astype(str).str.strip() == department))
             ]
+            HEAD_IMAGES.pop((department, remove_size, remove_head), None)
         additions = [{
             SIZE_COL: size, HEAD_COL: head, MATERIAL_COL: str(row.get("material", "")).strip(),
             CODE_COL: str(row.get("code", "")).strip(), QTY_COL: float(row.get("quantity", 0)),
@@ -83,6 +86,13 @@ def reload_approved_base() -> None:
             INSULATOR_HORIZONTAL_COL: pd.NA if row.get("insulator_horizontal", "") == "" else row.get("insulator_horizontal"),
         } for row in request_rows]
         WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
+        image_file_id = str(first.get("image_file_id", "")).strip()
+        if image_file_id:
+            HEAD_IMAGES[(department, size, head)] = {
+                "id": image_file_id,
+                "name": str(first.get("image_name", "")).strip(),
+                "mimeType": str(first.get("image_mime_type", "")).strip(),
+            }
 
 
 def create_admin_token() -> str:
@@ -122,7 +132,11 @@ class AppHandler(SimpleHTTPRequestHandler):
             department = query.get("department", [DEFAULT_DEPARTMENT])[0]
             def heads_response():
                 heads = WORKBOOK.get_heads(size, department)
-                return {"heads": heads, "insulatorRates": {head: WORKBOOK.get_insulator_rate(size, head, department) for head in heads}}
+                return {
+                    "heads": heads,
+                    "insulatorRates": {head: WORKBOOK.get_insulator_rate(size, head, department) for head in heads},
+                    "headImages": {head: HEAD_IMAGES[(department, str(size).strip(), head)] for head in heads if (department, str(size).strip(), head) in HEAD_IMAGES},
+                }
             self.handle_json(heads_response)
             return
         if parsed.path == "/api/sizes":
@@ -133,6 +147,10 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/base-entry":
             query = parse_qs(parsed.query)
             self.base_entry(query.get("size", [""])[0], query.get("head", [""])[0], query.get("department", [DEFAULT_DEPARTMENT])[0])
+            return
+        if parsed.path == "/api/head-image":
+            query = parse_qs(parsed.query)
+            self.head_image(query.get("id", [""])[0])
             return
         if parsed.path == "/api/status":
             self.handle_json(WORKBOOK.get_status)
@@ -173,6 +191,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/base-admin/login": self.admin_login,
             "/api/base-requests/review": self.review_base_request,
             "/api/base-requests/clear-approved": self.clear_approved_requests,
+            "/api/base-images/upload": self.upload_base_image,
         }
         route = routes.get(parsed.path)
         if route is None:
@@ -202,7 +221,11 @@ class AppHandler(SimpleHTTPRequestHandler):
                 "quantity": float(row[QTY_COL]),
             } for _, row in matches.iterrows()]
             upright, horizontal = WORKBOOK.get_insulator_rate(size, head, department)
-            self.send_json({"size": size, "head": head, "rows": rows, "insulatorUpright": upright, "insulatorHorizontal": horizontal})
+            self.send_json({
+                "size": size, "head": head, "rows": rows,
+                "insulatorUpright": upright, "insulatorHorizontal": horizontal,
+                "image": HEAD_IMAGES.get((department, size, head), {}),
+            })
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
@@ -287,6 +310,38 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_json({"request": request}, HTTPStatus.CREATED)
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def upload_base_image(self) -> None:
+        try:
+            payload = self.read_json()
+            data_url = str(payload.get("data", ""))
+            if "," not in data_url:
+                raise ValueError("ข้อมูลรูปไม่ถูกต้อง")
+            header, encoded = data_url.split(",", 1)
+            mime_type = header.removeprefix("data:").split(";", 1)[0].strip().lower()
+            try:
+                content = base64.b64decode(encoded, validate=True)
+            except Exception as exc:
+                raise ValueError("ข้อมูลรูปไม่ถูกต้อง") from exc
+            image = CLOUD_STORE.upload_head_image(content, str(payload.get("name", "head-image")), mime_type)
+            self.send_json({"image": image}, HTTPStatus.CREATED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def head_image(self, file_id: str) -> None:
+        try:
+            content, mime_type, name = CLOUD_STORE.download_head_image(str(file_id).strip())
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", mime_type)
+            self.send_header("Content-Disposition", f'inline; filename="{name.replace(chr(34), "")}"')
+            self.send_header("Cache-Control", "private, max-age=3600")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.FORBIDDEN)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
 
     def admin_login(self) -> None:
         try:

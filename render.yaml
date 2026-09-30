@@ -21,3 +21,5 @@ services:
         sync: false
       - key: BASE_ADMIN_SESSION_SECRET
         generateValue: true
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        sync: false

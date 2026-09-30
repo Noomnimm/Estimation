@@ -14,9 +14,11 @@ const state = {
   cloudUser: null,
   adminToken: sessionStorage.getItem("material-calculator-admin-token") || "",
   baseRequestOriginalRows: [],
+  baseRequestImage: null,
   baseRequests: [],
   activeRequestStatus: "pending",
   insulatorRates: {},
+  headImages: {},
   headDataCache: new Map(),
   departmentWork: {},
 };
@@ -60,6 +62,10 @@ const els = {
   requestHeadLabel: document.getElementById("requestHeadLabel"),
   requestInsulatorUpright: document.getElementById("requestInsulatorUpright"),
   requestInsulatorHorizontal: document.getElementById("requestInsulatorHorizontal"),
+  requestImagePanel: document.getElementById("requestImagePanel"),
+  requestImage: document.getElementById("requestImage"),
+  requestImagePreview: document.getElementById("requestImagePreview"),
+  removeRequestImage: document.getElementById("removeRequestImage"),
   requestAddTarget: document.getElementById("requestAddTarget"),
   requestReplaceTarget: document.getElementById("requestReplaceTarget"),
   replaceSize: document.getElementById("replaceSize"),
@@ -94,6 +100,10 @@ const els = {
   cloudUserName: document.getElementById("cloudUserName"),
   googleSignOut: document.getElementById("googleSignOut"),
   cloudNotice: document.getElementById("cloudNotice"),
+  headImageDialog: document.getElementById("headImageDialog"),
+  headImageDialogTitle: document.getElementById("headImageDialogTitle"),
+  headImageDialogImage: document.getElementById("headImageDialogImage"),
+  closeHeadImageDialog: document.getElementById("closeHeadImageDialog"),
 };
 
 function blankRow(department = DEFAULT_DEPARTMENT) {
@@ -102,6 +112,21 @@ function blankRow(department = DEFAULT_DEPARTMENT) {
 
 function insulatorRateKey(department, size, head) {
   return `${department}\u0000${size}\u0000${head}`;
+}
+
+function headImageKey(department, size, head) {
+  return `${department}\u0000${size}\u0000${head}`;
+}
+
+function imageUrl(imageId) {
+  return `/api/head-image?id=${encodeURIComponent(imageId)}`;
+}
+
+function openHeadImage(image, title) {
+  if (!image?.id) return;
+  els.headImageDialogTitle.textContent = title || image.name || "รูปประกอบหัวเสา";
+  els.headImageDialogImage.src = imageUrl(image.id);
+  els.headImageDialog.showModal();
 }
 
 function setStatus(message, isError = false) {
@@ -267,6 +292,10 @@ function renderInputs() {
     if ((row.department || state.department) === "แผนกหม้อแปลง" && row.head) {
       els.inputRows.appendChild(createSurgeDetailsRow(row, index));
     }
+    const headImage = state.headImages[headImageKey(row.department || state.department, row.size, row.head)];
+    if ((row.department || state.department) === "แผนกแรงสูง TAC" && headImage?.id) {
+      els.inputRows.appendChild(createHeadImageRow(row, headImage));
+    }
     if (row.size) {
       loadHeads(row.size, headSelect, row.head, row.department || state.department, headOptions).then((data) => {
         if (!data || !row.head) return;
@@ -281,6 +310,26 @@ function renderInputs() {
   });
   renderPageControls();
   renderInsulators();
+}
+
+function createHeadImageRow(row, image) {
+  const detailRow = document.createElement("tr");
+  detailRow.className = "head-image-row";
+  const cell = document.createElement("td");
+  cell.colSpan = 3;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "head-image-card";
+  const preview = document.createElement("img");
+  preview.src = imageUrl(image.id);
+  preview.alt = `รูปประกอบ ${row.head}`;
+  const text = document.createElement("span");
+  text.innerHTML = `<strong>รูปประกอบหัวเสา</strong><small>คลิกเพื่อดูภาพขยาย</small>`;
+  button.append(preview, text);
+  button.addEventListener("click", () => openHeadImage(image, row.head));
+  cell.appendChild(button);
+  detailRow.appendChild(cell);
+  return detailRow;
 }
 
 function updateInputColumnTitles() {
@@ -490,6 +539,9 @@ async function loadHeads(size, select, selected, department = state.department, 
     state.headDataCache.set(cacheKey, data);
     Object.entries(data.insulatorRates || {}).forEach(([head, rate]) => {
       state.insulatorRates[insulatorRateKey(department, size, head)] = rate;
+    });
+    Object.entries(data.headImages || {}).forEach(([head, image]) => {
+      state.headImages[headImageKey(department, size, head)] = image;
     });
     select._allHeadOptions = data.heads;
     if (optionsList) {
@@ -1109,6 +1161,36 @@ function requestMaterialValues() {
   }));
 }
 
+function selectedRequestImage() {
+  return els.requestImage.files?.[0] || null;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("อ่านไฟล์รูปไม่สำเร็จ"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderRequestImagePreview(localUrl = "") {
+  const image = els.requestImagePreview.querySelector("img");
+  const inherited = state.baseRequestImage;
+  const url = localUrl || (inherited?.id ? imageUrl(inherited.id) : "");
+  els.requestImagePreview.hidden = !url;
+  els.removeRequestImage.hidden = !url;
+  image.src = url;
+}
+
+async function uploadSelectedRequestImage() {
+  const file = selectedRequestImage();
+  if (!file) return state.baseRequestImage;
+  if (file.size > 5 * 1024 * 1024) throw new Error("รูปต้องมีขนาดไม่เกิน 5 MB");
+  const data = await postJson("/api/base-images/upload", { name: file.name, data: await fileToDataUrl(file) });
+  return data.image;
+}
+
 async function submitBaseRequest(event) {
   event.preventDefault();
   try {
@@ -1117,6 +1199,7 @@ async function submitBaseRequest(event) {
     const usesSource = action !== "add";
     const size = action === "add" ? els.requestSize.value : els.replaceSize.value;
     const head = action === "replace" ? els.replaceHead.value : els.requestHead.value;
+    const requestImage = els.requestTargetDepartment.value === "แผนกแรงสูง TAC" ? await uploadSelectedRequestImage() : null;
     const response = await fetch("/api/base-requests", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1127,6 +1210,7 @@ async function submitBaseRequest(event) {
         insulator_horizontal: els.requestInsulatorHorizontal.value,
         size, head, rows: requestMaterialValues(), original_rows: usesSource ? state.baseRequestOriginalRows : [],
         source_size: usesSource ? els.replaceSize.value : "", source_head: usesSource ? els.replaceHead.value : "",
+        image_file_id: requestImage?.id || "", image_name: requestImage?.name || "", image_mime_type: requestImage?.mimeType || "",
         note: els.requestNote.value,
       }),
     });
@@ -1139,6 +1223,9 @@ async function submitBaseRequest(event) {
     els.requestNote.value = "";
     els.requestMaterialRows.innerHTML = "";
     state.baseRequestOriginalRows = [];
+    state.baseRequestImage = null;
+    els.requestImage.value = "";
+    renderRequestImagePreview();
     els.requestAction.value = "add";
     await switchRequestAction();
     setStatus(`ส่งคำขอ ${data.request.id.slice(0, 8)} ให้ Admin แล้ว`);
@@ -1204,6 +1291,10 @@ async function switchRequestAction() {
   els.requestHeadLabel.textContent = usesSource ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
+  state.baseRequestImage = null;
+  els.requestImage.value = "";
+  els.requestImagePanel.hidden = els.requestTargetDepartment.value !== "แผนกแรงสูง TAC";
+  renderRequestImagePreview();
   if (!usesSource) {
     addRequestMaterialRow();
     return;
@@ -1245,6 +1336,8 @@ async function loadExistingBaseEntry() {
     state.baseRequestOriginalRows = data.rows.map((row) => ({ ...row }));
     els.requestInsulatorUpright.value = String(data.insulatorUpright ?? 0);
     els.requestInsulatorHorizontal.value = String(data.insulatorHorizontal ?? 0);
+    state.baseRequestImage = data.image?.id ? data.image : null;
+    renderRequestImagePreview();
     data.rows.forEach((row) => addRequestMaterialRow(row, true));
     const action = els.requestAction.value;
     if (action === "rename") {
@@ -1351,6 +1444,17 @@ function renderBaseRequests() {
     }
     card.append(title, meta);
     if (request.note) { const note = document.createElement("p"); note.textContent = `หมายเหตุ: ${request.note}`; card.appendChild(note); }
+    if (request.imageFileId) {
+      const imageButton = document.createElement("button");
+      imageButton.type = "button";
+      imageButton.className = "request-admin-image";
+      const image = document.createElement("img");
+      image.src = imageUrl(request.imageFileId);
+      image.alt = `รูปประกอบ ${request.head}`;
+      imageButton.append(image, document.createTextNode("คลิกดูรูปประกอบขนาดใหญ่"));
+      imageButton.addEventListener("click", () => openHeadImage({ id: request.imageFileId, name: request.imageName }, request.head));
+      card.appendChild(imageButton);
+    }
     const wrap = document.createElement("div"); wrap.className = "table-wrap"; wrap.appendChild(table); card.append(wrap, footer);
     els.baseRequestList.appendChild(card);
   });
@@ -1422,6 +1526,33 @@ async function reviewBaseRequest(requestId, approve, button) {
 }
 
 els.addRequestMaterial.addEventListener("click", () => addRequestMaterialRow());
+els.requestImage.addEventListener("change", async () => {
+  const file = selectedRequestImage();
+  if (!file) { renderRequestImagePreview(); return; }
+  if (!(["image/jpeg", "image/png", "image/webp"].includes(file.type)) || file.size > 5 * 1024 * 1024) {
+    els.requestImage.value = "";
+    setStatus("รองรับรูป JPG, PNG หรือ WEBP ขนาดไม่เกิน 5 MB", true);
+    renderRequestImagePreview();
+    return;
+  }
+  renderRequestImagePreview(await fileToDataUrl(file));
+});
+els.removeRequestImage.addEventListener("click", () => {
+  state.baseRequestImage = null;
+  els.requestImage.value = "";
+  renderRequestImagePreview();
+});
+els.requestImagePreview.addEventListener("click", () => {
+  const source = els.requestImagePreview.querySelector("img").src;
+  if (!source) return;
+  els.headImageDialogTitle.textContent = els.requestHead.value || els.replaceHead.value || "รูปประกอบหัวเสา";
+  els.headImageDialogImage.src = source;
+  els.headImageDialog.showModal();
+});
+els.closeHeadImageDialog.addEventListener("click", () => els.headImageDialog.close());
+els.headImageDialog.addEventListener("click", (event) => {
+  if (event.target === els.headImageDialog) els.headImageDialog.close();
+});
 els.baseRequestForm.addEventListener("submit", submitBaseRequest);
 els.requestAction.addEventListener("change", switchRequestAction);
 els.requestTargetDepartment.addEventListener("change", switchRequestAction);

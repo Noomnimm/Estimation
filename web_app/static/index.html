@@ -85,6 +85,12 @@
             <label class="insulator-field upright"><span>ลูกถ้วยตั้ง</span><input id="requestInsulatorUpright" type="number" min="0" step="any" value="0" required></label>
             <label class="insulator-field horizontal"><span>ลูกถ้วยนอน</span><input id="requestInsulatorHorizontal" type="number" min="0" step="any" value="0" required></label>
           </div>
+          <div id="requestImagePanel" class="request-image-panel" hidden>
+            <div><strong>รูปประกอบหัวเสา (เฉพาะแผนกแรงสูง TAC)</strong><small>รองรับ JPG, PNG หรือ WEBP ขนาดไม่เกิน 5 MB</small></div>
+            <input id="requestImage" type="file" accept="image/jpeg,image/png,image/webp">
+            <button id="removeRequestImage" type="button" class="danger compact" hidden>นำรูปออก</button>
+            <button id="requestImagePreview" type="button" class="image-preview-button" hidden><img alt="รูปประกอบหัวเสาที่เลือก"></button>
+          </div>
         </div>
         <div id="existingDataHint" class="existing-data-hint" hidden></div>
         <div class="request-material-head"><h3>รายการวัสดุ</h3><button id="addRequestMaterial" type="button">เพิ่มรายการ</button></div>
@@ -194,6 +200,7 @@
         </table>
       </div>
     </section>
+    <dialog id="headImageDialog" class="image-dialog"><button id="closeHeadImageDialog" type="button" aria-label="ปิดรูป">×</button><h3 id="headImageDialogTitle"></h3><img id="headImageDialogImage" alt="รูปประกอบหัวเสาขนาดใหญ่"></dialog>
     </div>
   </main>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
