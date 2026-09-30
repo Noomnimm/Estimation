@@ -382,7 +382,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                 }
-            }, scopes=["https://www.googleapis.com/auth/drive"], state=self.admin_token())
+            }, scopes=["https://www.googleapis.com/auth/drive"], state=self.admin_token(),
+                autogenerate_code_verifier=False)
             flow.redirect_uri = self.google_drive_redirect_uri()
             authorization_url, _ = flow.authorization_url(
                 access_type="offline", prompt="consent", include_granted_scopes="true",
@@ -408,7 +409,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                 }
-            }, scopes=["https://www.googleapis.com/auth/drive"], state=state)
+            }, scopes=["https://www.googleapis.com/auth/drive"], state=state,
+                autogenerate_code_verifier=False)
             flow.redirect_uri = self.google_drive_redirect_uri()
             flow.fetch_token(code=query.get("code", [""])[0])
             refresh_token = flow.credentials.refresh_token
