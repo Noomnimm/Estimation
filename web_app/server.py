@@ -26,7 +26,7 @@ UPLOADS = ROOT / "uploads"
 OUTPUTS = ROOT / "outputs"
 STATIC = ROOT / "static"
 DEFAULT_BASE = ROOT.parent / "Newdata.xlsx"
-DEFAULT_SET = ROOT.parent / "New folder" / "Allset.xlsx"
+DEFAULT_SET = ROOT.parent / "New folder (2)" / "Allset.xlsx"
 DEFAULT_TRANSFORMER_BASE = ROOT.parent / "แผนกหม้อแปลง.xlsx"
 DEFAULT_TRANSMISSION = ROOT.parent / "สายส่ง 115kV.xlsx"
 
