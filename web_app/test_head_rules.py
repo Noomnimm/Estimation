@@ -98,6 +98,20 @@ class HeadRuleTests(unittest.TestCase):
                 self.assertEqual(values["1030140011"], 3)
                 self.assertEqual(values["1030110007"], 3)
 
+    def test_dde_tensionless_sleeves_follow_new_construction_codes(self):
+        cases = [
+            ("50 SAC", "1020410022"),
+            ("185 SAC", "1020410027"),
+            ("50 ACSR", "1020410014"),
+            ("185 ACSR", "1020410017"),
+        ]
+        for wire, expected_code in cases:
+            with self.subTest(wire=wire):
+                values = self.equipment("DDE", wire1=wire, wire2=wire)
+                self.assertEqual(values[expected_code], 3)
+                self.assertNotIn("1020410002", values)
+                self.assertNotIn("1020410007", values)
+
     def test_strain_and_pending(self):
         values = self.equipment('2DE', wire1='185 A')
         self.assertEqual(values['1030110004'], 6)
@@ -217,7 +231,7 @@ class HeadRuleTests(unittest.TestCase):
         self.assertEqual(values[('อุปกรณ์ยึดสาย', 'PREFORMED D/E,SAC 22kV 185sq.mm. 29.78mm', '1020260205')], (12, None))
         self.assertEqual(values[('อุปกรณ์ยึดสาย', 'PREFORMED D/E,SAC 22kV 50sq.mm. 21.80mm', '1020260202')], (None, 3))
         self.assertEqual(values[('อุปกรณ์ยึดสาย', 'CLEVIS,THIMBLE,FOR PREFORMED DEAD-END', '1030140011')], (12, 3))
-        self.assertEqual(values[('อุปกรณ์ยึดสาย', 'CONNECTOR,SPLICE,COMPRESSION TYPE,TENSIONLESS AL 185 SQ.MM.', '1020410027')], (6, None))
+        self.assertEqual(values[('อุปกรณ์ยึดสาย', 'SLEEVE,TENSIONLESS COM.AL 185 SQ.MM.', '1020410027')], (6, None))
         self.assertEqual(values[('อุปกรณ์ยึดสาย', 'HOTLINE BAIL-CLAMP,MAIN 70-185 SQ.MM.', '1020330006')], (3, None))
         self.assertEqual(values[('อุปกรณ์ยึดสาย', 'HOTLINE CLAMP,MAIN35-185,TAP50-185SQ.MM.', '1020330104')], (3, None))
         self.assertEqual(sheet.freeze_panes, 'D4')

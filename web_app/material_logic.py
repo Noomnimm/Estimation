@@ -46,8 +46,14 @@ WIRE_MATERIALS = {
 }
 
 TENSIONLESS_MATERIALS = {
-    "50": ("CONNECTOR,SPLICE,COMPRESSION TYPE,TENSIONLESS AL 50 SQ.MM.", "1020410002"),
-    "185": ("CONNECTOR,SPLICE,COMPRESSION TYPE,TENSIONLESS AL 185 SQ.MM.", "1020410027"),
+    "50 A": ("SLEEVE,TENSIONLESS AL 50 SQ.MM.", "1020410014"),
+    "50 ACSR": ("SLEEVE,TENSIONLESS AL 50 SQ.MM.", "1020410014"),
+    "50 PIC": ("SLEEVE,TENSIONLESS AL 50 SQ.MM.", "1020410014"),
+    "185 A": ("SLEEVE,TENSIONLESS AL 185 SQ.MM.", "1020410017"),
+    "185 ACSR": ("SLEEVE,TENSIONLESS AL 185 SQ.MM.", "1020410017"),
+    "185 PIC": ("SLEEVE,TENSIONLESS AL 185 SQ.MM.", "1020410017"),
+    "50 SAC": ("SLEEVE,TENSIONLESS COM.AL 50 SQ.MM.", "1020410022"),
+    "185 SAC": ("SLEEVE,TENSIONLESS COM.AL 185 SQ.MM.", "1020410027"),
 }
 
 PG3_MATERIAL = (
@@ -1019,8 +1025,8 @@ def validate_wire_selection(
         raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): กรุณาเลือกชนิดสาย DDE สองด้านและสาย DE ให้ครบ")
     if wire_kind in {"dde", "dde_de"} and conductor_group(wire1) != conductor_group(wire2):
         raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): สายซ้ายและขวาต้องมีขนาดเดียวกันสำหรับ Tensionless")
-    if wire_kind in {"dde", "dde_de"} and conductor_group(wire1) not in TENSIONLESS_MATERIALS:
-        raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): ยังไม่มีรหัส Tensionless สำหรับสายขนาด {conductor_group(wire1)}")
+    if wire_kind in {"dde", "dde_de"} and not is_dde_sac_acsr_transition(wire1, wire2) and wire1 not in TENSIONLESS_MATERIALS:
+        raise ValueError(f"หน้า {page_number} แถว {row_number} ({head}): ยังไม่มีรหัสหลอดต่อสำหรับสาย {wire1}")
 
 
 def conductor_group(wire: str) -> str:
@@ -1080,7 +1086,7 @@ def add_wire_materials(
             add_material(totals, material, code, 6 * count)
             added += 1
         else:
-            material, code = TENSIONLESS_MATERIALS[conductor_group(wire1)]
+            material, code = TENSIONLESS_MATERIALS[wire1]
             tensionless_quantity = 3 * count
             add_material(totals, material, code, tensionless_quantity)
             added += 1
