@@ -1247,11 +1247,15 @@ els.addRow.addEventListener("click", () => {
 });
 
 els.removeRow.addEventListener("click", () => {
-  saveCurrentPageFromDom();
-  if (state.pages[state.currentPage].length > 1) {
-    state.pages[state.currentPage].pop();
+  if (state.pages[state.currentPage].length <= 1) {
+    setStatus("ต้องเหลืออย่างน้อย 1 แถว", true);
+    return;
   }
+  if (!window.confirm("ต้องการลบแถวสุดท้ายใช่ไหม? ข้อมูลในแถวนี้จะถูกนำออก")) return;
+  saveCurrentPageFromDom();
+  state.pages[state.currentPage].pop();
   renderInputs();
+  setStatus("ลบแถวสุดท้ายแล้ว");
 });
 
 els.clearPage.addEventListener("click", () => {
