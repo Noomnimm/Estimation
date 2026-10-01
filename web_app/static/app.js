@@ -25,6 +25,7 @@ const STRUCTURE_CATALOG = [
 ];
 const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
 const WIRE_CATALOG = [
+  { group: "สาย TAC", department: "แผนกแรงสูง TAC", code: "1020050204", shortName: "TAC 3-1x240", material: "CABLE,TWISTED,AL.22KV.3-1X240 SQ.MM." },
   { group: "สาย OHGW", code: "1010100002", shortName: "25OHGW", material: "WIRE,STEEL STRANDED 25 SQ.MM.TIS.404" },
   { group: "สาย Messenger", code: "1010100004", shortName: "Messenger 50/7", material: "WIRE,STEEL STRANDED 50/7 SQ.MM.TIS.404" },
   { group: "สาย SAC — CABLE,AERIAL,AL 22 kV.", code: "1020050004", shortName: "185SAC", material: "CABLE,AERIAL,AL 22 kV. 1x185 sq.mm." },
@@ -37,7 +38,7 @@ const WIRE_CATALOG = [
   { group: "สายอลูมิเนียมเปลือย", code: "1020010007", shortName: "185A", material: "CONDUCTOR,AL,BARE 185 SQ.MM.TIS.85" },
   { group: "สายอลูมิเนียมเปลือย", code: "1020010002", shortName: "50A", material: "CONDUCTOR,AL,BARE 50/7 SQ.MM.TIS.85" },
 ];
-const WIRE_GROUP_ORDER = ["สาย OHGW", "สาย Messenger", "สาย SAC — CABLE,AERIAL,AL 22 kV.", "สาย PIC 22 kV", "สายอลูมิเนียมแกนเหล็ก (ACSR)", "สายอลูมิเนียมเปลือย"];
+const WIRE_GROUP_ORDER = ["สาย TAC", "สาย OHGW", "สาย Messenger", "สาย SAC — CABLE,AERIAL,AL 22 kV.", "สาย PIC 22 kV", "สายอลูมิเนียมแกนเหล็ก (ACSR)", "สายอลูมิเนียมเปลือย"];
 
 const state = {
   department: DEFAULT_DEPARTMENT,
@@ -390,9 +391,11 @@ function renderWireInputs() {
     line.innerHTML = `<label><span>ชนิดสาย</span><select class="wire-item"><option value="">เลือกชนิดสาย</option></select></label><label><span>จำนวน (เมตร)</span><input class="wire-count" type="text" inputmode="text" placeholder="เช่น 1200 หรือ 400+400"></label><button class="remove-structure-row remove-wire-row" type="button" aria-label="ลบรายการสายนี้">×</button>`;
     const select = line.querySelector(".wire-item");
     WIRE_GROUP_ORDER.forEach((group) => {
+      const groupItems = WIRE_CATALOG.filter((item) => item.group === group && (!item.department || item.department === state.department));
+      if (!groupItems.length) return;
       const optgroup = document.createElement("optgroup");
       optgroup.label = group;
-      WIRE_CATALOG.filter((item) => item.group === group).forEach((item) => {
+      groupItems.forEach((item) => {
         const option = document.createElement("option");
         option.value = item.code;
         option.textContent = `${item.shortName} — ${item.code} — ${item.material}`;
