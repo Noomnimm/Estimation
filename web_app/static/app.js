@@ -12,6 +12,7 @@ const state = {
   cloudConfigured: false,
   googleCredential: sessionStorage.getItem("material-calculator-google-credential") || "",
   cloudProjects: [],
+  cloudFolders: [],
   cloudUser: null,
   adminToken: sessionStorage.getItem("material-calculator-admin-token") || "",
   baseRequestOriginalRows: [],
@@ -107,6 +108,7 @@ const els = {
   localSavedCount: document.getElementById("localSavedCount"),
   cloudSavedCount: document.getElementById("cloudSavedCount"),
   cloudFolderTitle: document.getElementById("cloudFolderTitle"),
+  createCloudFolder: document.getElementById("createCloudFolder"),
   savedLocationText: document.getElementById("savedLocationText"),
   googleSignIn: document.getElementById("googleSignIn"),
   googleSignInQuick: document.getElementById("googleSignInQuick"),
@@ -736,18 +738,14 @@ function renderSavedProjects() {
   els.savedLocationText.textContent = "แสดงงานในเครื่องนี้และงานบน Google Sheet แยกจากกัน";
   renderSavedProjectList(els.localSavedProjectList, localProjects, "local");
   if (state.cloudUser) {
-    renderSavedProjectList(els.cloudSavedProjectList, cloudProjects, "cloud");
+    renderCloudProjectFolders(cloudProjects);
   } else {
     els.cloudSavedProjectList.innerHTML = '<div class="empty-saved">เข้าสู่ระบบ Google เพื่อดูและเปิดงานบน Cloud</div>';
   }
 }
 
-function renderSavedProjectList(container, projects, source) {
-  if (!projects.length) {
-    container.innerHTML = '<div class="empty-saved">ยังไม่มีงานที่บันทึกไว้</div>';
-    return;
-  }
-  container.innerHTML = projects.map((project) => `
+function savedProjectCardsMarkup(projects, source) {
+  return projects.map((project) => `
     <article class="saved-card">
       <div class="saved-info">
         <h3>${escapeHtml(project.name)}</h3>
@@ -760,11 +758,37 @@ function renderSavedProjectList(container, projects, source) {
       </div>
       <div class="saved-actions">
         <span class="saved-source-badge ${source}">${source === "cloud" ? "Cloud" : "เครื่องนี้"}</span>
+        ${source === "cloud" ? `<label class="move-project-label">ย้ายไป<select data-action="move" data-source="cloud" data-project-id="${escapeHtml(project.id)}">
+          <option value=""${project.folderId ? "" : " selected"}>งานทั่วไป</option>
+          ${state.cloudFolders.map((folder) => `<option value="${escapeHtml(folder.id)}"${project.folderId === folder.id ? " selected" : ""}>${escapeHtml(folder.name)}</option>`).join("")}
+        </select></label>` : ""}
         <button type="button" data-action="open" data-source="${source}" data-project-id="${escapeHtml(project.id)}">เปิดงาน</button>
         <button type="button" class="danger" data-action="delete" data-source="${source}" data-project-id="${escapeHtml(project.id)}">ลบ</button>
       </div>
     </article>
   `).join("");
+}
+
+function renderSavedProjectList(container, projects, source) {
+  if (!projects.length) {
+    container.innerHTML = '<div class="empty-saved">ยังไม่มีงานที่บันทึกไว้</div>';
+    return;
+  }
+  container.innerHTML = savedProjectCardsMarkup(projects, source);
+}
+
+function renderCloudProjectFolders(projects) {
+  const folders = [{ id: "", name: "งานทั่วไป" }, ...state.cloudFolders];
+  els.cloudSavedProjectList.innerHTML = folders.map((folder) => {
+    const folderProjects = projects.filter((project) => String(project.folderId || "") === folder.id);
+    return `<section class="cloud-project-folder">
+      <div class="cloud-project-folder-title">
+        <div><span class="folder-icon">▰</span><strong>${escapeHtml(folder.name)}</strong><small>${folderProjects.length} งาน</small></div>
+        ${folder.id ? `<button type="button" class="folder-delete" data-action="delete-folder" data-folder-id="${escapeHtml(folder.id)}">ลบโฟลเดอร์</button>` : ""}
+      </div>
+      <div class="cloud-folder-projects">${folderProjects.length ? savedProjectCardsMarkup(folderProjects, "cloud") : '<div class="empty-saved compact">ยังไม่มีงานในโฟลเดอร์นี้</div>'}</div>
+    </section>`;
+  }).join("");
 }
 
 function resetProject() {
@@ -936,6 +960,7 @@ async function loadCloudProjects() {
   try {
     const data = await cloudRequest("/api/cloud-projects");
     state.cloudProjects = data.projects || [];
+    state.cloudFolders = data.folders || [];
     state.cloudUser = data.user || null;
     els.googleSignIn.hidden = true;
     els.googleSignInQuick.hidden = true;
@@ -950,6 +975,7 @@ async function loadCloudProjects() {
     state.googleCredential = "";
     state.cloudUser = null;
     state.cloudProjects = [];
+    state.cloudFolders = [];
     sessionStorage.removeItem("material-calculator-google-credential");
     els.googleSignIn.hidden = false;
     els.googleSignInQuick.hidden = false;
@@ -967,12 +993,30 @@ document.querySelectorAll(".app-tab").forEach((button) => {
 
 els.saveLocalProject.addEventListener("click", () => saveProject("local"));
 els.saveCloudProject.addEventListener("click", () => saveProject("cloud"));
+els.createCloudFolder.addEventListener("click", async () => {
+  if (!state.cloudUser) {
+    setStatus("กรุณาเข้าสู่ระบบ Google ก่อนสร้างโฟลเดอร์", true);
+    return;
+  }
+  const name = window.prompt("ตั้งชื่อโฟลเดอร์ Cloud");
+  if (!name?.trim()) return;
+  try {
+    const data = await cloudRequest("/api/cloud-folders", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() }),
+    });
+    state.cloudFolders.push(data.folder);
+    state.cloudFolders.sort((a, b) => a.name.localeCompare(b.name, "th"));
+    renderSavedProjects();
+    setStatus(`สร้างโฟลเดอร์ “${data.folder.name}” แล้ว`);
+  } catch (error) { setStatus(error.message, true); }
+});
 els.newProject.addEventListener("click", resetProject);
 els.googleSignOut.addEventListener("click", () => {
   window.google?.accounts?.id?.disableAutoSelect();
   state.googleCredential = "";
   state.cloudUser = null;
   state.cloudProjects = [];
+  state.cloudFolders = [];
   sessionStorage.removeItem("material-calculator-google-credential");
   els.googleSignIn.hidden = false;
   els.googleSignInQuick.hidden = false;
@@ -1009,8 +1053,43 @@ function handleSavedProjectAction(event) {
   if (state.activeProjectId === projectId) state.activeProjectId = "";
   setStatus("ลบงานที่บันทึกแล้ว");
 }
+async function handleCloudFolderChange(event) {
+  const select = event.target.closest('select[data-action="move"]');
+  if (!select) return;
+  const projectId = select.dataset.projectId;
+  try {
+    select.disabled = true;
+    const data = await cloudRequest("/api/cloud-projects/move", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId, folderId: select.value }),
+    });
+    const index = state.cloudProjects.findIndex((project) => project.id === projectId);
+    if (index >= 0) state.cloudProjects[index] = data.project;
+    renderSavedProjects();
+    setStatus("ย้ายงานไปยังโฟลเดอร์แล้ว");
+  } catch (error) {
+    select.disabled = false;
+    setStatus(error.message, true);
+  }
+}
+async function handleCloudFolderAction(event) {
+  const button = event.target.closest('button[data-action="delete-folder"]');
+  if (!button) return;
+  const folder = state.cloudFolders.find((item) => item.id === button.dataset.folderId);
+  if (!folder || !window.confirm(`ลบโฟลเดอร์ “${folder.name}” ใช่ไหม`)) return;
+  try {
+    await cloudRequest("/api/cloud-folders/delete", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folderId: folder.id }),
+    });
+    state.cloudFolders = state.cloudFolders.filter((item) => item.id !== folder.id);
+    renderSavedProjects();
+    setStatus("ลบโฟลเดอร์แล้ว");
+  } catch (error) { setStatus(error.message, true); }
+}
 els.localSavedProjectList.addEventListener("click", handleSavedProjectAction);
 els.cloudSavedProjectList.addEventListener("click", handleSavedProjectAction);
+els.cloudSavedProjectList.addEventListener("change", handleCloudFolderChange);
+els.cloudSavedProjectList.addEventListener("click", handleCloudFolderAction);
 
 els.applyPages.addEventListener("click", () => {
   saveCurrentPageFromDom();

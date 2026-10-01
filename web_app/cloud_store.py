@@ -37,6 +37,8 @@ APPROVED_HEADERS = [
     "source_size", "source_head",
     "image_file_id", "image_name", "image_mime_type",
 ]
+FOLDER_SHEET = "ProjectFolders"
+FOLDER_HEADERS = ["folder_id", "folder_name", "owner_email", "created_at", "updated_at", "deleted_at"]
 
 
 class GoogleSheetProjectStore:
@@ -410,6 +412,75 @@ class GoogleSheetProjectStore:
         ]
         return sorted(projects, key=lambda project: project.get("updatedAt", ""), reverse=True)
 
+    def list_project_folders(self, user: dict[str, str]) -> list[dict[str, Any]]:
+        owner_email = str(user.get("email", "")).strip().lower()
+        with self._lock:
+            rows = self._read_named_rows(FOLDER_SHEET, FOLDER_HEADERS, "folder_id")
+        return sorted([
+            {"id": row.get("folder_id", ""), "name": row.get("folder_name", ""),
+             "createdAt": row.get("created_at", ""), "updatedAt": row.get("updated_at", "")}
+            for row in rows
+            if not row.get("deleted_at") and str(row.get("owner_email", "")).strip().lower() == owner_email
+        ], key=lambda folder: folder["name"].casefold())
+
+    def create_project_folder(self, name: str, user: dict[str, str]) -> dict[str, Any]:
+        name = " ".join(str(name).strip().split())
+        if not name:
+            raise ValueError("กรุณาระบุชื่อโฟลเดอร์")
+        if len(name) > 80:
+            raise ValueError("ชื่อโฟลเดอร์ยาวเกิน 80 ตัวอักษร")
+        owner_email = str(user.get("email", "")).strip().lower()
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock:
+            rows = self._read_named_rows(FOLDER_SHEET, FOLDER_HEADERS, "folder_id")
+            if any(not row.get("deleted_at") and str(row.get("owner_email", "")).strip().lower() == owner_email
+                   and str(row.get("folder_name", "")).strip().casefold() == name.casefold() for row in rows):
+                raise ValueError("มีโฟลเดอร์ชื่อนี้แล้ว")
+            record = {"folder_id": uuid.uuid4().hex, "folder_name": name, "owner_email": owner_email,
+                      "created_at": now, "updated_at": now, "deleted_at": ""}
+            self._append_named_record(FOLDER_SHEET, FOLDER_HEADERS, record)
+        return {"id": record["folder_id"], "name": name, "createdAt": now, "updatedAt": now}
+
+    def move_project(self, project_id: str, folder_id: str, user: dict[str, str]) -> dict[str, Any]:
+        owner_email = str(user.get("email", "")).strip().lower()
+        folder_id = str(folder_id or "").strip()
+        with self._lock:
+            if folder_id:
+                folders = self._read_named_rows(FOLDER_SHEET, FOLDER_HEADERS, "folder_id")
+                valid = any(row.get("folder_id") == folder_id and not row.get("deleted_at")
+                            and str(row.get("owner_email", "")).strip().lower() == owner_email for row in folders)
+                if not valid:
+                    raise ValueError("ไม่พบโฟลเดอร์ปลายทาง")
+            rows = self._read_rows()
+            existing = next((row for row in rows if row.get("project_id") == project_id
+                             and not row.get("deleted_at") and self._project_owner(row) == owner_email), None)
+            if not existing:
+                raise ValueError("ไม่พบงานที่ต้องการย้าย")
+            pages_data = json.loads(existing.get("pages_json") or "{}")
+            if not isinstance(pages_data, dict):
+                pages_data = {"version": 2, "activeDepartment": "แผนกแรงสูง", "departments": {}, "pages": pages_data}
+            pages_data["folderId"] = folder_id
+            existing["pages_json"] = json.dumps(pages_data, ensure_ascii=False, separators=(",", ":"))
+            existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+            existing["updated_by"] = owner_email
+            self._write_record(existing, existing["_row_number"])
+        return self._row_to_project(existing)
+
+    def delete_project_folder(self, folder_id: str, user: dict[str, str]) -> None:
+        owner_email = str(user.get("email", "")).strip().lower()
+        with self._lock:
+            if any(project.get("folderId") == folder_id for project in self.list_projects(user)):
+                raise ValueError("กรุณาย้ายงานออกจากโฟลเดอร์ก่อนลบ")
+            rows = self._read_named_rows(FOLDER_SHEET, FOLDER_HEADERS, "folder_id")
+            existing = next((row for row in rows if row.get("folder_id") == folder_id
+                             and not row.get("deleted_at")
+                             and str(row.get("owner_email", "")).strip().lower() == owner_email), None)
+            if not existing:
+                raise ValueError("ไม่พบโฟลเดอร์ที่ต้องการลบ")
+            existing["deleted_at"] = datetime.now(timezone.utc).isoformat()
+            existing["updated_at"] = existing["deleted_at"]
+            self._update_named_record(FOLDER_SHEET, FOLDER_HEADERS, existing, existing["_row_number"])
+
     def save_project(self, project: dict[str, Any], user: dict[str, str]) -> dict[str, Any]:
         project_id = str(project.get("id", "")).strip()
         name = str(project.get("name", "")).strip()
@@ -430,6 +501,7 @@ class GoogleSheetProjectStore:
                 "plan_number": str(project.get("planNumber", "")).strip(),
                 "pages_json": json.dumps({
                     "version": 2,
+                    "folderId": project.get("folderId", (self._row_to_project(existing).get("folderId", "") if existing else "")),
                     "activeDepartment": project.get("department", "แผนกแรงสูง"),
                     "departments": project.get("departments", {}),
                     "pages": project.get("pages", []),
@@ -567,8 +639,9 @@ class GoogleSheetProjectStore:
             pages = pages_data.get("pages", [])
             departments = pages_data.get("departments", {})
             department = pages_data.get("activeDepartment", "แผนกแรงสูง")
+            folder_id = pages_data.get("folderId", "")
         else:
-            pages, departments, department = pages_data, {}, ""
+            pages, departments, department, folder_id = pages_data, {}, "", ""
         return {
             "id": row.get("project_id", ""),
             "name": row.get("project_name", ""),
@@ -582,4 +655,5 @@ class GoogleSheetProjectStore:
             "updatedAt": row.get("updated_at", ""),
             "createdBy": row.get("created_by", ""),
             "updatedBy": row.get("updated_by", ""),
+            "folderId": folder_id,
         }

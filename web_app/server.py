@@ -195,6 +195,9 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/export-page-crossarms": self.export_page_crossarms,
             "/api/cloud-projects": self.save_cloud_project,
             "/api/cloud-projects/delete": self.delete_cloud_project,
+            "/api/cloud-folders": self.create_cloud_folder,
+            "/api/cloud-folders/delete": self.delete_cloud_folder,
+            "/api/cloud-projects/move": self.move_cloud_project,
             "/api/base-requests": self.submit_base_request,
             "/api/base-admin/login": self.admin_login,
             "/api/base-requests/review": self.review_base_request,
@@ -472,7 +475,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def cloud_projects(self) -> None:
         try:
             user = CLOUD_STORE.verify_user(self.bearer_token())
-            self.send_json({"projects": CLOUD_STORE.list_projects(user), "user": user})
+            self.send_json({"projects": CLOUD_STORE.list_projects(user), "folders": CLOUD_STORE.list_project_folders(user), "user": user})
         except PermissionError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
         except Exception as exc:
@@ -499,6 +502,37 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
         except Exception as exc:
             traceback.print_exc()
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def create_cloud_folder(self) -> None:
+        try:
+            user = CLOUD_STORE.verify_user(self.bearer_token())
+            folder = CLOUD_STORE.create_project_folder(self.read_json().get("name", ""), user)
+            self.send_json({"folder": folder})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def move_cloud_project(self) -> None:
+        try:
+            user = CLOUD_STORE.verify_user(self.bearer_token())
+            payload = self.read_json()
+            project = CLOUD_STORE.move_project(str(payload.get("projectId", "")).strip(), str(payload.get("folderId", "")).strip(), user)
+            self.send_json({"project": project})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def delete_cloud_folder(self) -> None:
+        try:
+            user = CLOUD_STORE.verify_user(self.bearer_token())
+            CLOUD_STORE.delete_project_folder(str(self.read_json().get("folderId", "")).strip(), user)
+            self.send_json({"deleted": True})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
     def bearer_token(self) -> str:

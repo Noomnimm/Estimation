@@ -38,6 +38,7 @@ class MemoryProjectStore(GoogleSheetProjectStore):
     def __init__(self):
         super().__init__()
         self.project_rows = []
+        self.folder_rows = []
 
     def _read_rows(self):
         return [dict(row) for row in self.project_rows]
@@ -50,6 +51,19 @@ class MemoryProjectStore(GoogleSheetProjectStore):
         else:
             saved["_row_number"] = len(self.project_rows) + 2
             self.project_rows.append(saved)
+
+    def _read_named_rows(self, sheet_name, headers, key):
+        return [dict(row) for row in self.folder_rows]
+
+    def _append_named_record(self, sheet_name, headers, record):
+        saved = dict(record)
+        saved["_row_number"] = len(self.folder_rows) + 2
+        self.folder_rows.append(saved)
+
+    def _update_named_record(self, sheet_name, headers, record, row_number):
+        saved = dict(record)
+        saved["_row_number"] = row_number
+        self.folder_rows[row_number - 2] = saved
 
 
 class BaseRequestTests(unittest.TestCase):
@@ -80,6 +94,24 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(project["department"], "แผนกแรงสูง TAC")
         self.assertEqual(len(project["departments"]), 2)
         self.assertEqual(project["pages"][0][0]["head"], "TAC")
+
+    def test_cloud_project_folders_are_owned_and_projects_can_move(self):
+        store = MemoryProjectStore()
+        alice = {"email": "alice@example.com", "name": "Alice"}
+        bob = {"email": "bob@example.com", "name": "Bob"}
+        alice_folder = store.create_project_folder("งานปรับปรุง", alice)
+        store.create_project_folder("งานของ Bob", bob)
+        store.save_project({"id": "p1", "name": "โครงการหนึ่ง", "pages": [], "departments": {}}, alice)
+
+        moved = store.move_project("p1", alice_folder["id"], alice)
+        self.assertEqual(moved["folderId"], alice_folder["id"])
+        self.assertEqual([folder["name"] for folder in store.list_project_folders(alice)], ["งานปรับปรุง"])
+        with self.assertRaises(ValueError):
+            store.delete_project_folder(alice_folder["id"], alice)
+
+        store.move_project("p1", "", alice)
+        store.delete_project_folder(alice_folder["id"], alice)
+        self.assertEqual(store.list_project_folders(alice), [])
 
     def test_request_stays_pending_until_admin_approval(self):
         store = MemoryBaseRequestStore()
