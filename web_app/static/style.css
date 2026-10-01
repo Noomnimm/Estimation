@@ -779,6 +779,10 @@ td select {
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
+.bottom-row-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 12px; }
+.bottom-row-actions button { min-width: 105px; font-weight: 800; }
+.bottom-row-actions #addRow { border-color: #8cbfdf; background: #e2f3ff; color: #155a84; }
+.bottom-row-actions #removeRow { border-color: #e2b5c7; background: #fbe7ef; color: #8a234e; }
 
 .actions button:first-child {
   background: linear-gradient(135deg, var(--accent-dark), var(--accent));
