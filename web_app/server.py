@@ -472,7 +472,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def cloud_projects(self) -> None:
         try:
             user = CLOUD_STORE.verify_user(self.bearer_token())
-            self.send_json({"projects": CLOUD_STORE.list_projects(), "user": user})
+            self.send_json({"projects": CLOUD_STORE.list_projects(user), "user": user})
         except PermissionError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
         except Exception as exc:

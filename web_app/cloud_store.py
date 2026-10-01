@@ -396,10 +396,18 @@ class GoogleSheetProjectStore:
             raise PermissionError("ยังไม่ได้กำหนดรายชื่อหรือโดเมนผู้ใช้งาน")
         return {"email": email, "name": str(info.get("name", email)).strip()}
 
-    def list_projects(self) -> list[dict[str, Any]]:
+    @staticmethod
+    def _project_owner(row: dict[str, Any]) -> str:
+        return str(row.get("created_by") or row.get("updated_by") or "").strip().lower()
+
+    def list_projects(self, user: dict[str, str]) -> list[dict[str, Any]]:
+        owner_email = str(user.get("email", "")).strip().lower()
         with self._lock:
             rows = self._read_rows()
-        projects = [self._row_to_project(row) for row in rows if not row.get("deleted_at")]
+        projects = [
+            self._row_to_project(row) for row in rows
+            if not row.get("deleted_at") and self._project_owner(row) == owner_email
+        ]
         return sorted(projects, key=lambda project: project.get("updatedAt", ""), reverse=True)
 
     def save_project(self, project: dict[str, Any], user: dict[str, str]) -> dict[str, Any]:
@@ -409,9 +417,13 @@ class GoogleSheetProjectStore:
             raise ValueError("ข้อมูล Project ID หรือชื่องานไม่ครบ")
 
         now = datetime.now(timezone.utc).isoformat()
+        owner_email = str(user.get("email", "")).strip().lower()
         with self._lock:
             rows = self._read_rows()
-            existing = next((row for row in rows if row.get("project_id") == project_id), None)
+            existing = next((
+                row for row in rows
+                if row.get("project_id") == project_id and self._project_owner(row) == owner_email
+            ), None)
             record = {
                 "project_id": project_id,
                 "project_name": name,
@@ -426,21 +438,27 @@ class GoogleSheetProjectStore:
                 "result_meta": str(project.get("resultMeta", "")),
                 "created_at": (existing or {}).get("created_at") or str(project.get("createdAt", "")) or now,
                 "updated_at": now,
-                "created_by": (existing or {}).get("created_by") or user["email"],
-                "updated_by": user["email"],
+                "created_by": (existing or {}).get("created_by") or owner_email,
+                "updated_by": owner_email,
                 "deleted_at": "",
             }
             self._write_record(record, existing.get("_row_number") if existing else None)
         return self._row_to_project(record)
 
     def delete_project(self, project_id: str, user: dict[str, str]) -> None:
+        owner_email = str(user.get("email", "")).strip().lower()
         with self._lock:
             rows = self._read_rows()
-            existing = next((row for row in rows if row.get("project_id") == project_id and not row.get("deleted_at")), None)
+            existing = next((
+                row for row in rows
+                if row.get("project_id") == project_id
+                and not row.get("deleted_at")
+                and self._project_owner(row) == owner_email
+            ), None)
             if not existing:
                 raise ValueError("ไม่พบงานที่ต้องการลบ")
             existing["deleted_at"] = datetime.now(timezone.utc).isoformat()
-            existing["updated_by"] = user["email"]
+            existing["updated_by"] = owner_email
             self._write_record(existing, existing["_row_number"])
 
     def _get_service(self):

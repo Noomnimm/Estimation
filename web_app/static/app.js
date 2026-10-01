@@ -106,6 +106,7 @@ const els = {
   cloudSavedProjectList: document.getElementById("cloudSavedProjectList"),
   localSavedCount: document.getElementById("localSavedCount"),
   cloudSavedCount: document.getElementById("cloudSavedCount"),
+  cloudFolderTitle: document.getElementById("cloudFolderTitle"),
   savedLocationText: document.getElementById("savedLocationText"),
   googleSignIn: document.getElementById("googleSignIn"),
   googleSignInQuick: document.getElementById("googleSignInQuick"),
@@ -726,6 +727,9 @@ function renderSavedProjects() {
   els.savedCount.textContent = String(localProjects.length + cloudProjects.length);
   els.localSavedCount.textContent = `${localProjects.length} งาน`;
   els.cloudSavedCount.textContent = state.cloudUser ? `${cloudProjects.length} งาน` : "ยังไม่เข้าสู่ระบบ";
+  els.cloudFolderTitle.textContent = state.cloudUser
+    ? `โฟลเดอร์ Cloud ของ ${state.cloudUser.email}`
+    : "โฟลเดอร์ Cloud ส่วนตัว";
   els.savedLocationText.textContent = "แสดงงานในเครื่องนี้และงานบน Google Sheet แยกจากกัน";
   renderSavedProjectList(els.localSavedProjectList, localProjects, "local");
   if (state.cloudUser) {

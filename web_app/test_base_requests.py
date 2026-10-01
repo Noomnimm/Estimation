@@ -34,7 +34,40 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
             row["_row_number"] = index
 
 
+class MemoryProjectStore(GoogleSheetProjectStore):
+    def __init__(self):
+        super().__init__()
+        self.project_rows = []
+
+    def _read_rows(self):
+        return [dict(row) for row in self.project_rows]
+
+    def _write_record(self, record, row_number):
+        saved = dict(record)
+        if row_number:
+            saved["_row_number"] = row_number
+            self.project_rows[row_number - 2] = saved
+        else:
+            saved["_row_number"] = len(self.project_rows) + 2
+            self.project_rows.append(saved)
+
+
 class BaseRequestTests(unittest.TestCase):
+    def test_cloud_projects_are_isolated_by_owner_email(self):
+        store = MemoryProjectStore()
+        alice = {"email": "alice@example.com", "name": "Alice"}
+        bob = {"email": "bob@example.com", "name": "Bob"}
+        payload = {"id": "same-project-id", "name": "งานของฉัน", "pages": [], "departments": {}}
+        store.save_project(payload, alice)
+        store.save_project({**payload, "name": "งานของ Bob"}, bob)
+
+        self.assertEqual([project["name"] for project in store.list_projects(alice)], ["งานของฉัน"])
+        self.assertEqual([project["name"] for project in store.list_projects(bob)], ["งานของ Bob"])
+
+        store.delete_project("same-project-id", bob)
+        self.assertEqual(len(store.list_projects(alice)), 1)
+        self.assertEqual(store.list_projects(bob), [])
+
     def test_cloud_project_reads_multi_department_payload(self):
         payload = {
             "version": 2, "activeDepartment": "แผนกแรงสูง TAC",
