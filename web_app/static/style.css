@@ -18,17 +18,17 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #151019;
-  --panel: #221a27;
-  --ink: #f4edf7;
-  --muted: #bcaec3;
-  --line: #493a51;
-  --accent: #a86dca;
-  --accent-dark: #d0a1e8;
-  --accent-light: #392744;
+  --bg: #151719;
+  --panel: #202326;
+  --ink: #eef1f3;
+  --muted: #aeb5bb;
+  --line: #3d4348;
+  --accent: #71879a;
+  --accent-dark: #bdc9d2;
+  --accent-light: #2b3339;
   --purple-shadow: rgba(0, 0, 0, 0.34);
   --danger: #ff8d86;
-  --soft: #302337;
+  --soft: #292e32;
 }
 
 * {
@@ -981,12 +981,16 @@ td select {
 /* Dark theme: keep every working surface readable, including dialogs and Admin. */
 :root[data-theme="dark"] body {
   background:
-    radial-gradient(circle at 5% 0%, rgba(168, 109, 202, 0.12), transparent 30rem),
-    radial-gradient(circle at 95% 8%, rgba(245, 184, 0, 0.07), transparent 26rem),
+    radial-gradient(circle at 5% 0%, rgba(113, 135, 154, 0.10), transparent 30rem),
+    radial-gradient(circle at 95% 8%, rgba(255, 255, 255, 0.035), transparent 26rem),
     var(--bg);
 }
 
-:root[data-theme="dark"] .app-tabs { background: rgba(34, 26, 39, 0.88); border-color: var(--line); }
+:root[data-theme="dark"] .topbar { background: linear-gradient(125deg, #25292d 0%, #30363b 62%, #3a4248 100%); }
+:root[data-theme="dark"] .app-tabs { background: rgba(32, 35, 38, 0.9); border-color: var(--line); }
+:root[data-theme="dark"] .app-tab.active,
+:root[data-theme="dark"] .work-type-button.active,
+:root[data-theme="dark"] .actions button:first-child { background: linear-gradient(135deg, #3b4852, #526574); border-color: #657b8c; }
 :root[data-theme="dark"] input,
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea,
@@ -1004,19 +1008,19 @@ td select {
 :root[data-theme="dark"] .structure-row input,
 :root[data-theme="dark"] .move-project-label select,
 :root[data-theme="dark"] .cloud-save-dialog select {
-  border-color: #594660;
-  background: #2d2332;
+  border-color: #4a5157;
+  background: #292d31;
   color: var(--ink);
 }
 
 :root[data-theme="dark"] button:not(.primary):not(.app-tab.active):not(.work-type-button.active):not(.page-number.active):not(.theme-toggle):not(.set-expand-button) {
-  border-color: #594660;
-  background-color: #2b2130;
+  border-color: #4a5157;
+  background-color: #292d31;
   color: var(--ink);
 }
 
-:root[data-theme="dark"] th { background: linear-gradient(180deg, #392a41, #302437); color: #ead7f4; }
-:root[data-theme="dark"] td { background-color: #221a27; }
+:root[data-theme="dark"] th { background: linear-gradient(180deg, #33383d, #2c3034); color: #e7ebee; }
+:root[data-theme="dark"] td { background-color: #202326; }
 :root[data-theme="dark"] .saved-source-section,
 :root[data-theme="dark"] .cloud-project-folder,
 :root[data-theme="dark"] .saved-card,
@@ -1027,7 +1031,7 @@ td select {
 :root[data-theme="dark"] .image-dialog,
 :root[data-theme="dark"] .cloud-save-dialog,
 :root[data-theme="dark"] .admin-cloud-trash {
-  background: #251c2a;
+  background: #24282b;
   color: var(--ink);
 }
 
@@ -1035,28 +1039,28 @@ td select {
 :root[data-theme="dark"] .cloud-project-folder-title,
 :root[data-theme="dark"] .insulator-fields,
 :root[data-theme="dark"] .surge-details {
-  background: linear-gradient(135deg, #302238, #342c22);
+  background: linear-gradient(135deg, #2b3034, #303438);
 }
 
-:root[data-theme="dark"] .head-options { background: #2a2030; border-color: #a86dca; }
-:root[data-theme="dark"] .head-option { background: #2a2030; border-bottom-color: #493a51; }
+:root[data-theme="dark"] .head-options { background: #292d31; border-color: #71879a; }
+:root[data-theme="dark"] .head-option { background: #292d31; border-bottom-color: #3d4348; }
 :root[data-theme="dark"] .head-option:hover,
-:root[data-theme="dark"] .head-option:focus { background: #463151; color: #fff; }
+:root[data-theme="dark"] .head-option:focus { background: #3a444c; color: #fff; }
 :root[data-theme="dark"] .wire-details-row td,
 :root[data-theme="dark"] .surge-details-row td,
-:root[data-theme="dark"] .set-component-row > td { background: #1d171f; }
+:root[data-theme="dark"] .set-component-row > td { background: #1b1e20; }
 :root[data-theme="dark"] .wire-details,
 :root[data-theme="dark"] .request-status-tabs,
-:root[data-theme="dark"] .head-entry-group .entry-group-heading { background: #302337; }
+:root[data-theme="dark"] .head-entry-group .entry-group-heading { background: #292e32; }
 :root[data-theme="dark"] .structure-entry-group { background: #17252d; border-color: #31566c; }
 :root[data-theme="dark"] .structure-entry-group .entry-group-heading { background: #203946; }
 :root[data-theme="dark"] .wire-entry-group { background: #172a25; border-color: #315f54; }
 :root[data-theme="dark"] .wire-entry-group .entry-group-heading { background: #1e3d35; }
 :root[data-theme="dark"] .request-image-panel,
 :root[data-theme="dark"] .request-admin-image,
-:root[data-theme="dark"] .drive-connect-panel { background: #2c2132; color: var(--ink); }
-:root[data-theme="dark"] .form-grid .insulator-field { background: #2c2232; color: #ecd8f6; }
-:root[data-theme="dark"] .existing-data-hint { color: #ead7f4; }
+:root[data-theme="dark"] .drive-connect-panel { background: #292e32; color: var(--ink); }
+:root[data-theme="dark"] .form-grid .insulator-field { background: #292e32; color: #e5eaed; }
+:root[data-theme="dark"] .existing-data-hint { color: #e5eaed; }
 :root[data-theme="dark"] .result-work-section.install h3,
 :root[data-theme="dark"] .insulator-counts > div { background: #193649; color: #a9dcff; border-color: #315f79; }
 :root[data-theme="dark"] .result-work-section.demolition h3,
@@ -1064,7 +1068,10 @@ td select {
 :root[data-theme="dark"] .insulator-work-group.demolition { background: #4d2638; color: #ffc1d8; border-color: #75405a; }
 :root[data-theme="dark"] .result-work-section.demolition h3 span { color: #efa3c0; }
 :root[data-theme="dark"] .status.error { background: #482826; color: #ffb1ab; border-color: #9d5b55; }
-:root[data-theme="dark"] #cloudQuickUser { background: #34263c; color: #ead7f4; border-color: #684d78; }
+:root[data-theme="dark"] #cloudQuickUser { background: #2c3237; color: #e5eaed; border-color: #4d5c67; }
+:root[data-theme="dark"] .export-actions button,
+:root[data-theme="dark"] .export-actions #exportPageHardware { background: linear-gradient(135deg, #333b41 0%, #46545e 100%); border-color: #596a76; }
+:root[data-theme="dark"] .export-actions button:hover { background: linear-gradient(135deg, #3b454c 0%, #52636f 100%); }
 :root[data-theme="dark"] #saveHint.saved { background: #1e422d; color: #9ce0b3; }
 :root[data-theme="dark"] #saveHint.dirty,
 :root[data-theme="dark"] #saveHint.new { background: #4c3a16; color: #ffe093; }
