@@ -67,11 +67,14 @@ const state = {
   headDataCache: new Map(),
   departmentWork: {},
   projectDirty: true,
+  localFileHandles: new Map(),
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
 const ADMIN_APPROVAL_REFRESH_KEY = "material-calculator-admin-approval-refresh";
 const THEME_KEY = "material-calculator-theme";
+const FILE_HANDLE_DB = "material-calculator-file-handles";
+const FILE_HANDLE_STORE = "project-files";
 
 const els = {
   status: document.getElementById("status"),
@@ -167,6 +170,7 @@ const els = {
   projectName: document.getElementById("projectName"),
   planNumber: document.getElementById("planNumber"),
   saveLocalProject: document.getElementById("saveLocalProject"),
+  saveLocalAs: document.getElementById("saveLocalAs"),
   openProjectFile: document.getElementById("openProjectFile"),
   projectFileInput: document.getElementById("projectFileInput"),
   saveCloudProject: document.getElementById("saveCloudProject"),
@@ -1065,6 +1069,84 @@ function writeSavedProjects(projects) {
   renderSavedProjects();
 }
 
+function openFileHandleDatabase() {
+  if (!window.indexedDB) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(FILE_HANDLE_DB, 1);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(FILE_HANDLE_STORE)) database.createObjectStore(FILE_HANDLE_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function rememberProjectFileHandle(projectId, handle) {
+  state.localFileHandles.set(projectId, handle);
+  try {
+    const database = await openFileHandleDatabase();
+    if (!database) return;
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(FILE_HANDLE_STORE, "readwrite");
+      transaction.objectStore(FILE_HANDLE_STORE).put(handle, projectId);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+  } catch {
+    // Some browsers can write files but cannot persist file handles. The current tab still reuses it.
+  }
+}
+
+async function getProjectFileHandle(projectId) {
+  if (state.localFileHandles.has(projectId)) return state.localFileHandles.get(projectId);
+  try {
+    const database = await openFileHandleDatabase();
+    if (!database) return null;
+    const handle = await new Promise((resolve, reject) => {
+      const transaction = database.transaction(FILE_HANDLE_STORE, "readonly");
+      const request = transaction.objectStore(FILE_HANDLE_STORE).get(projectId);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    if (handle) state.localFileHandles.set(projectId, handle);
+    return handle;
+  } catch {
+    return null;
+  }
+}
+
+async function forgetProjectFileHandle(projectId) {
+  state.localFileHandles.delete(projectId);
+  try {
+    const database = await openFileHandleDatabase();
+    if (!database) return;
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(FILE_HANDLE_STORE, "readwrite");
+      transaction.objectStore(FILE_HANDLE_STORE).delete(projectId);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+  } catch {
+    // The stale in-memory handle is already removed, so Save As can continue.
+  }
+}
+
+async function canWriteFileHandle(handle) {
+  if (!handle) return false;
+  try {
+    if (typeof handle.queryPermission !== "function") return true;
+    const options = { mode: "readwrite" };
+    if (await handle.queryPermission(options) === "granted") return true;
+    return typeof handle.requestPermission === "function" && await handle.requestPermission(options) === "granted";
+  } catch {
+    return false;
+  }
+}
+
 async function prepareSaveAs(suggestedName, description, mimeType, extension) {
   if (typeof window.showSaveFilePicker !== "function") return { fallback: true };
   try {
@@ -1098,14 +1180,28 @@ async function writeBlobToSaveTarget(blob, target, fallbackName) {
   return true;
 }
 
-async function downloadProjectFile(project) {
+async function downloadProjectFile(project, forceSaveAs = false) {
   const payload = { format: "material-calculator-project", version: 1, project };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
   const baseName = project.planNumber || project.name || "งานประมาณการ";
   const safeName = String(baseName).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
   const fileName = `${safeName}.material-calculator.json`;
+  if (!forceSaveAs) {
+    const existingHandle = await getProjectFileHandle(project.id);
+    if (await canWriteFileHandle(existingHandle)) {
+      try {
+        return await writeBlobToSaveTarget(blob, { handle: existingHandle }, fileName);
+      } catch {
+        await forgetProjectFileHandle(project.id);
+      }
+    } else if (existingHandle) {
+      await forgetProjectFileHandle(project.id);
+    }
+  }
   const target = await prepareSaveAs(fileName, "ไฟล์งาน Material Calculator", "application/json", ".json");
-  return writeBlobToSaveTarget(blob, target, fileName);
+  const saved = await writeBlobToSaveTarget(blob, target, fileName);
+  if (saved && target?.handle) await rememberProjectFileHandle(project.id, target.handle);
+  return saved;
 }
 
 async function importProjectFile(file) {
@@ -1277,7 +1373,7 @@ async function openSavedProject(projectId, source = "local") {
   setStatus("เปิดงานเดิมสำเร็จ");
 }
 
-async function saveProject(destination, cloudFolderId = null) {
+async function saveProject(destination, cloudFolderId = null, forceSaveAs = false) {
   if (destination === "cloud" && !state.cloudUser) {
     setStatus("กรุณาเข้าสู่ระบบ Google ผวร. ก่อนบันทึกขึ้น Cloud", true);
     els.googleSignInQuick.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1335,13 +1431,13 @@ async function saveProject(destination, cloudFolderId = null) {
   if (index >= 0) projects[index] = project;
   else projects.push(project);
   writeSavedProjects(projects);
-  const fileSaved = await downloadProjectFile(project);
+  const fileSaved = await downloadProjectFile(project, forceSaveAs);
   if (!fileSaved) {
     setStatus("ยกเลิก Save As — งานยังถูกสำรองไว้ในเบราว์เซอร์");
     return;
   }
   setSaveState("saved", `✓ บันทึกไฟล์แล้ว · ${formatSavedDate(now)}`);
-  setStatus("บันทึกสำรองในเบราว์เซอร์และบันทึกไฟล์งานลงเครื่องแล้ว");
+  setStatus(forceSaveAs ? "บันทึกเป็นไฟล์ใหม่และสำรองในเบราว์เซอร์แล้ว" : "บันทึกงานลงไฟล์เดิมและสำรองในเบราว์เซอร์แล้ว");
 }
 
 function waitForGoogleIdentity(timeoutMs = 10000) {
@@ -1437,6 +1533,7 @@ document.querySelectorAll(".app-tab").forEach((button) => {
 });
 
 els.saveLocalProject.addEventListener("click", () => saveProject("local"));
+els.saveLocalAs.addEventListener("click", () => saveProject("local", null, true));
 els.openProjectFile.addEventListener("click", () => {
   els.projectFileInput.value = "";
   els.projectFileInput.click();
