@@ -397,6 +397,35 @@ class MaterialWorkbook:
             "summaryRows": len(self.summary),
         }
 
+    def get_set_components(self, code: str, quantity: Any = 1) -> dict[str, Any]:
+        """Return the ten-digit material rows inside one SET for inline preview."""
+        if self.set_df is None:
+            raise ValueError("ยังไม่ได้โหลดไฟล์ SET")
+        set_code = clean_text(code)
+        multiplier = parse_number(quantity)
+        if not set_code.lower().startswith("set"):
+            raise ValueError("รหัสนี้ไม่ใช่ SET")
+        set_keys = self.set_df[SET_COL].astype(str).str.strip().str.lower()
+        matches = self.set_df[set_keys == set_code.lower()]
+        if matches.empty:
+            raise ValueError(f"ไม่พบรายละเอียด {set_code}")
+        totals: dict[tuple[str, str], dict[str, Any]] = {}
+        for _, item in matches.iterrows():
+            material_code = clean_text(item[CODE_COL])
+            if not re.fullmatch(r"\d{10}", material_code):
+                continue
+            add_material(
+                totals,
+                clean_text(item[SET_DESC_COL]),
+                material_code,
+                parse_number(item[SET_INSTALL_COL]) * multiplier,
+            )
+        items = sorted(totals.values(), key=lambda row: (str(row[CODE_COL]), str(row[MATERIAL_COL])))
+        return {
+            "setCode": set_code,
+            "items": [{"material": row[MATERIAL_COL], "code": row[CODE_COL], "quantity": row[TOTAL_COL]} for row in items],
+        }
+
     def export_summary(self) -> bytes:
         if not self.summary:
             raise ValueError("ยังไม่มีผลลัพธ์สำหรับ export")

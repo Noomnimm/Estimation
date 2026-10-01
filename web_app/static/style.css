@@ -807,6 +807,16 @@ td select {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.set-expand-button { display: inline-grid; place-items: center; width: 25px; height: 25px; margin-right: 8px; padding: 0; border: 1px solid #8d5baa; border-radius: 7px; background: #f2e9f7; color: #592675; font-size: 18px; font-weight: 800; line-height: 1; cursor: pointer; vertical-align: middle; box-shadow: none; }
+.set-expand-button:hover { background: #e6d5f0; }
+.material-code { vertical-align: middle; }
+.set-component-row > td { padding: 0 !important; background: #faf7fc; }
+.set-component-panel { margin: 8px 14px 14px 42px; padding: 12px; border-left: 4px solid #7a3f98; border-radius: 8px; background: #fff; box-shadow: 0 3px 12px rgba(65, 31, 84, .08); }
+.set-component-title { margin-bottom: 8px; color: var(--accent-dark); font-weight: 800; }
+.set-component-panel table { width: 100%; border-collapse: collapse; }
+.set-component-panel th, .set-component-panel td { padding: 8px 10px !important; border-bottom: 1px solid #ece4f1; background: transparent; text-align: left; }
+.set-component-panel th:last-child, .set-component-panel td:last-child { text-align: right; }
+.set-component-empty { padding: 10px; color: var(--muted); }
 
 .calculator-layout {
   display: grid;

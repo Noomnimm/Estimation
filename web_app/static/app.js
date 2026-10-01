@@ -648,7 +648,7 @@ function renderResults(items, meta) {
     container.innerHTML = rows.map((item) => `
       <tr>
         <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
-        <td>${escapeHtml(item["รหัสพัสดุ"] || "")}</td>
+        <td>${String(item["รหัสพัสดุ"] || "").trim().toLowerCase().startsWith("set") ? `<button type="button" class="set-expand-button" data-set-code="${escapeHtml(item["รหัสพัสดุ"] || "")}" data-set-quantity="${escapeHtml(String(item[quantityKey] ?? (fallbackKey ? item[fallbackKey] : 0)))}" aria-label="ดูไส้ใน ${escapeHtml(item["รหัสพัสดุ"] || "")}">+</button>` : ""}<span class="material-code">${escapeHtml(item["รหัสพัสดุ"] || "")}</span></td>
         <td>${formatAmount(item[quantityKey] ?? (fallbackKey ? item[fallbackKey] : 0))}</td>
       </tr>
     `).join("");
@@ -660,6 +660,45 @@ function renderResults(items, meta) {
   updateResultTypeView();
   els.resultMeta.textContent = meta || `ทั้งหมด ${state.results.length} รายการ`;
 }
+
+async function toggleSetComponents(event) {
+  const button = event.target.closest(".set-expand-button");
+  if (!button) return;
+  const parentRow = button.closest("tr");
+  const existing = parentRow.nextElementSibling;
+  if (existing?.classList.contains("set-component-row")) {
+    existing.remove();
+    button.textContent = "+";
+    button.setAttribute("aria-expanded", "false");
+    return;
+  }
+  try {
+    button.disabled = true;
+    button.textContent = "…";
+    const data = await postJson("/api/set-components", {
+      code: button.dataset.setCode,
+      quantity: button.dataset.setQuantity,
+    });
+    const detailRow = document.createElement("tr");
+    detailRow.className = "set-component-row";
+    const rows = data.items || [];
+    detailRow.innerHTML = `<td colspan="3"><div class="set-component-panel">
+      <div class="set-component-title">รายการประมาณการภายใน ${escapeHtml(data.setCode || button.dataset.setCode)}</div>
+      ${rows.length ? `<table><thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ 10 หลัก</th><th>จำนวน</th></tr></thead><tbody>${rows.map((item) => `<tr><td>${escapeHtml(item.material || "")}</td><td>${escapeHtml(item.code || "")}</td><td>${formatAmount(item.quantity)}</td></tr>`).join("")}</tbody></table>` : '<div class="set-component-empty">ไม่พบรายการรหัส 10 หลักใน SET นี้</div>'}
+    </div></td>`;
+    parentRow.after(detailRow);
+    button.textContent = "−";
+    button.setAttribute("aria-expanded", "true");
+  } catch (error) {
+    button.textContent = "+";
+    setStatus(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+els.installResultRows.addEventListener("click", toggleSetComponents);
+els.demolitionResultRows.addEventListener("click", toggleSetComponents);
 
 function updateResultTypeView() {
   const isInstall = state.resultWorkType === "install";

@@ -188,6 +188,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/load-set": self.load_set,
             "/api/calculate": self.calculate,
             "/api/expand-set": self.expand_set,
+            "/api/set-components": self.set_components,
             "/api/export": self.export_summary,
             "/api/export-pages": self.export_pages,
             "/api/export-page-hardware": self.export_page_hardware,
@@ -247,6 +248,10 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def expand_set(self) -> None:
         self.handle_json(WORKBOOK.expand_set)
+
+    def set_components(self) -> None:
+        payload = self.read_json()
+        self.handle_json(lambda: WORKBOOK.get_set_components(payload.get("code", ""), payload.get("quantity", 1)))
 
     def export_summary(self) -> None:
         try:

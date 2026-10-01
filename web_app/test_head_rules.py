@@ -9,6 +9,15 @@ from web_app.material_logic import (
 
 
 class HeadRuleTests(unittest.TestCase):
+    def test_inline_set_components_only_return_ten_digit_codes(self):
+        workbook = MaterialWorkbook()
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set20202", "รหัสพัสดุ": "1010110202", "คำอธิบาย": "BOLT", "ติดตั้ง": 2},
+            {"Set": "Set20202", "รหัสพัสดุ": "Set99999", "คำอธิบาย": "NESTED SET", "ติดตั้ง": 1},
+        ])
+        result = workbook.get_set_components("set20202", 3)
+        self.assertEqual(result["items"], [{"material": "BOLT", "code": "1010110202", "quantity": 6.0}])
+
     def test_page_labels_separate_installation_and_demolition(self):
         pages = [
             [{"workType": "install"}],
