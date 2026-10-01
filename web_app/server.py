@@ -175,6 +175,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/base-requests/admin":
             self.list_base_requests()
             return
+        if parsed.path == "/api/base-admin/cloud-trash":
+            self.list_admin_cloud_trash()
+            return
         if parsed.path.startswith("/static/"):
             target = STATIC / parsed.path.removeprefix("/static/")
             self.send_file(target)
@@ -196,8 +199,8 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/export-page-crossarms": self.export_page_crossarms,
             "/api/cloud-projects": self.save_cloud_project,
             "/api/cloud-projects/delete": self.delete_cloud_project,
-            "/api/cloud-projects/restore": self.restore_cloud_project,
-            "/api/cloud-projects/purge": self.purge_cloud_project,
+            "/api/base-admin/cloud-trash/restore": self.restore_admin_cloud_project,
+            "/api/base-admin/cloud-trash/purge": self.purge_admin_cloud_project,
             "/api/cloud-folders": self.create_cloud_folder,
             "/api/cloud-folders/delete": self.delete_cloud_folder,
             "/api/cloud-projects/move": self.move_cloud_project,
@@ -450,6 +453,41 @@ class AppHandler(SimpleHTTPRequestHandler):
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
+    def list_admin_cloud_trash(self) -> None:
+        try:
+            verify_admin_token(self.admin_token())
+            self.send_json({"projects": CLOUD_STORE.list_all_deleted_projects()})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def restore_admin_cloud_project(self) -> None:
+        try:
+            verify_admin_token(self.admin_token())
+            payload = self.read_json()
+            project = CLOUD_STORE.restore_project_as_admin(
+                str(payload.get("projectId", "")).strip(), str(payload.get("ownerEmail", "")).strip()
+            )
+            self.send_json({"project": project})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def purge_admin_cloud_project(self) -> None:
+        try:
+            verify_admin_token(self.admin_token())
+            payload = self.read_json()
+            CLOUD_STORE.permanently_delete_project_as_admin(
+                str(payload.get("projectId", "")).strip(), str(payload.get("ownerEmail", "")).strip()
+            )
+            self.send_json({"deleted": True})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
     def review_base_request(self) -> None:
         try:
             admin = verify_admin_token(self.admin_token())
@@ -482,7 +520,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def cloud_projects(self) -> None:
         try:
             user = CLOUD_STORE.verify_user(self.bearer_token())
-            self.send_json({"projects": CLOUD_STORE.list_projects(user), "trash": CLOUD_STORE.list_deleted_projects(user), "folders": CLOUD_STORE.list_project_folders(user), "user": user})
+            self.send_json({"projects": CLOUD_STORE.list_projects(user), "folders": CLOUD_STORE.list_project_folders(user), "user": user})
         except PermissionError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
         except Exception as exc:

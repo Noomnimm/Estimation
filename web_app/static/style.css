@@ -313,6 +313,11 @@ td select:focus,
 .cloud-trash-folder { border-color: #e2c5cf; }
 .cloud-trash-folder .cloud-project-folder-title { background: #fae9ef; color: #87234d; }
 .trash-card { border-color: #ebccd7; background: #fffafb; }
+.admin-cloud-trash { margin-top: 22px; border: 1px solid #e2c5cf; border-radius: 13px; overflow: hidden; background: #fffafb; }
+.admin-cloud-trash > summary { display: flex; justify-content: space-between; align-items: center; padding: 13px 15px; background: #fae9ef; color: #87234d; font-weight: 900; cursor: pointer; }
+.admin-cloud-trash > summary strong { font-size: 12px; }
+.admin-cloud-trash > p { margin: 12px 14px 0; color: var(--muted); font-size: 12px; }
+.admin-trash-list { display: grid; gap: 9px; padding: 12px; }
 
 .saved-projects {
   padding: 16px;

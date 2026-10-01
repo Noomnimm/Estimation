@@ -38,7 +38,7 @@ const state = {
   cloudConfigured: false,
   googleCredential: sessionStorage.getItem("material-calculator-google-credential") || "",
   cloudProjects: [],
-  cloudTrash: [],
+  adminCloudTrash: [],
   cloudFolders: [],
   cloudUser: null,
   adminToken: sessionStorage.getItem("material-calculator-admin-token") || "",
@@ -124,6 +124,8 @@ const els = {
   approvedRequestCount: document.getElementById("approvedRequestCount"),
   rejectedRequestCount: document.getElementById("rejectedRequestCount"),
   clearApprovedRequests: document.getElementById("clearApprovedRequests"),
+  adminCloudTrashCount: document.getElementById("adminCloudTrashCount"),
+  adminCloudTrashList: document.getElementById("adminCloudTrashList"),
   installResultSection: document.getElementById("installResultSection"),
   demolitionResultSection: document.getElementById("demolitionResultSection"),
   installResultRows: document.getElementById("installResultRows"),
@@ -960,14 +962,7 @@ function renderCloudProjectFolders(projects) {
       <div class="cloud-folder-projects">${folderProjects.length ? savedProjectCardsMarkup(folderProjects, "cloud") : '<div class="empty-saved compact">ยังไม่มีงานในโฟลเดอร์นี้</div>'}</div>
     </details>`;
   }).join("");
-  const trashMarkup = `<details class="cloud-project-folder cloud-trash-folder">
-    <summary class="cloud-project-folder-title"><div><span class="folder-chevron">›</span><span class="folder-icon">♻</span><strong>ถังขยะ</strong><small>${state.cloudTrash.length} งาน</small></div></summary>
-    <div class="cloud-folder-projects">${state.cloudTrash.length ? state.cloudTrash.map((project) => `<article class="saved-card trash-card">
-      <div class="saved-info"><h3>${escapeHtml(project.name)}</h3><div class="saved-meta"><span>เลขผัง: ${escapeHtml(project.planNumber || "-")}</span><span>ลบเมื่อ ${escapeHtml(formatSavedDate(project.deletedAt))}</span></div></div>
-      <div class="saved-actions"><button type="button" data-action="restore-cloud" data-project-id="${escapeHtml(project.id)}">กู้คืน</button><button type="button" class="danger" data-action="purge-cloud" data-project-id="${escapeHtml(project.id)}">ลบถาวร</button></div>
-    </article>`).join("") : '<div class="empty-saved compact">ถังขยะว่าง</div>'}</div>
-  </details>`;
-  els.cloudSavedProjectList.innerHTML = folderMarkup + trashMarkup;
+  els.cloudSavedProjectList.innerHTML = folderMarkup;
 }
 
 function resetProject() {
@@ -1148,7 +1143,6 @@ async function loadCloudProjects() {
   try {
     const data = await cloudRequest("/api/cloud-projects");
     state.cloudProjects = data.projects || [];
-    state.cloudTrash = data.trash || [];
     state.cloudFolders = data.folders || [];
     state.cloudUser = data.user || null;
     els.googleSignIn.hidden = true;
@@ -1164,7 +1158,6 @@ async function loadCloudProjects() {
     state.googleCredential = "";
     state.cloudUser = null;
     state.cloudProjects = [];
-    state.cloudTrash = [];
     state.cloudFolders = [];
     sessionStorage.removeItem("material-calculator-google-credential");
     els.googleSignIn.hidden = false;
@@ -1229,7 +1222,6 @@ els.googleSignOut.addEventListener("click", () => {
   state.googleCredential = "";
   state.cloudUser = null;
   state.cloudProjects = [];
-  state.cloudTrash = [];
   state.cloudFolders = [];
   sessionStorage.removeItem("material-calculator-google-credential");
   els.googleSignIn.hidden = false;
@@ -1258,7 +1250,6 @@ function handleSavedProjectAction(event) {
       body: JSON.stringify({ projectId }),
     }).then(() => {
       state.cloudProjects = state.cloudProjects.filter((item) => item.id !== projectId);
-      state.cloudTrash.unshift({ ...project, deletedAt: new Date().toISOString() });
       renderSavedProjects();
       setStatus("ย้ายงานไปถังขยะแล้ว");
     }).catch((error) => setStatus(error.message, true));
@@ -1267,32 +1258,6 @@ function handleSavedProjectAction(event) {
   writeSavedProjects(getSavedProjects().filter((item) => item.id !== projectId));
   if (state.activeProjectId === projectId) state.activeProjectId = "";
   setStatus("ลบงานที่บันทึกแล้ว");
-}
-async function handleCloudTrashAction(event) {
-  const button = event.target.closest('button[data-action="restore-cloud"], button[data-action="purge-cloud"]');
-  if (!button) return;
-  const project = state.cloudTrash.find((item) => item.id === button.dataset.projectId);
-  if (!project) return;
-  const restoring = button.dataset.action === "restore-cloud";
-  const message = restoring
-    ? `กู้คืนงาน “${project.name}” ใช่ไหม?`
-    : `ลบงาน “${project.name}” ถาวรใช่ไหม?\n\nเมื่อลบแล้วจะไม่สามารถกู้คืนได้`;
-  if (!window.confirm(message)) return;
-  try {
-    button.disabled = true;
-    const endpoint = restoring ? "/api/cloud-projects/restore" : "/api/cloud-projects/purge";
-    const data = await cloudRequest(endpoint, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: project.id }),
-    });
-    state.cloudTrash = state.cloudTrash.filter((item) => item.id !== project.id);
-    if (restoring) state.cloudProjects.push(data.project);
-    renderSavedProjects();
-    setStatus(restoring ? "กู้คืนงานจากถังขยะแล้ว" : "ลบงานถาวรแล้ว");
-  } catch (error) {
-    button.disabled = false;
-    setStatus(error.message, true);
-  }
 }
 async function handleCloudFolderChange(event) {
   const select = event.target.closest('select[data-action="move"]');
@@ -1330,7 +1295,6 @@ async function handleCloudFolderAction(event) {
 }
 els.localSavedProjectList.addEventListener("click", handleSavedProjectAction);
 els.cloudSavedProjectList.addEventListener("click", handleSavedProjectAction);
-els.cloudSavedProjectList.addEventListener("click", handleCloudTrashAction);
 els.cloudSavedProjectList.addEventListener("change", handleCloudFolderChange);
 els.cloudSavedProjectList.addEventListener("click", handleCloudFolderAction);
 
@@ -1839,9 +1803,55 @@ function showAdminPanel() {
   els.adminRequestsPanel.hidden = !state.adminToken;
   if (state.adminToken) {
     loadBaseRequests();
+    loadAdminCloudTrash();
     loadDriveOAuthStatus();
   }
 }
+
+async function loadAdminCloudTrash() {
+  try {
+    const data = await adminFetch("/api/base-admin/cloud-trash");
+    state.adminCloudTrash = data.projects || [];
+    renderAdminCloudTrash();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function renderAdminCloudTrash() {
+  els.adminCloudTrashCount.textContent = `${state.adminCloudTrash.length} งาน`;
+  if (!state.adminCloudTrash.length) {
+    els.adminCloudTrashList.innerHTML = '<div class="empty-saved compact">ถังขยะว่าง</div>';
+    return;
+  }
+  els.adminCloudTrashList.innerHTML = state.adminCloudTrash.map((project) => `<article class="saved-card trash-card">
+    <div class="saved-info"><h3>${escapeHtml(project.name)}</h3><div class="saved-meta"><span>เจ้าของ: ${escapeHtml(project.createdBy || "-")}</span><span>เลขผัง: ${escapeHtml(project.planNumber || "-")}</span><span>ลบเมื่อ ${escapeHtml(formatSavedDate(project.deletedAt))}</span></div></div>
+    <div class="saved-actions"><button type="button" data-admin-trash-action="restore" data-project-id="${escapeHtml(project.id)}" data-owner-email="${escapeHtml(project.createdBy || "")}">กู้คืน</button><button type="button" class="danger" data-admin-trash-action="purge" data-project-id="${escapeHtml(project.id)}" data-owner-email="${escapeHtml(project.createdBy || "")}">ลบถาวร</button></div>
+  </article>`).join("");
+}
+
+els.adminCloudTrashList.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-admin-trash-action]");
+  if (!button) return;
+  const project = state.adminCloudTrash.find((item) => item.id === button.dataset.projectId && item.createdBy === button.dataset.ownerEmail);
+  if (!project) return;
+  const restoring = button.dataset.adminTrashAction === "restore";
+  const message = restoring ? `กู้คืนงาน “${project.name}” ให้ ${project.createdBy} ใช่ไหม?` : `ลบงาน “${project.name}” ถาวรใช่ไหม?\n\nเมื่อลบแล้วจะไม่สามารถกู้คืนได้`;
+  if (!window.confirm(message)) return;
+  try {
+    button.disabled = true;
+    await adminFetch(`/api/base-admin/cloud-trash/${restoring ? "restore" : "purge"}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, ownerEmail: project.createdBy }),
+    });
+    state.adminCloudTrash = state.adminCloudTrash.filter((item) => !(item.id === project.id && item.createdBy === project.createdBy));
+    renderAdminCloudTrash();
+    setStatus(restoring ? "กู้คืนงาน Cloud แล้ว" : "ลบงาน Cloud ถาวรแล้ว");
+  } catch (error) {
+    button.disabled = false;
+    setStatus(error.message, true);
+  }
+});
 
 async function loadDriveOAuthStatus() {
   try {
@@ -2112,6 +2122,9 @@ els.adminLoginForm.addEventListener("submit", async (event) => {
 });
 els.adminLogout.addEventListener("click", () => {
   state.adminToken = "";
+  state.adminCloudTrash = [];
+  els.adminCloudTrashList.innerHTML = "";
+  els.adminCloudTrashCount.textContent = "0 งาน";
   sessionStorage.removeItem("material-calculator-admin-token");
   showAdminPanel();
 });

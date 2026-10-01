@@ -420,6 +420,35 @@ class GoogleSheetProjectStore:
                     if row.get("deleted_at") and self._project_owner(row) == owner_email]
         return sorted(projects, key=lambda project: project.get("deletedAt", ""), reverse=True)
 
+    def list_all_deleted_projects(self) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._read_rows()
+        return sorted([self._row_to_project(row) for row in rows if row.get("deleted_at")],
+                      key=lambda project: project.get("deletedAt", ""), reverse=True)
+
+    def restore_project_as_admin(self, project_id: str, owner_email: str) -> dict[str, Any]:
+        owner_email = str(owner_email).strip().lower()
+        with self._lock:
+            rows = self._read_rows()
+            existing = next((row for row in rows if row.get("project_id") == project_id
+                             and row.get("deleted_at") and self._project_owner(row) == owner_email), None)
+            if not existing:
+                raise ValueError("ไม่พบงานในถังขยะ")
+            existing["deleted_at"] = ""
+            existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+            self._write_record(existing, existing["_row_number"])
+        return self._row_to_project(existing)
+
+    def permanently_delete_project_as_admin(self, project_id: str, owner_email: str) -> None:
+        owner_email = str(owner_email).strip().lower()
+        with self._lock:
+            rows = self._read_rows()
+            existing = next((row for row in rows if row.get("project_id") == project_id
+                             and row.get("deleted_at") and self._project_owner(row) == owner_email), None)
+            if not existing:
+                raise ValueError("ไม่พบงานในถังขยะ")
+            self._write_record({}, existing["_row_number"])
+
     def list_project_folders(self, user: dict[str, str]) -> list[dict[str, Any]]:
         owner_email = str(user.get("email", "")).strip().lower()
         with self._lock:

@@ -99,6 +99,22 @@ class BaseRequestTests(unittest.TestCase):
         store.permanently_delete_project("p-trash", user)
         self.assertEqual(store.list_deleted_projects(user), [])
 
+    def test_admin_trash_lists_all_owners_and_targets_owner(self):
+        store = MemoryProjectStore()
+        alice = {"email": "alice@example.com", "name": "Alice"}
+        bob = {"email": "bob@example.com", "name": "Bob"}
+        payload = {"id": "same-id", "name": "งานในถังขยะ", "pages": [], "departments": {}}
+        store.save_project(payload, alice)
+        store.save_project(payload, bob)
+        store.delete_project("same-id", alice)
+        store.delete_project("same-id", bob)
+        self.assertEqual({project["createdBy"] for project in store.list_all_deleted_projects()}, {"alice@example.com", "bob@example.com"})
+
+        store.restore_project_as_admin("same-id", "alice@example.com")
+        self.assertEqual([project["createdBy"] for project in store.list_all_deleted_projects()], ["bob@example.com"])
+        store.permanently_delete_project_as_admin("same-id", "bob@example.com")
+        self.assertEqual(store.list_all_deleted_projects(), [])
+
     def test_cloud_project_reads_multi_department_payload(self):
         payload = {
             "version": 2, "activeDepartment": "แผนกแรงสูง TAC",
