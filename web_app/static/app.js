@@ -101,6 +101,7 @@ const els = {
   installInsulatorSummary: document.getElementById("installInsulatorSummary"),
   demolitionInsulatorSummary: document.getElementById("demolitionInsulatorSummary"),
   actualInsulatorSummary: document.getElementById("actualInsulatorSummary"),
+  reusableInsulatorSummary: document.getElementById("reusableInsulatorSummary"),
   insulatorViewHint: document.getElementById("insulatorViewHint"),
   calculate: document.getElementById("calculate"),
   expandSet: document.getElementById("expandSet"),
@@ -662,6 +663,7 @@ function renderInsulators() {
   els.installInsulatorSummary.hidden = showDemolition;
   els.demolitionInsulatorSummary.hidden = !showDemolition;
   els.actualInsulatorSummary.hidden = !showDemolition;
+  els.reusableInsulatorSummary.hidden = !showDemolition;
   els.insulatorViewHint.textContent = showDemolition
     ? "งานรื้อถอน · เปรียบเทียบยอดคำนวณกับยอดนับจริง"
     : "งานติดตั้ง · อัปเดตตามจำนวนที่กรอก";
@@ -679,6 +681,16 @@ function renderInsulators() {
   document.getElementById("demolitionPinPostCount").textContent = formatAmount(actualTotals.pinPost);
   document.getElementById("demolitionSuspensionCount").textContent = formatAmount(actualTotals.suspension);
   document.getElementById("demolitionPinTypeCount").textContent = formatAmount(actualTotals.pinType);
+  const reusableTotals = {
+    linePost: Math.floor(actualTotals.linePost * 0.8 / 3),
+    pinPost: Math.floor(actualTotals.pinPost * 0.8 / 3),
+    suspension: Math.floor(actualTotals.suspension * 0.8 / 4),
+    pinType: Math.floor(actualTotals.pinType * 0.8 / 3),
+  };
+  document.getElementById("reusableLinePostCount").textContent = formatAmount(reusableTotals.linePost);
+  document.getElementById("reusablePinPostCount").textContent = formatAmount(reusableTotals.pinPost);
+  document.getElementById("reusableSuspensionCount").textContent = formatAmount(reusableTotals.suspension);
+  document.getElementById("reusablePinTypeCount").textContent = formatAmount(reusableTotals.pinType);
   const warnings = document.getElementById("insulatorWarnings");
   warnings.hidden = totals.warnings.length === 0;
   warnings.querySelector("summary").textContent = `รายการที่ยังไม่รวมในยอด (${totals.warnings.length} แถว)`;

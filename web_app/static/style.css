@@ -857,6 +857,9 @@ td select {
 .actual-summary.insulator-work-group { display: block; }
 .actual-summary-grid { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: baseline; }
 .actual-summary-grid strong { font-size: 24px; }
+.reusable-summary.insulator-work-group { display: block; background: #e1f3e8; color: #23633b; border-color: #b7ddc5; }
+.reusable-summary h3 { margin-bottom: 9px; }
+.reusable-summary small { display: block; margin-top: 10px; color: #4f755d; line-height: 1.35; }
 .structure-rows { display: grid; gap: 8px; padding: 12px; }
 .structure-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px 38px; gap: 9px; align-items: end; }
 .structure-row label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
@@ -1072,6 +1075,8 @@ td select {
 :root[data-theme="dark"] .wire-entry-group .entry-group-heading { background: #1e3d35; }
 :root[data-theme="dark"] .actual-insulator-entry { background: #302329; border-color: #684253; }
 :root[data-theme="dark"] .actual-insulator-entry .entry-group-heading { background: #462b37; }
+:root[data-theme="dark"] .reusable-summary.insulator-work-group { background: #203a2b; color: #a9dfbb; border-color: #3f684d; }
+:root[data-theme="dark"] .reusable-summary small { color: #91b99f; }
 :root[data-theme="dark"] .request-image-panel,
 :root[data-theme="dark"] .request-admin-image,
 :root[data-theme="dark"] .drive-connect-panel { background: #292e32; color: var(--ink); }
