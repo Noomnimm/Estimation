@@ -105,6 +105,10 @@ const els = {
   planNumber: document.getElementById("planNumber"),
   saveLocalProject: document.getElementById("saveLocalProject"),
   saveCloudProject: document.getElementById("saveCloudProject"),
+  cloudSaveDialog: document.getElementById("cloudSaveDialog"),
+  cloudSaveForm: document.getElementById("cloudSaveForm"),
+  cloudSaveFolder: document.getElementById("cloudSaveFolder"),
+  cancelCloudSave: document.getElementById("cancelCloudSave"),
   newProject: document.getElementById("newProject"),
   saveHint: document.getElementById("saveHint"),
   savedCount: document.getElementById("savedCount"),
@@ -852,7 +856,7 @@ async function openSavedProject(projectId, source = "local") {
   setStatus("เปิดงานเดิมสำเร็จ");
 }
 
-async function saveProject(destination) {
+async function saveProject(destination, cloudFolderId = null) {
   if (destination === "cloud" && !state.cloudUser) {
     setStatus("กรุณาเข้าสู่ระบบ Google ก่อนบันทึกขึ้น Cloud", true);
     els.googleSignInQuick.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -868,6 +872,7 @@ async function saveProject(destination) {
   const projects = destination === "cloud" ? state.cloudProjects : getSavedProjects();
   const now = new Date().toISOString();
   const id = state.activeProjectId || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const existingProject = projects.find((item) => item.id === id);
   const project = {
     id,
     name,
@@ -879,9 +884,10 @@ async function saveProject(destination) {
     results: state.results,
     resultMeta: els.resultMeta.textContent,
     departments: structuredClone(state.departmentWork),
-    createdAt: projects.find((item) => item.id === id)?.createdAt || now,
+    createdAt: existingProject?.createdAt || now,
     updatedAt: now,
   };
+  if (destination === "cloud") project.folderId = cloudFolderId ?? existingProject?.folderId ?? "";
   const index = projects.findIndex((item) => item.id === id);
   state.activeProjectId = id;
   els.saveHint.textContent = `${destination === "cloud" ? "Cloud" : "เครื่องนี้"} · บันทึกล่าสุด ${formatSavedDate(now)}`;
@@ -1003,7 +1009,30 @@ document.querySelectorAll(".app-tab").forEach((button) => {
 });
 
 els.saveLocalProject.addEventListener("click", () => saveProject("local"));
-els.saveCloudProject.addEventListener("click", () => saveProject("cloud"));
+function openCloudSaveDialog() {
+  if (!state.cloudUser) {
+    saveProject("cloud");
+    return;
+  }
+  const existingProject = state.cloudProjects.find((project) => project.id === state.activeProjectId);
+  els.cloudSaveFolder.replaceChildren();
+  [{ id: "", name: "งานทั่วไป" }, ...state.cloudFolders].forEach((folder) => {
+    const option = document.createElement("option");
+    option.value = folder.id;
+    option.textContent = folder.name;
+    option.selected = String(existingProject?.folderId || "") === folder.id;
+    els.cloudSaveFolder.appendChild(option);
+  });
+  els.cloudSaveDialog.showModal();
+}
+els.saveCloudProject.addEventListener("click", openCloudSaveDialog);
+els.cancelCloudSave.addEventListener("click", () => els.cloudSaveDialog.close());
+els.cloudSaveForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const folderId = els.cloudSaveFolder.value;
+  els.cloudSaveDialog.close();
+  saveProject("cloud", folderId);
+});
 els.createCloudFolder.addEventListener("click", async () => {
   if (!state.cloudUser) {
     setStatus("กรุณาเข้าสู่ระบบ Google ก่อนสร้างโฟลเดอร์", true);

@@ -290,6 +290,16 @@ td select:focus,
 #cloudQuickUser { max-width: 230px; padding: 7px 10px; border: 1px solid #c9b2da; border-radius: 9px; background: #f8f1fc; color: var(--accent-dark); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #saveLocalProject { border-color: #87679d; color: var(--accent-dark); background: #fff; }
 #saveCloudProject { background: linear-gradient(135deg, #5b2584, #8141a6); }
+.cloud-save-dialog { width: min(92vw, 460px); padding: 0; border: 0; border-radius: 18px; box-shadow: 0 24px 70px rgba(24, 12, 32, .38); }
+.cloud-save-dialog::backdrop { background: rgba(30, 15, 40, .62); backdrop-filter: blur(2px); }
+.cloud-save-dialog form { padding: 24px; }
+.cloud-save-dialog-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #e1f2ff; color: #17608f; font-size: 25px; }
+.cloud-save-dialog h3 { margin: 14px 0 4px; color: var(--accent-dark); font-size: 21px; }
+.cloud-save-dialog p { margin: 0 0 18px; color: var(--muted); }
+.cloud-save-dialog label { display: grid; gap: 7px; font-weight: 700; }
+.cloud-save-dialog select { width: 100%; padding: 12px; border: 1px solid #cdbddd; border-radius: 10px; background: #fff; font: inherit; }
+.cloud-save-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.cloud-save-dialog-actions button { padding: 10px 16px; }
 
 #saveHint {
   width: 100%;

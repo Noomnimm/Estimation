@@ -235,6 +235,18 @@
       </div>
     </section>
     <dialog id="headImageDialog" class="image-dialog"><button id="closeHeadImageDialog" type="button" aria-label="ปิดรูป">×</button><h3 id="headImageDialogTitle"></h3><img id="headImageDialogImage" alt="รูปประกอบหัวเสาขนาดใหญ่"></dialog>
+    <dialog id="cloudSaveDialog" class="cloud-save-dialog">
+      <form id="cloudSaveForm">
+        <div class="cloud-save-dialog-icon">☁</div>
+        <h3>บันทึกงานขึ้น Cloud</h3>
+        <p>เลือกโฟลเดอร์สำหรับจัดเก็บงานนี้</p>
+        <label><span>โฟลเดอร์ปลายทาง</span><select id="cloudSaveFolder"></select></label>
+        <div class="cloud-save-dialog-actions">
+          <button id="cancelCloudSave" type="button">ยกเลิก</button>
+          <button class="primary" type="submit">บันทึกขึ้น Cloud</button>
+        </div>
+      </form>
+    </dialog>
     </div>
   </main>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
