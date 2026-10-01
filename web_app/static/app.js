@@ -5,24 +5,25 @@ const STRUCTURE_CATALOG = [
   { group: "เสาคอนกรีต", code: "1000010006", material: "POLE,CONCRETE, 14 M. LONG" },
   { group: "เสาคอนกรีต", code: "1000010012", material: "POLE,CONCRETE, 12.20 M. LONG" },
   { group: "เสาคอนกรีต", code: "1000010013", material: "POLE,CONCRETE, 14.30 M. LONG" },
-  { group: "ตอม่อคอนกรีต", code: "Set14304", material: "CONCRETE STUB, 1X(.30X.30X4.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14305", material: "CONCRETE STUB, 1X(.30X.30X5.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14306", material: "CONCRETE STUB, 1X(.30X.30X6.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14307", material: "CONCRETE STUB, 1X(.35X.35X4.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14308", material: "CONCRETE STUB, 1X(.35X.35X5.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14309", material: "CONSRETE STUB, 1X(.35X.35X6.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14316", material: "CONCRETE STUB, 1X(.36X.36X4.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14317", material: "CONCRETE STUB, 1X(.36X.36X5.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14318", material: "CONCRETE STUB, 1X(.36X.36X6.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14313", material: "CONCRETE STUB, 1X(.41X.41X5.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14314", material: "CONCRETE STUB, 1X(.41X.41X6.50 M.)" },
-  { group: "ตอม่อคอนกรีต", code: "Set14315", material: "CONCRETE STUB, 1X(.41X.41X7.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 12 ม.", code: "Set14304", material: "CONCRETE STUB, 1X(.30X.30X4.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 12 ม.", code: "Set14305", material: "CONCRETE STUB, 1X(.30X.30X5.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 12 ม.", code: "Set14306", material: "CONCRETE STUB, 1X(.30X.30X6.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 14 ม.", code: "Set14307", material: "CONCRETE STUB, 1X(.35X.35X4.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 14 ม.", code: "Set14308", material: "CONCRETE STUB, 1X(.35X.35X5.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 14 ม.", code: "Set14309", material: "CONSRETE STUB, 1X(.35X.35X6.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 12.20 ม.", code: "Set14316", material: "CONCRETE STUB, 1X(.36X.36X4.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 12.20 ม.", code: "Set14317", material: "CONCRETE STUB, 1X(.36X.36X5.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 12.20 ม.", code: "Set14318", material: "CONCRETE STUB, 1X(.36X.36X6.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 14.30 ม.", code: "Set14313", material: "CONCRETE STUB, 1X(.41X.41X5.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 14.30 ม.", code: "Set14314", material: "CONCRETE STUB, 1X(.41X.41X6.50 M.)" },
+  { group: "ตอม่อสำหรับเสา 14.30 ม.", code: "Set14315", material: "CONCRETE STUB, 1X(.41X.41X7.50 M.)" },
   { group: "ฐานรากและตอม่อ", code: "Set24211", material: "SINGLE STUB, COVERED CONCRETE (ASSEMBLY NO.8229)" },
   { group: "ฐานรากและตอม่อ", code: "Set24202", material: "SINGLE STUB, STEEL PLATE EMBRACING, 12.20 M POLE (ASSEMBLY NO.8229)" },
   { group: "ฐานรากและตอม่อ", code: "Set24204", material: "SINGLE STUB, STEEL PLATE EMBRACING, 14.30 M POLE (ASSEMBLY NO.8229)" },
   { group: "ฐานรากและตอม่อ", code: "Set14202", material: "POLE FOUNDATION 12.20, 14 M." },
   { group: "งานปรับปรุงเสา", code: "9010070004", material: "POLE IMPROVEMENT 12.20, 14 M." },
 ];
+const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
 
 const state = {
   department: DEFAULT_DEPARTMENT,
@@ -271,7 +272,7 @@ function renderStructureInputs() {
     line.className = "structure-row";
     line.innerHTML = `<label><span>รายการเสา/ตอม่อ</span><select class="structure-item"><option value="">เลือกรายการ</option></select></label><label class="structure-count-label"><span>จำนวน</span><input class="structure-count" type="text" inputmode="text" placeholder="เช่น 4+4+5"></label><button class="remove-structure-row" type="button" aria-label="ลบรายการนี้">×</button>`;
     const select = line.querySelector(".structure-item");
-    [...new Set(STRUCTURE_CATALOG.map((item) => item.group))].forEach((group) => {
+    STRUCTURE_GROUP_ORDER.forEach((group) => {
       const optgroup = document.createElement("optgroup");
       optgroup.label = group;
       STRUCTURE_CATALOG.filter((item) => item.group === group).forEach((item) => {
@@ -1911,7 +1912,10 @@ function renderBaseRequests() {
       : `${request.size} · ${request.head}`;
     const meta = document.createElement("p");
     const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขไส้ในหัวเดิม", rename: "แก้ไขหัวเสา", copy: "คัดลอกเป็นหัวใหม่" };
-    meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ลูกถ้วยตั้ง ${formatAmount(request.insulatorUpright)} / นอน ${formatAmount(request.insulatorHorizontal)} ต่อหัว · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${actionLabels[request.action] || "เพิ่มข้อมูล"}`;
+    meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${actionLabels[request.action] || "เพิ่มข้อมูล"}`;
+    const insulatorReview = document.createElement("div");
+    insulatorReview.className = "admin-insulator-review";
+    insulatorReview.innerHTML = `<div class="upright"><span>ลูกถ้วยตั้งต่อ 1 หัว</span><strong>${formatAmount(request.insulatorUpright)}</strong><small>ลูก</small></div><div class="horizontal"><span>ลูกถ้วยนอนต่อ 1 หัว</span><strong>${formatAmount(request.insulatorHorizontal)}</strong><small>ลูก</small></div>`;
     const table = document.createElement("table");
     const comparesOriginal = request.action !== "add";
     table.innerHTML = comparesOriginal
@@ -1944,7 +1948,7 @@ function renderBaseRequests() {
         footer.appendChild(button);
       }
     }
-    card.append(title, meta);
+    card.append(title, meta, insulatorReview);
     if (request.note) { const note = document.createElement("p"); note.textContent = `หมายเหตุ: ${request.note}`; card.appendChild(note); }
     if (request.imageFileId) {
       const imageButton = document.createElement("button");

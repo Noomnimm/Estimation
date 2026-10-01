@@ -385,6 +385,14 @@ td select:focus,
 .request-card .table-wrap { margin-top: 10px; }
 .request-card-footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 12px; }
 .request-card-footer strong { margin-right: auto; }
+.admin-insulator-review { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); gap: 10px; margin-top: 11px; }
+.admin-insulator-review > div { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 8px; padding: 12px 14px; border: 2px solid; border-radius: 12px; }
+.admin-insulator-review span { grid-column: 1 / -1; font-size: 13px; font-weight: 800; }
+.admin-insulator-review strong { margin-left: auto; font-size: 32px; line-height: 1; }
+.admin-insulator-review small { font-weight: 800; }
+.admin-insulator-review .upright { border-color: #9dceed; background: #e1f2ff; color: #14577f; }
+.admin-insulator-review .horizontal { border-color: #e7abc2; background: #f9e2eb; color: #87234d; }
+@media (max-width: 620px) { .admin-insulator-review { grid-template-columns: 1fr; } }
 button.compact { min-height: 32px; padding: 5px 9px; }
 
 @media (max-width: 820px) {
