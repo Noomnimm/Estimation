@@ -9,6 +9,21 @@ from web_app.material_logic import (
 
 
 class HeadRuleTests(unittest.TestCase):
+    def test_manual_poles_and_stubs_are_added_to_selected_work_type(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame(columns=[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL])
+        pages = [[{"workType": "install"}], [{"workType": "demolition"}]]
+        structures = [
+            [{"workType": "install", "code": "1000010012", "material": "POLE 12.20", "count": "2+3"}],
+            [{"workType": "demolition", "code": "Set14316", "material": "CONCRETE STUB", "count": "4"}],
+        ]
+        result = workbook.calculate(pages, structures)
+        by_code = {item[CODE_COL]: item for item in result["items"]}
+        self.assertEqual(by_code["1000010012"]["จำนวนติดตั้ง"], 5)
+        self.assertEqual(by_code["1000010012"]["จำนวนรื้อถอน"], 0)
+        self.assertEqual(by_code["Set14316"]["จำนวนติดตั้ง"], 0)
+        self.assertEqual(by_code["Set14316"]["จำนวนรื้อถอน"], 4)
+
     def test_inline_set_components_only_return_ten_digit_codes(self):
         workbook = MaterialWorkbook()
         workbook.set_df = pd.DataFrame([

@@ -513,6 +513,7 @@ class GoogleSheetProjectStore:
                     "activeDepartment": project.get("department", "แผนกแรงสูง"),
                     "departments": project.get("departments", {}),
                     "pages": project.get("pages", []),
+                    "structurePages": project.get("structurePages", []),
                 }, ensure_ascii=False, separators=(",", ":")),
                 "results_json": json.dumps(project.get("results", []), ensure_ascii=False, separators=(",", ":")),
                 "result_meta": str(project.get("resultMeta", "")),
@@ -672,13 +673,15 @@ class GoogleSheetProjectStore:
             departments = pages_data.get("departments", {})
             department = pages_data.get("activeDepartment", "แผนกแรงสูง")
             folder_id = pages_data.get("folderId", "")
+            structure_pages = pages_data.get("structurePages", [])
         else:
-            pages, departments, department, folder_id = pages_data, {}, "", ""
+            pages, departments, department, folder_id, structure_pages = pages_data, {}, "", "", []
         return {
             "id": row.get("project_id", ""),
             "name": row.get("project_name", ""),
             "planNumber": row.get("plan_number", ""),
             "pages": pages,
+            "structurePages": structure_pages,
             "departments": departments,
             "department": department,
             "results": parse_json(row.get("results_json", ""), []),

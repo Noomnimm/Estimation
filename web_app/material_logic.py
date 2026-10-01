@@ -261,7 +261,7 @@ class MaterialWorkbook:
 
         return {"base": base, "set": set_data}
 
-    def calculate(self, pages: list[list[dict[str, Any]]]) -> dict[str, Any]:
+    def calculate(self, pages: list[list[dict[str, Any]]], structure_pages: list[list[dict[str, Any]]] | None = None) -> dict[str, Any]:
         if self.base_df is None:
             raise ValueError("ยังไม่ได้โหลดไฟล์ BaseData")
 
@@ -321,6 +321,21 @@ class MaterialWorkbook:
                 matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head), wire3)
                 if high_voltage and has_combined_lat(head):
                     matched_rows += add_wire_materials(totals, "de", lat_wire, "", count)
+
+        for page_number, rows in enumerate(structure_pages or [], start=1):
+            fallback_type = (
+                "demolition" if page_number <= len(pages) and any(item.get("workType") == "demolition" for item in pages[page_number - 1]) else "install"
+            )
+            for row_number, item in enumerate(rows or [], start=1):
+                code = clean_text(item.get("code"))
+                material = clean_text(item.get("material"))
+                count = parse_number(item.get("count"))
+                if not code or not material or count == 0:
+                    continue
+                work_type = "demolition" if item.get("workType") == "demolition" else fallback_type
+                add_material(totals_by_work_type[work_type], material, code, count)
+                input_count += 1
+                matched_rows += 1
 
         self.summary_by_work_type = {
             work_type: sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))

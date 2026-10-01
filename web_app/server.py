@@ -246,7 +246,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def calculate(self) -> None:
         payload = self.read_json()
-        self.handle_json(lambda: WORKBOOK.calculate(payload.get("pages", [])))
+        self.handle_json(lambda: WORKBOOK.calculate(payload.get("pages", []), payload.get("structurePages", [])))
 
     def expand_set(self) -> None:
         self.handle_json(WORKBOOK.expand_set)

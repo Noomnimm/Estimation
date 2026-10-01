@@ -1,5 +1,28 @@
 const DEPARTMENTS = ["แผนกแรงสูง", "แผนกแรงสูง TAC", "แผนกหม้อแปลง", "แผนกสายส่ง"];
 const DEFAULT_DEPARTMENT = DEPARTMENTS[0];
+const STRUCTURE_CATALOG = [
+  { group: "เสาคอนกรีต", code: "1000010004", material: "POLE,CONCRETE, 12 M.LONG" },
+  { group: "เสาคอนกรีต", code: "1000010006", material: "POLE,CONCRETE, 14 M. LONG" },
+  { group: "เสาคอนกรีต", code: "1000010012", material: "POLE,CONCRETE, 12.20 M. LONG" },
+  { group: "เสาคอนกรีต", code: "1000010013", material: "POLE,CONCRETE, 14.30 M. LONG" },
+  { group: "ตอม่อคอนกรีต", code: "Set14304", material: "CONCRETE STUB, 1X(.30X.30X4.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14305", material: "CONCRETE STUB, 1X(.30X.30X5.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14306", material: "CONCRETE STUB, 1X(.30X.30X6.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14307", material: "CONCRETE STUB, 1X(.35X.35X4.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14308", material: "CONCRETE STUB, 1X(.35X.35X5.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14309", material: "CONSRETE STUB, 1X(.35X.35X6.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14316", material: "CONCRETE STUB, 1X(.36X.36X4.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14317", material: "CONCRETE STUB, 1X(.36X.36X5.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14318", material: "CONCRETE STUB, 1X(.36X.36X6.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14313", material: "CONCRETE STUB, 1X(.41X.41X5.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14314", material: "CONCRETE STUB, 1X(.41X.41X6.50 M.)" },
+  { group: "ตอม่อคอนกรีต", code: "Set14315", material: "CONCRETE STUB, 1X(.41X.41X7.50 M.)" },
+  { group: "ฐานรากและตอม่อ", code: "Set24211", material: "SINGLE STUB, COVERED CONCRETE (ASSEMBLY NO.8229)" },
+  { group: "ฐานรากและตอม่อ", code: "Set24202", material: "SINGLE STUB, STEEL PLATE EMBRACING, 12.20 M POLE (ASSEMBLY NO.8229)" },
+  { group: "ฐานรากและตอม่อ", code: "Set24204", material: "SINGLE STUB, STEEL PLATE EMBRACING, 14.30 M POLE (ASSEMBLY NO.8229)" },
+  { group: "ฐานรากและตอม่อ", code: "Set14202", material: "POLE FOUNDATION 12.20, 14 M." },
+  { group: "งานปรับปรุงเสา", code: "9010070004", material: "POLE IMPROVEMENT 12.20, 14 M." },
+];
 
 const state = {
   department: DEFAULT_DEPARTMENT,
@@ -7,6 +30,7 @@ const state = {
   resultWorkType: "install",
   sizes: [],
   pages: [[blankRow(), blankRow()]],
+  structurePages: [[blankStructureRow()]],
   currentPage: 0,
   results: [],
   activeProjectId: "",
@@ -52,6 +76,8 @@ const els = {
   removeRow: document.getElementById("removeRow"),
   clearPage: document.getElementById("clearPage"),
   inputRows: document.getElementById("inputRows"),
+  structureRows: document.getElementById("structureRows"),
+  addStructureRow: document.getElementById("addStructureRow"),
   calculate: document.getElementById("calculate"),
   expandSet: document.getElementById("expandSet"),
   exportExcel: document.getElementById("exportExcel"),
@@ -139,6 +165,10 @@ function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
   return { department, workType, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
 }
 
+function blankStructureRow(workType = "install") {
+  return { workType, code: "", material: "", count: "" };
+}
+
 function pageWorkType(page) {
   return page?.[0]?.workType === "demolition" ? "demolition" : "install";
 }
@@ -220,9 +250,62 @@ function saveCurrentPageFromDom() {
       count: tr.querySelector(".count").value,
     });
   });
+  const structureRows = [...els.structureRows.querySelectorAll(".structure-row")];
+  state.structurePages[state.currentPage] = structureRows.map((row) => {
+    const selected = STRUCTURE_CATALOG.find((item) => item.code === row.querySelector(".structure-item").value);
+    return {
+      workType: state.activeWorkType,
+      code: selected?.code || "",
+      material: selected?.material || "",
+      count: row.querySelector(".structure-count").value,
+    };
+  });
+}
+
+function renderStructureInputs() {
+  const rows = state.structurePages[state.currentPage] || [blankStructureRow(state.activeWorkType)];
+  state.structurePages[state.currentPage] = rows.length ? rows : [blankStructureRow(state.activeWorkType)];
+  els.structureRows.innerHTML = "";
+  state.structurePages[state.currentPage].forEach((row, index) => {
+    const line = document.createElement("div");
+    line.className = "structure-row";
+    line.innerHTML = `<label><span>รายการเสา/ตอม่อ</span><select class="structure-item"><option value="">เลือกรายการ</option></select></label><label class="structure-count-label"><span>จำนวน</span><input class="structure-count" type="text" inputmode="text" placeholder="เช่น 4+4+5"></label><button class="remove-structure-row" type="button" aria-label="ลบรายการนี้">×</button>`;
+    const select = line.querySelector(".structure-item");
+    [...new Set(STRUCTURE_CATALOG.map((item) => item.group))].forEach((group) => {
+      const optgroup = document.createElement("optgroup");
+      optgroup.label = group;
+      STRUCTURE_CATALOG.filter((item) => item.group === group).forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item.code;
+        option.textContent = `${item.code} — ${item.material}`;
+        optgroup.appendChild(option);
+      });
+      select.appendChild(optgroup);
+    });
+    select.value = row.code || "";
+    line.querySelector(".structure-count").value = row.count || "";
+    select.addEventListener("change", () => {
+      const selected = STRUCTURE_CATALOG.find((item) => item.code === select.value);
+      Object.assign(state.structurePages[state.currentPage][index], { workType: state.activeWorkType, code: selected?.code || "", material: selected?.material || "" });
+      markProjectDirty();
+    });
+    line.querySelector(".structure-count").addEventListener("input", (event) => {
+      state.structurePages[state.currentPage][index].count = event.target.value;
+      markProjectDirty();
+    });
+    line.querySelector(".remove-structure-row").addEventListener("click", () => {
+      if (!window.confirm("ลบรายการเสา/ตอม่อนี้ใช่ไหม?")) return;
+      state.structurePages[state.currentPage].splice(index, 1);
+      if (!state.structurePages[state.currentPage].length) state.structurePages[state.currentPage].push(blankStructureRow(state.activeWorkType));
+      renderStructureInputs();
+      markProjectDirty();
+    });
+    els.structureRows.appendChild(line);
+  });
 }
 
 function renderInputs() {
+  renderStructureInputs();
   updateInputColumnTitles();
   els.inputRows.innerHTML = "";
   const page = state.pages[state.currentPage];
@@ -746,14 +829,22 @@ function clonePages(pages) {
   });
 }
 
+function cloneStructurePages(structurePages, pages) {
+  return pages.map((page, index) => {
+    const workType = pageWorkType(page);
+    const rows = structurePages?.[index] || [];
+    return rows.length ? rows.map((row) => ({ ...blankStructureRow(workType), ...row, workType })) : [blankStructureRow(workType)];
+  });
+}
+
 function emptyDepartmentWork(department) {
-  return { pages: [[blankRow(department, "install"), blankRow(department, "install")]], currentPage: 0, activeWorkType: "install", results: [], resultMeta: "ยังไม่มีผลคำนวณ" };
+  return { pages: [[blankRow(department, "install"), blankRow(department, "install")]], structurePages: [[blankStructureRow("install")]], currentPage: 0, activeWorkType: "install", results: [], resultMeta: "ยังไม่มีผลคำนวณ" };
 }
 
 function stashCurrentDepartment() {
   saveCurrentPageFromDom();
   state.departmentWork[state.department] = {
-    pages: clonePages(state.pages), currentPage: state.currentPage, activeWorkType: state.activeWorkType,
+    pages: clonePages(state.pages), structurePages: cloneStructurePages(state.structurePages, state.pages), currentPage: state.currentPage, activeWorkType: state.activeWorkType,
     results: structuredClone(state.results), resultMeta: els.resultMeta.textContent || "ยังไม่มีผลคำนวณ",
   };
 }
@@ -884,6 +975,7 @@ function resetProject() {
   state.activeWorkType = "install";
   state.resultWorkType = "install";
   state.pages = [[blankRow(state.department, "install"), blankRow(state.department, "install")]];
+  state.structurePages = [[blankStructureRow("install")]];
   state.currentPage = 0;
   state.results = [];
   els.projectName.value = "";
@@ -908,6 +1000,7 @@ async function openSavedProject(projectId, source = "local") {
   state.departmentWork = project.departments ? structuredClone(project.departments) : {
     [state.department]: {
       pages: project.pages?.length ? structuredClone(project.pages) : [[blankRow(state.department), blankRow(state.department)]],
+      structurePages: structuredClone(project.structurePages || []),
       currentPage: Number(project.currentPage || 0), activeWorkType: project.activeWorkType || "install", results: structuredClone(project.results || []),
       resultMeta: project.resultMeta || "ยังไม่มีผลคำนวณ",
     },
@@ -916,6 +1009,7 @@ async function openSavedProject(projectId, source = "local") {
   await loadDepartmentSizes(state.department);
   const work = state.departmentWork[state.department] || emptyDepartmentWork(state.department);
   state.pages = clonePages(work.pages);
+  state.structurePages = cloneStructurePages(work.structurePages, state.pages);
   state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
   state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
   state.activeWorkType = work.activeWorkType || pageWorkType(state.pages[state.currentPage]);
@@ -953,6 +1047,7 @@ async function saveProject(destination, cloudFolderId = null) {
     planNumber: els.planNumber.value.trim(),
     department: state.department,
     pages: clonePages(state.pages),
+    structurePages: cloneStructurePages(state.structurePages, state.pages),
     currentPage: state.currentPage,
     activeWorkType: state.activeWorkType,
     results: state.results,
@@ -1246,13 +1341,16 @@ els.applyPages.addEventListener("click", () => {
     installTotal = 1;
     els.totalPages.value = "1";
   }
+  const existing = state.pages.map((page, index) => ({ page, structures: state.structurePages[index] || [] }));
   const resizePages = (workType, total) => {
-    const pages = state.pages.filter((page) => pageWorkType(page) === workType).slice(0, total);
-    while (pages.length < total) pages.push([blankRow(state.department, workType), blankRow(state.department, workType)]);
-    pages.forEach((page) => page.forEach((row) => { row.workType = workType; row.department = state.department; }));
-    return pages;
+    const entries = existing.filter((entry) => pageWorkType(entry.page) === workType).slice(0, total);
+    while (entries.length < total) entries.push({ page: [blankRow(state.department, workType), blankRow(state.department, workType)], structures: [blankStructureRow(workType)] });
+    entries.forEach((entry) => entry.page.forEach((row) => { row.workType = workType; row.department = state.department; }));
+    return entries;
   };
-  state.pages = [...resizePages("install", installTotal), ...resizePages("demolition", demolitionTotal)];
+  const resized = [...resizePages("install", installTotal), ...resizePages("demolition", demolitionTotal)];
+  state.pages = resized.map((entry) => entry.page);
+  state.structurePages = resized.map((entry) => entry.structures.map((row) => ({ ...row, workType: pageWorkType(entry.page) })));
   if (!workTypePageIndices(state.activeWorkType).length) state.activeWorkType = installTotal ? "install" : "demolition";
   state.resultWorkType = state.activeWorkType;
   state.currentPage = workTypePageIndices(state.activeWorkType)[0];
@@ -1301,6 +1399,13 @@ els.addRow.addEventListener("click", () => {
   markProjectDirty();
 });
 
+els.addStructureRow.addEventListener("click", () => {
+  saveCurrentPageFromDom();
+  state.structurePages[state.currentPage].push(blankStructureRow(state.activeWorkType));
+  renderStructureInputs();
+  markProjectDirty();
+});
+
 els.removeRow.addEventListener("click", () => {
   if (state.pages[state.currentPage].length <= 1) {
     setStatus("ต้องเหลืออย่างน้อย 1 แถว", true);
@@ -1317,6 +1422,7 @@ els.removeRow.addEventListener("click", () => {
 els.clearPage.addEventListener("click", () => {
   if (!window.confirm("ล้างข้อมูลทั้งหมดในหน้านี้ใช่ไหม?\n\nรายการที่กรอกในหน้านี้จะถูกนำออกทั้งหมด")) return;
   state.pages[state.currentPage] = [blankRow(state.department, state.activeWorkType), blankRow(state.department, state.activeWorkType)];
+  state.structurePages[state.currentPage] = [blankStructureRow(state.activeWorkType)];
   renderInputs();
   markProjectDirty();
   setStatus("ล้างข้อมูลหน้านี้แล้ว");
@@ -1326,7 +1432,7 @@ els.calculate.addEventListener("click", async () => {
   try {
     saveCurrentPageFromDom();
     setStatus("กำลังแสดง Detail พัสดุ...");
-    const data = await postJson("/api/calculate", { pages: state.pages });
+    const data = await postJson("/api/calculate", { pages: state.pages, structurePages: state.structurePages });
     renderResults(data.items, `รวม ${data.summaryRows} รายการ จากข้อมูลที่เลือก ${data.inputRows} แถว`);
     markProjectDirty();
     setStatus("แสดง Detail พัสดุสำเร็จ");
@@ -1631,6 +1737,7 @@ async function changeDepartment(department) {
   state.department = department || DEFAULT_DEPARTMENT;
   const work = state.departmentWork[state.department] || emptyDepartmentWork(state.department);
   state.pages = clonePages(work.pages);
+  state.structurePages = cloneStructurePages(work.structurePages, state.pages);
   state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
   state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
   state.activeWorkType = work.activeWorkType || pageWorkType(state.pages[state.currentPage]);
