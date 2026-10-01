@@ -224,6 +224,14 @@ function workTypeLabel(workType) {
   return workType === "demolition" ? "งานรื้อถอน" : "งานติดตั้ง";
 }
 
+function parseActualInsulatorCount(value) {
+  const compact = String(value ?? "").replace(/\s+/g, "");
+  if (!compact) return 0;
+  const expression = compact.endsWith("+") ? compact.slice(0, -1) : compact;
+  if (!expression || !/^\d+(?:\.\d+)?(?:\+\d+(?:\.\d+)?)*$/.test(expression)) return 0;
+  return expression.split("+").reduce((total, item) => total + Number(item), 0);
+}
+
 function insulatorRateKey(department, size, head) {
   return `${department}\u0000${size}\u0000${head}`;
 }
@@ -318,7 +326,7 @@ function saveCurrentPageFromDom() {
   state.structurePages[state.currentPage] = [...savedStructures, ...savedWires];
   if (state.activeWorkType === "demolition" && state.pages[state.currentPage]?.[0]) {
     state.pages[state.currentPage][0].actualInsulators = Object.fromEntries(
-      els.actualInsulatorInputs.map((input) => [input.dataset.actualInsulator, Math.max(0, Number(input.value || 0))])
+      els.actualInsulatorInputs.map((input) => [input.dataset.actualInsulator, input.value.trim()])
     );
   }
 }
@@ -416,7 +424,7 @@ function renderActualInsulatorInputs() {
   if (!isDemolition) return;
   const values = state.pages[state.currentPage]?.[0]?.actualInsulators || {};
   els.actualInsulatorInputs.forEach((input) => {
-    input.value = String(Math.max(0, Number(values[input.dataset.actualInsulator] || 0)));
+    input.value = String(values[input.dataset.actualInsulator] ?? "");
   });
 }
 
@@ -663,7 +671,7 @@ function renderInsulators() {
   state.pages.forEach((page) => {
     if (pageWorkType(page) !== "demolition") return;
     const values = page?.[0]?.actualInsulators || {};
-    Object.keys(actualTotals).forEach((key) => { actualTotals[key] += Math.max(0, Number(values[key] || 0)); });
+    Object.keys(actualTotals).forEach((key) => { actualTotals[key] += parseActualInsulatorCount(values[key]); });
   });
   document.getElementById("demolitionLinePostCount").textContent = formatAmount(actualTotals.linePost);
   document.getElementById("demolitionPinPostCount").textContent = formatAmount(actualTotals.pinPost);
@@ -1520,7 +1528,7 @@ els.actualInsulatorInputs.forEach((input) => {
     if (state.activeWorkType !== "demolition" || !state.pages[state.currentPage]?.[0]) return;
     const row = state.pages[state.currentPage][0];
     row.actualInsulators = row.actualInsulators || {};
-    row.actualInsulators[input.dataset.actualInsulator] = Math.max(0, Number(input.value || 0));
+    row.actualInsulators[input.dataset.actualInsulator] = input.value;
     renderInsulators();
     markProjectDirty();
   });
