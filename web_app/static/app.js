@@ -4,6 +4,7 @@ const DEFAULT_DEPARTMENT = DEPARTMENTS[0];
 const state = {
   department: DEFAULT_DEPARTMENT,
   activeWorkType: "install",
+  resultWorkType: "install",
   sizes: [],
   pages: [[blankRow(), blankRow()]],
   currentPage: 0,
@@ -100,6 +101,10 @@ const els = {
   demolitionResultRows: document.getElementById("demolitionResultRows"),
   installResultCount: document.getElementById("installResultCount"),
   demolitionResultCount: document.getElementById("demolitionResultCount"),
+  showInstallResults: document.getElementById("showInstallResults"),
+  showDemolitionResults: document.getElementById("showDemolitionResults"),
+  installResultTabCount: document.getElementById("installResultTabCount"),
+  demolitionResultTabCount: document.getElementById("demolitionResultTabCount"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
   planNumber: document.getElementById("planNumber"),
@@ -656,14 +661,44 @@ function renderResults(items, meta) {
   renderWorkRows(els.demolitionResultRows, demolitionItems, "จำนวนรื้อถอน");
   els.installResultCount.textContent = `${installItems.length} รายการ`;
   els.demolitionResultCount.textContent = `${demolitionItems.length} รายการ`;
-  els.installResultSection.hidden = installItems.length === 0;
-  els.demolitionResultSection.hidden = demolitionItems.length === 0;
+  els.installResultTabCount.textContent = String(installItems.length);
+  els.demolitionResultTabCount.textContent = String(demolitionItems.length);
+  els.showInstallResults.disabled = installItems.length === 0;
+  els.showDemolitionResults.disabled = demolitionItems.length === 0;
+  if (state.resultWorkType === "install" && !installItems.length && demolitionItems.length) state.resultWorkType = "demolition";
+  if (state.resultWorkType === "demolition" && !demolitionItems.length && installItems.length) state.resultWorkType = "install";
+  updateResultTypeView();
   els.resultMeta.textContent = meta || `ทั้งหมด ${state.results.length} รายการ`;
 }
+
+function updateResultTypeView() {
+  const isInstall = state.resultWorkType === "install";
+  els.installResultSection.hidden = !isInstall || els.showInstallResults.disabled;
+  els.demolitionResultSection.hidden = isInstall || els.showDemolitionResults.disabled;
+  els.showInstallResults.classList.toggle("active", isInstall);
+  els.showDemolitionResults.classList.toggle("active", !isInstall);
+  els.showInstallResults.setAttribute("aria-selected", String(isInstall));
+  els.showDemolitionResults.setAttribute("aria-selected", String(!isInstall));
+}
+
+els.showInstallResults.addEventListener("click", () => {
+  state.resultWorkType = "install";
+  updateResultTypeView();
+});
+els.showDemolitionResults.addEventListener("click", () => {
+  state.resultWorkType = "demolition";
+  updateResultTypeView();
+});
 
 function formatAmount(value) {
   const number = Number(value || 0);
   return Number.isInteger(number) ? String(number) : number.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function exportFileName(topic) {
+  const planNumber = els.planNumber.value.trim();
+  const prefix = planNumber ? `${planNumber}_` : "";
+  return `${prefix}${topic}.xlsx`.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
 }
 
 function escapeHtml(value) {
@@ -1243,7 +1278,7 @@ els.exportExcel.addEventListener("click", async () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "material_summary_web.xlsx";
+    link.download = exportFileName("ผลลัพธ์");
     link.click();
     URL.revokeObjectURL(url);
     setStatus("Export สำเร็จ");
@@ -1269,7 +1304,7 @@ els.exportPages.addEventListener("click", async () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "page_summary.xlsx";
+    link.download = exportFileName("รายการหัวเสาแยกหน้า");
     link.click();
     URL.revokeObjectURL(url);
     setStatus("Export รายการแต่ละหน้าสำเร็จ");
@@ -1295,7 +1330,7 @@ els.exportPageHardware.addEventListener("click", async () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "page_insulators_hardware.xlsx";
+    link.download = exportFileName("ลูกถ้วย-Preformแยกหน้า");
     link.click();
     URL.revokeObjectURL(url);
     setStatus("Export ลูกถ้วย/Preform และสรุปลูกถ้วยแยกหน้าสำเร็จ");
@@ -1321,7 +1356,7 @@ els.exportPageCrossarms.addEventListener("click", async () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "page_crossarms.xlsx";
+    link.download = exportFileName("คอนแยกหน้า");
     link.click();
     URL.revokeObjectURL(url);
     setStatus("Export คอนแยกหน้าสำเร็จ");
