@@ -185,11 +185,11 @@
     <section class="results insulator-panel tab-panel" data-panel="calculator" aria-labelledby="insulatorTitle">
       <div class="result-head">
         <h2 id="insulatorTitle">จำนวนลูกถ้วยที่ควรมี</h2>
-        <span>รวมทุกหน้า · อัปเดตตามจำนวนที่กรอก</span>
+        <span>แยกยอดงานติดตั้งและงานรื้อถอน · อัปเดตตามจำนวนที่กรอก</span>
       </div>
       <div class="insulator-counts" aria-live="polite" aria-atomic="true">
-        <div><span>ลูกถ้วยตั้ง</span><strong id="uprightCount">0</strong><span>ลูก</span></div>
-        <div><span>ลูกถ้วยนอน</span><strong id="horizontalCount">0</strong><span>ลูก</span></div>
+        <div class="insulator-work-group install"><h3>งานติดตั้ง</h3><span>ลูกถ้วยตั้ง</span><strong id="installUprightCount">0</strong><span>ลูก</span><span>ลูกถ้วยนอน</span><strong id="installHorizontalCount">0</strong><span>ลูก</span></div>
+        <div class="insulator-work-group demolition"><h3>งานรื้อถอน</h3><span>ลูกถ้วยตั้ง</span><strong id="demolitionUprightCount">0</strong><span>ลูก</span><span>ลูกถ้วยนอน</span><strong id="demolitionHorizontalCount">0</strong><span>ลูก</span></div>
       </div>
       <p>ใช้ตรวจสอบตามอัตราที่กำหนดเท่านั้น ไม่เพิ่มในรายการวัสดุหรือ Export Excel</p>
       <details id="insulatorWarnings" hidden><summary>รายการที่ยังไม่รวมในยอด</summary><ul id="insulatorWarningList"></ul></details>
@@ -213,7 +213,8 @@
             <tr>
               <th>รายการวัสดุ</th>
               <th>รหัสพัสดุ</th>
-              <th>จำนวนรวม</th>
+              <th>งานติดตั้ง</th>
+              <th>งานรื้อถอน</th>
             </tr>
           </thead>
           <tbody id="resultRows"></tbody>

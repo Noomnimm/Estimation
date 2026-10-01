@@ -22,6 +22,8 @@ MATERIAL_COL = "รายการวัสดุ"
 CODE_COL = "รหัสพัสดุ"
 QTY_COL = "จำนวน"
 TOTAL_COL = "จำนวนรวม"
+INSTALL_TOTAL_COL = "จำนวนติดตั้ง"
+DEMOLITION_TOTAL_COL = "จำนวนรื้อถอน"
 DEPARTMENT_COL = "แผนก"
 DEFAULT_DEPARTMENT = "แผนกแรงสูง"
 INSULATOR_UPRIGHT_COL = "ลูกถ้วยตั้ง"
@@ -125,6 +127,8 @@ class MaterialWorkbook:
         self.base_df: pd.DataFrame | None = None
         self.set_df: pd.DataFrame | None = None
         self.summary: list[dict[str, Any]] = []
+        self.summary_by_work_type: dict[str, list[dict[str, Any]]] = {"install": [], "demolition": []}
+        self.separate_work_types = False
         self.base_path: Path | None = None
         self.set_path: Path | None = None
 
@@ -139,6 +143,8 @@ class MaterialWorkbook:
         self.base_df = df
         self.base_path = Path(path)
         self.summary = []
+        self.summary_by_work_type = {"install": [], "demolition": []}
+        self.separate_work_types = False
         return {
             "file": self.base_path.name,
             "rows": int(len(df)),
@@ -259,11 +265,14 @@ class MaterialWorkbook:
         if self.base_df is None:
             raise ValueError("ยังไม่ได้โหลดไฟล์ BaseData")
 
-        totals: dict[tuple[str, str], dict[str, Any]] = {}
+        self.separate_work_types = pages_have_work_types(pages)
+        totals_by_work_type: dict[str, dict[tuple[str, str], dict[str, Any]]] = {"install": {}, "demolition": {}}
         input_count = 0
         matched_rows = 0
 
         for page_number, page in enumerate(pages, start=1):
+            work_type = "demolition" if any(item.get("workType") == "demolition" for item in page) else "install"
+            totals = totals_by_work_type[work_type]
             for row_number, item in enumerate(page, start=1):
                 size = str(item.get("size", "")).strip()
                 head = str(item.get("head", "")).strip()
@@ -313,7 +322,11 @@ class MaterialWorkbook:
                 if high_voltage and has_combined_lat(head):
                     matched_rows += add_wire_materials(totals, "de", lat_wire, "", count)
 
-        self.summary = sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
+        self.summary_by_work_type = {
+            work_type: sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
+            for work_type, totals in totals_by_work_type.items()
+        }
+        self.summary = combine_work_type_summaries(self.summary_by_work_type) if self.separate_work_types else self.summary_by_work_type["install"]
         return {
             "items": self.summary,
             "inputRows": input_count,
@@ -335,7 +348,6 @@ class MaterialWorkbook:
         if not self.summary:
             raise ValueError("ยังไม่มีผลคำนวณให้แตก SET")
 
-        expanded: list[dict[str, Any]] = []
         set_found = 0
         set_missing: list[str] = []
         expanded_lines = 0
@@ -343,35 +355,40 @@ class MaterialWorkbook:
         set_lookup = self.set_df.copy()
         set_lookup["_set_key"] = set_lookup[SET_COL].astype(str).str.strip().str.lower()
 
-        for row in self.summary:
-            code = clean_text(row[CODE_COL])
-            qty = parse_number(row[TOTAL_COL])
-            key = code.lower()
-            if key.startswith("set"):
-                matches = set_lookup[set_lookup["_set_key"] == key]
-                if matches.empty:
-                    set_missing.append(code)
-                    continue
-                set_found += 1
-                for _, item in matches.iterrows():
+        expanded_by_work_type: dict[str, list[dict[str, Any]]] = {"install": [], "demolition": []}
+        for work_type, source_rows in self.summary_by_work_type.items():
+            expanded = expanded_by_work_type[work_type]
+            for row in source_rows:
+                code = clean_text(row[CODE_COL])
+                qty = parse_number(row[TOTAL_COL])
+                key = code.lower()
+                if key.startswith("set"):
+                    matches = set_lookup[set_lookup["_set_key"] == key]
+                    if matches.empty:
+                        set_missing.append(code)
+                        continue
+                    set_found += 1
+                    for _, item in matches.iterrows():
+                        expanded.append(
+                            {
+                                MATERIAL_COL: clean_text(item[SET_DESC_COL]),
+                                CODE_COL: clean_text(item[CODE_COL]),
+                                TOTAL_COL: parse_number(item[SET_INSTALL_COL]) * qty,
+                            }
+                        )
+                        expanded_lines += 1
+                else:
                     expanded.append(
                         {
-                            MATERIAL_COL: clean_text(item[SET_DESC_COL]),
-                            CODE_COL: clean_text(item[CODE_COL]),
-                            TOTAL_COL: parse_number(item[SET_INSTALL_COL]) * qty,
+                            MATERIAL_COL: clean_text(row[MATERIAL_COL]),
+                            CODE_COL: code,
+                            TOTAL_COL: qty,
                         }
                     )
-                    expanded_lines += 1
-            else:
-                expanded.append(
-                    {
-                        MATERIAL_COL: clean_text(row[MATERIAL_COL]),
-                        CODE_COL: code,
-                        TOTAL_COL: qty,
-                    }
-                )
+            expanded_by_work_type[work_type] = group_summary(expanded)
 
-        self.summary = group_summary(expanded)
+        self.summary_by_work_type = expanded_by_work_type
+        self.summary = combine_work_type_summaries(self.summary_by_work_type) if self.separate_work_types else self.summary_by_work_type["install"]
         return {
             "items": self.summary,
             "setFound": set_found,
@@ -385,7 +402,8 @@ class MaterialWorkbook:
             raise ValueError("ยังไม่มีผลลัพธ์สำหรับ export")
 
         output = BytesIO()
-        df = pd.DataFrame(self.summary, columns=[MATERIAL_COL, CODE_COL, TOTAL_COL])
+        columns = [MATERIAL_COL, CODE_COL, INSTALL_TOTAL_COL, DEMOLITION_TOTAL_COL] if self.separate_work_types else [MATERIAL_COL, CODE_COL, TOTAL_COL]
+        df = pd.DataFrame(self.summary, columns=columns)
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Summary")
         return output.getvalue()
@@ -650,12 +668,22 @@ class MaterialWorkbook:
         summary_rows = []
         for page_label, (upright, horizontal) in page_totals.items():
             summary_rows.append({"หน้า": page_label, "ลูกถ้วยตั้ง": upright, "ลูกถ้วยนอน": horizontal, "รวมลูกถ้วย": upright + horizontal})
-        summary_rows.append({
-            "หน้า": "รวมทุกหน้า",
-            "ลูกถ้วยตั้ง": sum(value[0] for value in page_totals.values()),
-            "ลูกถ้วยนอน": sum(value[1] for value in page_totals.values()),
-            "รวมลูกถ้วย": sum(sum(value) for value in page_totals.values()),
-        })
+        if typed_pages:
+            for prefix, total_label in (("ติดตั้ง ", "รวมงานติดตั้ง"), ("รื้อถอน ", "รวมงานรื้อถอน")):
+                selected = [value for label, value in page_totals.items() if str(label).startswith(prefix)]
+                summary_rows.append({
+                    "หน้า": total_label,
+                    "ลูกถ้วยตั้ง": sum(value[0] for value in selected),
+                    "ลูกถ้วยนอน": sum(value[1] for value in selected),
+                    "รวมลูกถ้วย": sum(sum(value) for value in selected),
+                })
+        else:
+            summary_rows.append({
+                "หน้า": "รวมทุกหน้า",
+                "ลูกถ้วยตั้ง": sum(value[0] for value in page_totals.values()),
+                "ลูกถ้วยนอน": sum(value[1] for value in page_totals.values()),
+                "รวมลูกถ้วย": sum(sum(value) for value in page_totals.values()),
+            })
 
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -764,11 +792,18 @@ class MaterialWorkbook:
             row: dict[str, Any] = {MATERIAL_COL: summary[MATERIAL_COL], CODE_COL: code}
             for page_number, page_label in enumerate(labels, start=1):
                 row[page_label] = amounts.get(page_number, 0.0)
-            row[TOTAL_COL] = sum(amounts.values())
+            if typed_pages:
+                row[INSTALL_TOTAL_COL] = sum(amounts.get(number, 0.0) for number, label in enumerate(labels, start=1) if label.startswith("ติดตั้ง "))
+                row[DEMOLITION_TOTAL_COL] = sum(amounts.get(number, 0.0) for number, label in enumerate(labels, start=1) if label.startswith("รื้อถอน "))
+            else:
+                row[TOTAL_COL] = sum(amounts.values())
             summary_rows.append(row)
 
         detail_columns = ["หน้า", SIZE_COL, HEAD_COL, "จำนวนหัว", MATERIAL_COL, CODE_COL, TOTAL_COL]
-        summary_columns = [MATERIAL_COL, CODE_COL, *labels, TOTAL_COL]
+        summary_columns = [
+            MATERIAL_COL, CODE_COL, *labels,
+            *([INSTALL_TOTAL_COL, DEMOLITION_TOTAL_COL] if typed_pages else [TOTAL_COL]),
+        ]
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             summary_startrow = 1 if typed_pages else 0
@@ -1025,6 +1060,24 @@ def group_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             totals[key] = {MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: 0.0}
         totals[key][TOTAL_COL] += amount
     return sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
+
+
+def combine_work_type_summaries(summary_by_work_type: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    combined: dict[tuple[str, str], dict[str, Any]] = {}
+    for work_type, rows in summary_by_work_type.items():
+        quantity_column = DEMOLITION_TOTAL_COL if work_type == "demolition" else INSTALL_TOTAL_COL
+        for row in rows:
+            material = clean_text(row[MATERIAL_COL])
+            code = clean_text(row[CODE_COL])
+            key = (material, code)
+            target = combined.setdefault(key, {
+                MATERIAL_COL: material, CODE_COL: code,
+                INSTALL_TOTAL_COL: 0.0, DEMOLITION_TOTAL_COL: 0.0, TOTAL_COL: 0.0,
+            })
+            amount = parse_number(row[TOTAL_COL])
+            target[quantity_column] += amount
+            target[TOTAL_COL] += amount  # Compatibility for older callers; UI/export use the separated columns.
+    return sorted(combined.values(), key=lambda row: (str(row[CODE_COL]).lower(), str(row[MATERIAL_COL]).lower()))
 
 
 def clean_text(value: Any) -> str:

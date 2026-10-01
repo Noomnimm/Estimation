@@ -421,9 +421,11 @@ function createSurgeDetailsRow(row, index) {
 }
 
 function renderInsulators() {
-  const totals = summarizeInsulators(state.pages);
-  document.getElementById("uprightCount").textContent = formatAmount(totals.upright);
-  document.getElementById("horizontalCount").textContent = formatAmount(totals.horizontal);
+  const totals = summarizeInsulatorsByWorkType(state.pages);
+  document.getElementById("installUprightCount").textContent = formatAmount(totals.install.upright);
+  document.getElementById("installHorizontalCount").textContent = formatAmount(totals.install.horizontal);
+  document.getElementById("demolitionUprightCount").textContent = formatAmount(totals.demolition.upright);
+  document.getElementById("demolitionHorizontalCount").textContent = formatAmount(totals.demolition.horizontal);
   const warnings = document.getElementById("insulatorWarnings");
   warnings.hidden = totals.warnings.length === 0;
   warnings.querySelector("summary").textContent = `รายการที่ยังไม่รวมในยอด (${totals.warnings.length} แถว)`;
@@ -634,7 +636,8 @@ function renderResults(items, meta) {
     tr.innerHTML = `
       <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
       <td>${escapeHtml(item["รหัสพัสดุ"] || "")}</td>
-      <td>${formatAmount(item["จำนวนรวม"])}</td>
+      <td>${formatAmount(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"])}</td>
+      <td>${formatAmount(item["จำนวนรื้อถอน"] ?? 0)}</td>
     `;
     els.resultRows.appendChild(tr);
   });

@@ -24,6 +24,9 @@
 .insulator-counts > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; padding: 16px; border-radius: 12px; background: var(--accent-light); color: var(--accent-dark); }
 .insulator-counts > div:last-child { background: #fff6d9; }
 .insulator-counts strong { font-size: clamp(24px, 4vw, 36px); margin-left: auto; overflow-wrap: anywhere; }
+.insulator-counts .insulator-work-group { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; }
+.insulator-work-group h3 { grid-column: 1 / -1; margin: 0 0 5px; font-size: 15px; }
+.insulator-work-group.demolition { background: #fff1db; color: #7a4700; }
 .insulator-panel p { color: var(--muted); font-size: 13px; }
 .insulator-panel details { color: var(--danger); font-size: 13px; }
 .insulator-panel summary { cursor: pointer; }

@@ -78,6 +78,19 @@ class HeadRuleTests(unittest.TestCase):
         self.assertEqual(values['SetExample'], 2)
         self.assertEqual(values['1020260205'], 12)
 
+    def test_calculation_keeps_installation_and_demolition_totals_separate(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: '12.2', HEAD_COL: 'SP', MATERIAL_COL: 'TEST MATERIAL', CODE_COL: '1000000001', QTY_COL: 2},
+        ])
+        result = workbook.calculate([
+            [{'workType': 'install', 'size': '12.2', 'head': 'SP', 'count': 3}],
+            [{'workType': 'demolition', 'size': '12.2', 'head': 'SP', 'count': 4}],
+        ])
+        item = next(row for row in result['items'] if row[CODE_COL] == '1000000001')
+        self.assertEqual(item['จำนวนติดตั้ง'], 6)
+        self.assertEqual(item['จำนวนรื้อถอน'], 8)
+
     def test_lat_as_de(self):
         for head in ['LAT.SLK บน', 'LAT.SLK ล่าง']:
             values = self.equipment(head, wire1='50 SAC')

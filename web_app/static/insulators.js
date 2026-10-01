@@ -95,4 +95,12 @@ function summarizeInsulators(pages) {
   return result;
 }
 
-if (typeof module !== "undefined") module.exports = { insulatorRate, insulatorQuantity, summarizeInsulators };
+function summarizeInsulatorsByWorkType(pages) {
+  const installPages = pages.map((page) => page.filter((row) => row.workType !== "demolition"));
+  const demolitionPages = pages.map((page) => page.filter((row) => row.workType === "demolition"));
+  const install = summarizeInsulators(installPages);
+  const demolition = summarizeInsulators(demolitionPages);
+  return { install, demolition, warnings: [...install.warnings, ...demolition.warnings] };
+}
+
+if (typeof module !== "undefined") module.exports = { insulatorRate, insulatorQuantity, summarizeInsulators, summarizeInsulatorsByWorkType };

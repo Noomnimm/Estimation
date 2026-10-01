@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { insulatorRate, insulatorQuantity, summarizeInsulators } = require('./static/insulators.js');
+const { insulatorRate, insulatorQuantity, summarizeInsulators, summarizeInsulatorsByWorkType } = require('./static/insulators.js');
 for (const [head, expected] of Object.entries({
   BA: [4, 12], DE: [0, 12], DDE: [6, 24], 'DDE.BL': [0, 24],
   '2BA st.4.5m': [12, 24],
@@ -37,4 +37,10 @@ assert.equal(JSON.stringify(pages), before, 'Must not mutate saved project data'
 assert.deepEqual(summarizeInsulators([[]]), { upright: 0, horizontal: 0, warnings: [] });
 assert.deepEqual(summarizeInsulators([[{ ...row('CUSTOM', '2'), insulatorUpright: 5, insulatorHorizontal: 7 }]]), { upright: 10, horizontal: 14, warnings: [] });
 assert.equal(summarizeInsulators([[row('BA', '1+'), row('Unknown', '1'), row('BA', '-1')]]).warnings.length, 3);
+const split = summarizeInsulatorsByWorkType([[
+  { ...row('BA', '1'), workType: 'install' },
+  { ...row('DDE', '1'), workType: 'demolition' },
+]]);
+assert.deepEqual(split.install, { upright: 4, horizontal: 12, warnings: [] });
+assert.deepEqual(split.demolition, { upright: 6, horizontal: 24, warnings: [] });
 console.log('Insulator count tests passed');
