@@ -905,7 +905,7 @@ function renderResults(items, meta) {
     container.innerHTML = rows.map((item) => `
       <tr>
         <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
-        <td>${String(item["รหัสพัสดุ"] || "").trim().toLowerCase().startsWith("set") ? `<button type="button" class="set-expand-button" data-set-code="${escapeHtml(item["รหัสพัสดุ"] || "")}" data-set-quantity="${escapeHtml(String(item[quantityKey] ?? (fallbackKey ? item[fallbackKey] : 0)))}" aria-label="ดูไส้ใน ${escapeHtml(item["รหัสพัสดุ"] || "")}">+</button>` : ""}<span class="material-code">${escapeHtml(item["รหัสพัสดุ"] || "")}</span></td>
+        <td>${String(item["รหัสพัสดุ"] || "").trim().toLowerCase().startsWith("set") ? `<button type="button" class="set-expand-button" data-set-code="${escapeHtml(item["รหัสพัสดุ"] || "")}" aria-label="ดูไส้ใน ${escapeHtml(item["รหัสพัสดุ"] || "")} ต่อ 1 SET">+</button>` : ""}<span class="material-code">${escapeHtml(item["รหัสพัสดุ"] || "")}</span></td>
         <td>${formatAmount(item[quantityKey] ?? (fallbackKey ? item[fallbackKey] : 0))}</td>
       </tr>
     `).join("");
@@ -934,13 +934,13 @@ async function toggleSetComponents(event) {
     button.textContent = "…";
     const data = await postJson("/api/set-components", {
       code: button.dataset.setCode,
-      quantity: button.dataset.setQuantity,
+      quantity: 1,
     });
     const detailRow = document.createElement("tr");
     detailRow.className = "set-component-row";
     const rows = data.items || [];
     detailRow.innerHTML = `<td colspan="3"><div class="set-component-panel">
-      <div class="set-component-title">รายการประมาณการภายใน ${escapeHtml(data.setCode || button.dataset.setCode)}</div>
+      <div class="set-component-title">อุปกรณ์ภายใน ${escapeHtml(data.setCode || button.dataset.setCode)} ต่อ 1 SET</div>
       ${rows.length ? `<table><thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ 10 หลัก</th><th>จำนวน</th></tr></thead><tbody>${rows.map((item) => `<tr><td>${escapeHtml(item.material || "")}</td><td>${escapeHtml(item.code || "")}</td><td>${formatAmount(item.quantity)}</td></tr>`).join("")}</tbody></table>` : '<div class="set-component-empty">ไม่พบรายการรหัส 10 หลักใน SET นี้</div>'}
     </div></td>`;
     parentRow.after(detailRow);
