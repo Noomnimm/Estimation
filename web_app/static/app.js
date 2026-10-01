@@ -96,6 +96,8 @@ const els = {
   addStructureRow: document.getElementById("addStructureRow"),
   wireRows: document.getElementById("wireRows"),
   addWireRow: document.getElementById("addWireRow"),
+  actualInsulatorEntry: document.getElementById("actualInsulatorEntry"),
+  actualInsulatorInputs: [...document.querySelectorAll("[data-actual-insulator]")],
   calculate: document.getElementById("calculate"),
   expandSet: document.getElementById("expandSet"),
   exportExcel: document.getElementById("exportExcel"),
@@ -310,6 +312,11 @@ function saveCurrentPageFromDom() {
     };
   });
   state.structurePages[state.currentPage] = [...savedStructures, ...savedWires];
+  if (state.activeWorkType === "demolition" && state.pages[state.currentPage]?.[0]) {
+    state.pages[state.currentPage][0].actualInsulators = Object.fromEntries(
+      els.actualInsulatorInputs.map((input) => [input.dataset.actualInsulator, Math.max(0, Number(input.value || 0))])
+    );
+  }
 }
 
 function renderStructureInputs() {
@@ -399,9 +406,20 @@ function renderWireInputs() {
   });
 }
 
+function renderActualInsulatorInputs() {
+  const isDemolition = state.activeWorkType === "demolition";
+  els.actualInsulatorEntry.hidden = !isDemolition;
+  if (!isDemolition) return;
+  const values = state.pages[state.currentPage]?.[0]?.actualInsulators || {};
+  els.actualInsulatorInputs.forEach((input) => {
+    input.value = String(Math.max(0, Number(values[input.dataset.actualInsulator] || 0)));
+  });
+}
+
 function renderInputs() {
   renderStructureInputs();
   renderWireInputs();
+  renderActualInsulatorInputs();
   updateInputColumnTitles();
   els.inputRows.innerHTML = "";
   const page = state.pages[state.currentPage];
@@ -628,8 +646,16 @@ function renderInsulators() {
   const totals = summarizeInsulatorsByWorkType(state.pages);
   document.getElementById("installUprightCount").textContent = formatAmount(totals.install.upright);
   document.getElementById("installHorizontalCount").textContent = formatAmount(totals.install.horizontal);
-  document.getElementById("demolitionUprightCount").textContent = formatAmount(totals.demolition.upright);
-  document.getElementById("demolitionHorizontalCount").textContent = formatAmount(totals.demolition.horizontal);
+  const actualTotals = { linePost: 0, pinPost: 0, suspension: 0, pinType: 0 };
+  state.pages.forEach((page) => {
+    if (pageWorkType(page) !== "demolition") return;
+    const values = page?.[0]?.actualInsulators || {};
+    Object.keys(actualTotals).forEach((key) => { actualTotals[key] += Math.max(0, Number(values[key] || 0)); });
+  });
+  document.getElementById("demolitionLinePostCount").textContent = formatAmount(actualTotals.linePost);
+  document.getElementById("demolitionPinPostCount").textContent = formatAmount(actualTotals.pinPost);
+  document.getElementById("demolitionSuspensionCount").textContent = formatAmount(actualTotals.suspension);
+  document.getElementById("demolitionPinTypeCount").textContent = formatAmount(actualTotals.pinType);
   const warnings = document.getElementById("insulatorWarnings");
   warnings.hidden = totals.warnings.length === 0;
   warnings.querySelector("summary").textContent = `รายการที่ยังไม่รวมในยอด (${totals.warnings.length} แถว)`;
@@ -921,7 +947,12 @@ function escapeHtml(value) {
 function clonePages(pages) {
   return pages.map((page) => {
     const workType = pageWorkType(page);
-    return page.map((row) => ({ ...blankRow(state.department, workType), ...row, workType: row.workType === "demolition" ? "demolition" : workType }));
+    return page.map((row) => ({
+      ...blankRow(state.department, workType),
+      ...row,
+      actualInsulators: row.actualInsulators ? { ...row.actualInsulators } : undefined,
+      workType: row.workType === "demolition" ? "demolition" : workType,
+    }));
   });
 }
 
@@ -1469,6 +1500,17 @@ els.addWireRow.addEventListener("click", () => {
   state.structurePages[state.currentPage].push(blankStructureRow(state.activeWorkType, "wire"));
   renderWireInputs();
   markProjectDirty();
+});
+
+els.actualInsulatorInputs.forEach((input) => {
+  input.addEventListener("input", () => {
+    if (state.activeWorkType !== "demolition" || !state.pages[state.currentPage]?.[0]) return;
+    const row = state.pages[state.currentPage][0];
+    row.actualInsulators = row.actualInsulators || {};
+    row.actualInsulators[input.dataset.actualInsulator] = Math.max(0, Number(input.value || 0));
+    renderInsulators();
+    markProjectDirty();
+  });
 });
 
 els.removeRow.addEventListener("click", () => {

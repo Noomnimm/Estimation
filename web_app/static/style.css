@@ -843,6 +843,15 @@ td select {
 .wire-entry-group .entry-group-heading { background: #e6f7f1; }
 .wire-entry-group .entry-step { background: #16806b; }
 .wire-entry-group #addWireRow { border-color: #80c4b2; background: #fff; color: #126553; font-weight: 800; }
+.actual-insulator-entry { border-color: #e5b5c8; background: #fff9fb; }
+.actual-insulator-entry .entry-group-heading { background: #f9e4ec; }
+.actual-insulator-entry .entry-step { background: #a83b68; }
+.actual-insulator-fields { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px; padding: 12px; }
+.actual-insulator-fields label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.actual-insulator-fields input { width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid #ddb1c3; border-radius: 9px; background: #fff; color: var(--ink); font: inherit; font-weight: 800; }
+.actual-summary.insulator-work-group { display: block; }
+.actual-summary-grid { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: baseline; }
+.actual-summary-grid strong { font-size: 24px; }
 .structure-rows { display: grid; gap: 8px; padding: 12px; }
 .structure-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px 38px; gap: 9px; align-items: end; }
 .structure-row label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
@@ -1056,6 +1065,8 @@ td select {
 :root[data-theme="dark"] .structure-entry-group .entry-group-heading { background: #203946; }
 :root[data-theme="dark"] .wire-entry-group { background: #172a25; border-color: #315f54; }
 :root[data-theme="dark"] .wire-entry-group .entry-group-heading { background: #1e3d35; }
+:root[data-theme="dark"] .actual-insulator-entry { background: #302329; border-color: #684253; }
+:root[data-theme="dark"] .actual-insulator-entry .entry-group-heading { background: #462b37; }
 :root[data-theme="dark"] .request-image-panel,
 :root[data-theme="dark"] .request-admin-image,
 :root[data-theme="dark"] .drive-connect-panel { background: #292e32; color: var(--ink); }
@@ -1095,6 +1106,7 @@ td select {
 }
 
 @media (max-width: 760px) {
+  .actual-insulator-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .structure-row { grid-template-columns: 1fr 100px 38px; }
   .entry-group-heading small { display: none; }
   .shell {

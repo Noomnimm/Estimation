@@ -207,6 +207,16 @@
       </div>
       </section>
 
+      <section id="actualInsulatorEntry" class="entry-group actual-insulator-entry" hidden>
+        <div class="entry-group-heading"><div><span class="entry-step">4</span><h3>ลูกถ้วย (นับจริง)</h3><small>กรอกจำนวนที่ตรวจนับได้จริงสำหรับงานรื้อถอนหน้านี้</small></div></div>
+        <div class="actual-insulator-fields">
+          <label><span>Line Post</span><input data-actual-insulator="linePost" type="number" min="0" step="1" value="0"></label>
+          <label><span>Pin Post</span><input data-actual-insulator="pinPost" type="number" min="0" step="1" value="0"></label>
+          <label><span>Suspension</span><input data-actual-insulator="suspension" type="number" min="0" step="1" value="0"></label>
+          <label><span>Pin Type</span><input data-actual-insulator="pinType" type="number" min="0" step="1" value="0"></label>
+        </div>
+      </section>
+
       <div class="actions">
         <button id="calculate" class="primary" type="button">Detail พัสดุ</button>
         <button id="expandSet" type="button">แตก SET ทั้งหมด</button>
@@ -220,7 +230,7 @@
       </div>
       <div class="insulator-counts" aria-live="polite" aria-atomic="true">
         <div class="insulator-work-group install"><h3>งานติดตั้ง</h3><span>ลูกถ้วยตั้ง</span><strong id="installUprightCount">0</strong><span>ลูก</span><span>ลูกถ้วยนอน</span><strong id="installHorizontalCount">0</strong><span>ลูก</span></div>
-        <div class="insulator-work-group demolition"><h3>งานรื้อถอน</h3><span>ลูกถ้วยตั้ง</span><strong id="demolitionUprightCount">0</strong><span>ลูก</span><span>ลูกถ้วยนอน</span><strong id="demolitionHorizontalCount">0</strong><span>ลูก</span></div>
+        <div class="insulator-work-group demolition actual-summary"><h3>งานรื้อถอน · นับจริง</h3><div class="actual-summary-grid"><span>Line Post</span><strong id="demolitionLinePostCount">0</strong><span>Pin Post</span><strong id="demolitionPinPostCount">0</strong><span>Suspension</span><strong id="demolitionSuspensionCount">0</strong><span>Pin Type</span><strong id="demolitionPinTypeCount">0</strong></div></div>
       </div>
       <p>ใช้ตรวจสอบตามอัตราที่กำหนดเท่านั้น ไม่เพิ่มในรายการวัสดุหรือ Export Excel</p>
       <details id="insulatorWarnings" hidden><summary>รายการที่ยังไม่รวมในยอด</summary><ul id="insulatorWarningList"></ul></details>
