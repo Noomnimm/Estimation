@@ -82,6 +82,23 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(len(store.list_projects(alice)), 1)
         self.assertEqual(store.list_projects(bob), [])
 
+    def test_cloud_deleted_project_can_be_restored_or_purged(self):
+        store = MemoryProjectStore()
+        user = {"email": "alice@example.com", "name": "Alice"}
+        payload = {"id": "p-trash", "name": "งานทดสอบถังขยะ", "pages": [], "departments": {}}
+        store.save_project(payload, user)
+        store.delete_project("p-trash", user)
+        self.assertEqual(store.list_projects(user), [])
+        self.assertEqual([project["id"] for project in store.list_deleted_projects(user)], ["p-trash"])
+
+        restored = store.restore_project("p-trash", user)
+        self.assertEqual(restored["id"], "p-trash")
+        self.assertEqual(len(store.list_projects(user)), 1)
+
+        store.delete_project("p-trash", user)
+        store.permanently_delete_project("p-trash", user)
+        self.assertEqual(store.list_deleted_projects(user), [])
+
     def test_cloud_project_reads_multi_department_payload(self):
         payload = {
             "version": 2, "activeDepartment": "แผนกแรงสูง TAC",

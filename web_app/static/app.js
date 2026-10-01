@@ -13,6 +13,7 @@ const state = {
   cloudConfigured: false,
   googleCredential: sessionStorage.getItem("material-calculator-google-credential") || "",
   cloudProjects: [],
+  cloudTrash: [],
   cloudFolders: [],
   cloudUser: null,
   adminToken: sessionStorage.getItem("material-calculator-admin-token") || "",
@@ -24,6 +25,7 @@ const state = {
   headImages: {},
   headDataCache: new Map(),
   departmentWork: {},
+  projectDirty: true,
 };
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
@@ -171,6 +173,17 @@ function openHeadImage(image, title) {
 function setStatus(message, isError = false) {
   els.status.textContent = message;
   els.status.classList.toggle("error", isError);
+}
+
+function setSaveState(kind, message) {
+  state.projectDirty = kind !== "saved";
+  els.saveHint.className = `save-state ${kind}`;
+  els.saveHint.textContent = message;
+}
+
+function markProjectDirty() {
+  if (state.projectDirty) return;
+  setSaveState("dirty", "● ยังไม่ได้บันทึกการเปลี่ยนแปลง");
 }
 
 async function postJson(endpoint, payload = {}) {
@@ -845,7 +858,7 @@ function renderSavedProjectList(container, projects, source) {
 
 function renderCloudProjectFolders(projects) {
   const folders = [{ id: "", name: "งานทั่วไป" }, ...state.cloudFolders];
-  els.cloudSavedProjectList.innerHTML = folders.map((folder) => {
+  const folderMarkup = folders.map((folder) => {
     const folderProjects = projects.filter((project) => String(project.folderId || "") === folder.id);
     return `<details class="cloud-project-folder">
       <summary class="cloud-project-folder-title">
@@ -855,6 +868,14 @@ function renderCloudProjectFolders(projects) {
       <div class="cloud-folder-projects">${folderProjects.length ? savedProjectCardsMarkup(folderProjects, "cloud") : '<div class="empty-saved compact">ยังไม่มีงานในโฟลเดอร์นี้</div>'}</div>
     </details>`;
   }).join("");
+  const trashMarkup = `<details class="cloud-project-folder cloud-trash-folder">
+    <summary class="cloud-project-folder-title"><div><span class="folder-chevron">›</span><span class="folder-icon">♻</span><strong>ถังขยะ</strong><small>${state.cloudTrash.length} งาน</small></div></summary>
+    <div class="cloud-folder-projects">${state.cloudTrash.length ? state.cloudTrash.map((project) => `<article class="saved-card trash-card">
+      <div class="saved-info"><h3>${escapeHtml(project.name)}</h3><div class="saved-meta"><span>เลขผัง: ${escapeHtml(project.planNumber || "-")}</span><span>ลบเมื่อ ${escapeHtml(formatSavedDate(project.deletedAt))}</span></div></div>
+      <div class="saved-actions"><button type="button" data-action="restore-cloud" data-project-id="${escapeHtml(project.id)}">กู้คืน</button><button type="button" class="danger" data-action="purge-cloud" data-project-id="${escapeHtml(project.id)}">ลบถาวร</button></div>
+    </article>`).join("") : '<div class="empty-saved compact">ถังขยะว่าง</div>'}</div>
+  </details>`;
+  els.cloudSavedProjectList.innerHTML = folderMarkup + trashMarkup;
 }
 
 function resetProject() {
@@ -867,9 +888,9 @@ function resetProject() {
   state.results = [];
   els.projectName.value = "";
   els.planNumber.value = "";
-  els.saveHint.textContent = "ยังไม่ได้บันทึกงานนี้";
+  setSaveState("new", "● ยังไม่ได้บันทึกงานนี้");
   renderInputs();
-  renderResults([], "ยังไม่มีข้อมูล");
+  renderResults([], "กรอกข้อมูลแล้วกด Detail พัสดุ");
   switchTab("calculator");
   setStatus("สร้างงานใหม่แล้ว");
 }
@@ -902,7 +923,7 @@ async function openSavedProject(projectId, source = "local") {
   state.results = structuredClone(work.results || []);
   els.projectName.value = project.name || "";
   els.planNumber.value = project.planNumber || "";
-  els.saveHint.textContent = `เปิดงานที่บันทึกเมื่อ ${formatSavedDate(project.updatedAt)}`;
+  setSaveState("saved", `✓ บันทึกแล้ว · ${formatSavedDate(project.updatedAt)}`);
   renderInputs();
   renderResults(state.results, work.resultMeta || "ยังไม่มีผลคำนวณ");
   switchTab("calculator");
@@ -943,7 +964,6 @@ async function saveProject(destination, cloudFolderId = null) {
   if (destination === "cloud") project.folderId = cloudFolderId ?? existingProject?.folderId ?? "";
   const index = projects.findIndex((item) => item.id === id);
   state.activeProjectId = id;
-  els.saveHint.textContent = `${destination === "cloud" ? "Cloud" : "เครื่องนี้"} · บันทึกล่าสุด ${formatSavedDate(now)}`;
   if (destination === "cloud") {
     try {
       setStatus("กำลังบันทึกลง Google Sheet...");
@@ -955,6 +975,7 @@ async function saveProject(destination, cloudFolderId = null) {
       const cloudIndex = state.cloudProjects.findIndex((item) => item.id === id);
       if (cloudIndex >= 0) state.cloudProjects[cloudIndex] = data.project;
       else state.cloudProjects.push(data.project);
+      setSaveState("saved", `✓ บันทึกแล้วบน Cloud · ${formatSavedDate(data.project.updatedAt || now)}`);
       renderSavedProjects();
       setStatus("บันทึกงานลง Google Sheet แล้ว");
       return;
@@ -966,6 +987,7 @@ async function saveProject(destination, cloudFolderId = null) {
   if (index >= 0) projects[index] = project;
   else projects.push(project);
   writeSavedProjects(projects);
+  setSaveState("saved", `✓ บันทึกแล้วในเครื่อง · ${formatSavedDate(now)}`);
   setStatus("บันทึกงานลงเครื่องนี้แล้ว");
 }
 
@@ -1030,6 +1052,7 @@ async function loadCloudProjects() {
   try {
     const data = await cloudRequest("/api/cloud-projects");
     state.cloudProjects = data.projects || [];
+    state.cloudTrash = data.trash || [];
     state.cloudFolders = data.folders || [];
     state.cloudUser = data.user || null;
     els.googleSignIn.hidden = true;
@@ -1045,6 +1068,7 @@ async function loadCloudProjects() {
     state.googleCredential = "";
     state.cloudUser = null;
     state.cloudProjects = [];
+    state.cloudTrash = [];
     state.cloudFolders = [];
     sessionStorage.removeItem("material-calculator-google-credential");
     els.googleSignIn.hidden = false;
@@ -1109,6 +1133,7 @@ els.googleSignOut.addEventListener("click", () => {
   state.googleCredential = "";
   state.cloudUser = null;
   state.cloudProjects = [];
+  state.cloudTrash = [];
   state.cloudFolders = [];
   sessionStorage.removeItem("material-calculator-google-credential");
   els.googleSignIn.hidden = false;
@@ -1137,14 +1162,41 @@ function handleSavedProjectAction(event) {
       body: JSON.stringify({ projectId }),
     }).then(() => {
       state.cloudProjects = state.cloudProjects.filter((item) => item.id !== projectId);
+      state.cloudTrash.unshift({ ...project, deletedAt: new Date().toISOString() });
       renderSavedProjects();
-      setStatus("ลบงานออกจาก Google Sheet แล้ว");
+      setStatus("ย้ายงานไปถังขยะแล้ว");
     }).catch((error) => setStatus(error.message, true));
     return;
   }
   writeSavedProjects(getSavedProjects().filter((item) => item.id !== projectId));
   if (state.activeProjectId === projectId) state.activeProjectId = "";
   setStatus("ลบงานที่บันทึกแล้ว");
+}
+async function handleCloudTrashAction(event) {
+  const button = event.target.closest('button[data-action="restore-cloud"], button[data-action="purge-cloud"]');
+  if (!button) return;
+  const project = state.cloudTrash.find((item) => item.id === button.dataset.projectId);
+  if (!project) return;
+  const restoring = button.dataset.action === "restore-cloud";
+  const message = restoring
+    ? `กู้คืนงาน “${project.name}” ใช่ไหม?`
+    : `ลบงาน “${project.name}” ถาวรใช่ไหม?\n\nเมื่อลบแล้วจะไม่สามารถกู้คืนได้`;
+  if (!window.confirm(message)) return;
+  try {
+    button.disabled = true;
+    const endpoint = restoring ? "/api/cloud-projects/restore" : "/api/cloud-projects/purge";
+    const data = await cloudRequest(endpoint, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id }),
+    });
+    state.cloudTrash = state.cloudTrash.filter((item) => item.id !== project.id);
+    if (restoring) state.cloudProjects.push(data.project);
+    renderSavedProjects();
+    setStatus(restoring ? "กู้คืนงานจากถังขยะแล้ว" : "ลบงานถาวรแล้ว");
+  } catch (error) {
+    button.disabled = false;
+    setStatus(error.message, true);
+  }
 }
 async function handleCloudFolderChange(event) {
   const select = event.target.closest('select[data-action="move"]');
@@ -1182,6 +1234,7 @@ async function handleCloudFolderAction(event) {
 }
 els.localSavedProjectList.addEventListener("click", handleSavedProjectAction);
 els.cloudSavedProjectList.addEventListener("click", handleSavedProjectAction);
+els.cloudSavedProjectList.addEventListener("click", handleCloudTrashAction);
 els.cloudSavedProjectList.addEventListener("change", handleCloudFolderChange);
 els.cloudSavedProjectList.addEventListener("click", handleCloudFolderAction);
 
@@ -1204,6 +1257,7 @@ els.applyPages.addEventListener("click", () => {
   state.resultWorkType = state.activeWorkType;
   state.currentPage = workTypePageIndices(state.activeWorkType)[0];
   renderInputs();
+  markProjectDirty();
   setStatus(`กำหนดงานติดตั้ง ${installTotal} หน้า และงานรื้อถอน ${demolitionTotal} หน้าแล้ว`);
 });
 
@@ -1244,6 +1298,7 @@ els.addRow.addEventListener("click", () => {
   saveCurrentPageFromDom();
   state.pages[state.currentPage].push(blankRow(state.department, state.activeWorkType));
   renderInputs();
+  markProjectDirty();
 });
 
 els.removeRow.addEventListener("click", () => {
@@ -1255,12 +1310,15 @@ els.removeRow.addEventListener("click", () => {
   saveCurrentPageFromDom();
   state.pages[state.currentPage].pop();
   renderInputs();
+  markProjectDirty();
   setStatus("ลบแถวสุดท้ายแล้ว");
 });
 
 els.clearPage.addEventListener("click", () => {
+  if (!window.confirm("ล้างข้อมูลทั้งหมดในหน้านี้ใช่ไหม?\n\nรายการที่กรอกในหน้านี้จะถูกนำออกทั้งหมด")) return;
   state.pages[state.currentPage] = [blankRow(state.department, state.activeWorkType), blankRow(state.department, state.activeWorkType)];
   renderInputs();
+  markProjectDirty();
   setStatus("ล้างข้อมูลหน้านี้แล้ว");
 });
 
@@ -1270,6 +1328,7 @@ els.calculate.addEventListener("click", async () => {
     setStatus("กำลังแสดง Detail พัสดุ...");
     const data = await postJson("/api/calculate", { pages: state.pages });
     renderResults(data.items, `รวม ${data.summaryRows} รายการ จากข้อมูลที่เลือก ${data.inputRows} แถว`);
+    markProjectDirty();
     setStatus("แสดง Detail พัสดุสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
@@ -1285,6 +1344,7 @@ els.expandSet.addEventListener("click", async () => {
       meta += ` | ไม่พบ: ${data.setMissing.slice(0, 6).join(", ")}`;
     }
     renderResults(data.items, meta);
+    markProjectDirty();
     setStatus("สร้างรายการประมาณการสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
@@ -1913,7 +1973,14 @@ els.clearApprovedRequests.addEventListener("click", async () => {
     els.clearApprovedRequests.textContent = "ล้างประวัติอนุมัติแล้ว";
   }
 });
-els.departmentSelect.addEventListener("change", () => changeDepartment(els.departmentSelect.value));
+els.projectName.addEventListener("input", markProjectDirty);
+els.planNumber.addEventListener("input", markProjectDirty);
+els.inputRows.addEventListener("input", markProjectDirty);
+els.inputRows.addEventListener("change", markProjectDirty);
+els.departmentSelect.addEventListener("change", () => {
+  changeDepartment(els.departmentSelect.value);
+  markProjectDirty();
+});
 els.replaceSize.addEventListener("change", loadReplaceHeads);
 els.replaceHead.addEventListener("change", loadExistingBaseEntry);
 els.adminLoginForm.addEventListener("submit", async (event) => {

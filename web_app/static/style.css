@@ -307,6 +307,12 @@ td select:focus,
   font-size: 12px;
   text-align: right;
 }
+#saveHint.save-state { padding: 6px 10px; border-radius: 9px; font-weight: 800; }
+#saveHint.saved { background: #e4f6ea; color: #26713e; }
+#saveHint.dirty, #saveHint.new { background: #fff0cf; color: #865d00; }
+.cloud-trash-folder { border-color: #e2c5cf; }
+.cloud-trash-folder .cloud-project-folder-title { background: #fae9ef; color: #87234d; }
+.trash-card { border-color: #ebccd7; background: #fffafb; }
 
 .saved-projects {
   padding: 16px;

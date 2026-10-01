@@ -412,6 +412,14 @@ class GoogleSheetProjectStore:
         ]
         return sorted(projects, key=lambda project: project.get("updatedAt", ""), reverse=True)
 
+    def list_deleted_projects(self, user: dict[str, str]) -> list[dict[str, Any]]:
+        owner_email = str(user.get("email", "")).strip().lower()
+        with self._lock:
+            rows = self._read_rows()
+        projects = [self._row_to_project(row) for row in rows
+                    if row.get("deleted_at") and self._project_owner(row) == owner_email]
+        return sorted(projects, key=lambda project: project.get("deletedAt", ""), reverse=True)
+
     def list_project_folders(self, user: dict[str, str]) -> list[dict[str, Any]]:
         owner_email = str(user.get("email", "")).strip().lower()
         with self._lock:
@@ -532,6 +540,30 @@ class GoogleSheetProjectStore:
             existing["deleted_at"] = datetime.now(timezone.utc).isoformat()
             existing["updated_by"] = owner_email
             self._write_record(existing, existing["_row_number"])
+
+    def restore_project(self, project_id: str, user: dict[str, str]) -> dict[str, Any]:
+        owner_email = str(user.get("email", "")).strip().lower()
+        with self._lock:
+            rows = self._read_rows()
+            existing = next((row for row in rows if row.get("project_id") == project_id
+                             and row.get("deleted_at") and self._project_owner(row) == owner_email), None)
+            if not existing:
+                raise ValueError("ไม่พบงานในถังขยะ")
+            existing["deleted_at"] = ""
+            existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+            existing["updated_by"] = owner_email
+            self._write_record(existing, existing["_row_number"])
+        return self._row_to_project(existing)
+
+    def permanently_delete_project(self, project_id: str, user: dict[str, str]) -> None:
+        owner_email = str(user.get("email", "")).strip().lower()
+        with self._lock:
+            rows = self._read_rows()
+            existing = next((row for row in rows if row.get("project_id") == project_id
+                             and row.get("deleted_at") and self._project_owner(row) == owner_email), None)
+            if not existing:
+                raise ValueError("ไม่พบงานในถังขยะ")
+            self._write_record({}, existing["_row_number"])
 
     def _get_service(self):
         if self._service is None:
@@ -656,4 +688,5 @@ class GoogleSheetProjectStore:
             "createdBy": row.get("created_by", ""),
             "updatedBy": row.get("updated_by", ""),
             "folderId": folder_id,
+            "deletedAt": row.get("deleted_at", ""),
         }
