@@ -29,9 +29,11 @@ class HeadRuleTests(unittest.TestCase):
         exported = load_workbook(BytesIO(workbook.export_page_summary(pages)), data_only=True)
         sheet = exported["สรุปแต่ละหน้า"]
         self.assertEqual(sheet["C2"].value, "งานติดตั้ง")
-        self.assertEqual(sheet["E2"].value, "งานรื้อถอน")
-        self.assertEqual([sheet.cell(3, column).value for column in range(3, 6)], ["ติดตั้ง 1", "ติดตั้ง 2", "รื้อถอน 1"])
-        self.assertIn("C2:D2", {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertEqual(sheet["F2"].value, "งานรื้อถอน")
+        self.assertEqual([sheet.cell(3, column).value for column in range(3, 8)], ["1", "2", "รวม", "1", "รวม"])
+        self.assertIn("C2:E2", {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertIn("F2:G2", {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertEqual([sheet.cell(4, column).value for column in range(3, 8)], [1, 2, 3, 3, 3])
 
     def equipment(self, head, wire1='185 SAC', wire2='185 SAC'):
         totals = {}

@@ -427,18 +427,61 @@ class MaterialWorkbook:
             raise ValueError("ยังไม่มีข้อมูลแต่ละหน้าสำหรับ export")
 
         page_columns = page_labels(pages)
+        typed_pages = pages_have_work_types(pages)
+        export_columns: list[str] = []
+        display_headers: list[str] = []
+        group_labels: list[str] = []
+        page_export_keys: dict[int, str] = {}
+        total_export_keys: dict[str, str] = {}
+        if typed_pages:
+            for work_type, prefix in (("install", "ติดตั้ง "), ("demolition", "รื้อถอน ")):
+                matching_pages = [
+                    (page_number, label)
+                    for page_number, label in enumerate(page_columns, start=1)
+                    if label.startswith(prefix)
+                ]
+                if not matching_pages:
+                    continue
+                for page_number, label in matching_pages:
+                    key = f"__{work_type}_page_{page_number}"
+                    export_columns.append(key)
+                    display_headers.append(label.removeprefix(prefix))
+                    group_labels.append(label)
+                    page_export_keys[page_number] = key
+                total_key = f"__{work_type}_total"
+                export_columns.append(total_key)
+                display_headers.append("รวม")
+                group_labels.append(f"{prefix}รวม")
+                total_export_keys[work_type] = total_key
+        else:
+            export_columns = page_columns.copy()
+            display_headers = page_columns.copy()
         rows = []
         for (head, size), page_totals in sorted(totals.items(), key=lambda item: (natural_key(item[0][1]), natural_key(item[0][0]))):
             row: dict[str, Any] = {HEAD_COL: head, "เสา": size}
-            for page_number, column in enumerate(page_columns, start=1):
-                row[column] = page_totals.get(page_number)
+            if typed_pages:
+                for page_number, key in page_export_keys.items():
+                    row[key] = page_totals.get(page_number)
+                for work_type, total_key in total_export_keys.items():
+                    prefix = "รื้อถอน " if work_type == "demolition" else "ติดตั้ง "
+                    row[total_key] = sum(
+                        page_totals.get(page_number, 0.0)
+                        for page_number, label in enumerate(page_columns, start=1)
+                        if label.startswith(prefix)
+                    )
+            else:
+                for page_number, column in enumerate(page_columns, start=1):
+                    row[column] = page_totals.get(page_number)
             rows.append(row)
 
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            columns = [HEAD_COL, "เสา", *page_columns]
+            columns = [HEAD_COL, "เสา", *export_columns]
             pd.DataFrame(rows, columns=columns).to_excel(writer, index=False, sheet_name="สรุปแต่ละหน้า", startrow=2)
             sheet = writer.sheets["สรุปแต่ละหน้า"]
+            if typed_pages:
+                for column_index, header in enumerate(display_headers, start=3):
+                    sheet.cell(row=3, column=column_index, value=header)
             last_column = get_column_letter(len(columns))
             sheet.merge_cells(f"A1:{last_column}1")
             title = sheet["A1"]
@@ -447,7 +490,7 @@ class MaterialWorkbook:
             title.fill = PatternFill("solid", fgColor="0F766E")
             title.alignment = Alignment(horizontal="center", vertical="center")
             sheet.row_dimensions[1].height = 28
-            add_work_type_group_headers(sheet, page_columns, start_column=3, row=2)
+            add_work_type_group_headers(sheet, group_labels if typed_pages else page_columns, start_column=3, row=2)
 
             header_fill = PatternFill("solid", fgColor="DDEDEA")
             border = Border(bottom=Side(style="thin", color="AAB7C4"))
