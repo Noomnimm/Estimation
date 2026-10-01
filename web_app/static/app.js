@@ -32,12 +32,12 @@ const WIRE_CATALOG = [
   { group: "สาย PIC 22 kV", code: "1020060004", shortName: "185PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 185 SQ.MM." },
   { group: "สาย PIC 22 kV", code: "1020060002", shortName: "95PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 95 SQ.MM." },
   { group: "สาย PIC 22 kV", code: "1020060001", shortName: "50PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 50 SQ.MM." },
-  { group: "สาย ACSR", code: "1020020007", shortName: "185ACSR", material: "CONDUCTOR,ACSR 185/30 SQ.MM.TIS.86" },
-  { group: "สาย ACSR", code: "1020020002", shortName: "50ACSR", material: "CONDUCTOR,ACSR 50/8 SQ.MM.TIS.86" },
+  { group: "สายอลูมิเนียมแกนเหล็ก (ACSR)", code: "1020020007", shortName: "185ACSR", material: "CONDUCTOR,ACSR 185/30 SQ.MM.TIS.86" },
+  { group: "สายอลูมิเนียมแกนเหล็ก (ACSR)", code: "1020020002", shortName: "50ACSR", material: "CONDUCTOR,ACSR 50/8 SQ.MM.TIS.86" },
   { group: "สายอลูมิเนียมเปลือย", code: "1020010007", shortName: "185A", material: "CONDUCTOR,AL,BARE 185 SQ.MM.TIS.85" },
   { group: "สายอลูมิเนียมเปลือย", code: "1020010002", shortName: "50A", material: "CONDUCTOR,AL,BARE 50/7 SQ.MM.TIS.85" },
 ];
-const WIRE_GROUP_ORDER = ["สาย OHGW", "สาย Messenger", "สาย SAC — CABLE,AERIAL,AL 22 kV.", "สาย PIC 22 kV", "สาย ACSR", "สายอลูมิเนียมเปลือย"];
+const WIRE_GROUP_ORDER = ["สาย OHGW", "สาย Messenger", "สาย SAC — CABLE,AERIAL,AL 22 kV.", "สาย PIC 22 kV", "สายอลูมิเนียมแกนเหล็ก (ACSR)", "สายอลูมิเนียมเปลือย"];
 
 const state = {
   department: DEFAULT_DEPARTMENT,
