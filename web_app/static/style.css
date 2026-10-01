@@ -21,12 +21,12 @@
 }
 
 .insulator-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.insulator-counts > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; padding: 16px; border-radius: 12px; background: var(--accent-light); color: var(--accent-dark); }
-.insulator-counts > div:last-child { background: #fff6d9; }
+.insulator-counts > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; padding: 16px; border-radius: 12px; background: #dff1ff; color: #124f78; border: 1px solid #b8ddf5; }
+.insulator-counts > div:last-child { background: #9d174d; color: #fff; border-color: #831843; }
 .insulator-counts strong { font-size: clamp(24px, 4vw, 36px); margin-left: auto; overflow-wrap: anywhere; }
 .insulator-counts .insulator-work-group { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; }
 .insulator-work-group h3 { grid-column: 1 / -1; margin: 0 0 5px; font-size: 15px; }
-.insulator-work-group.demolition { background: #fff1db; color: #7a4700; }
+.insulator-work-group.demolition { background: #9d174d; color: #fff; }
 .insulator-panel p { color: var(--muted); font-size: 13px; }
 .insulator-panel details { color: var(--danger); font-size: 13px; }
 .insulator-panel summary { cursor: pointer; }
@@ -788,8 +788,9 @@ td select {
 .result-work-section { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .result-work-section h3 { display: flex; justify-content: space-between; align-items: center; margin: 0; padding: 11px 14px; font-size: 15px; }
 .result-work-section h3 span { font-size: 12px; font-weight: 600; color: var(--muted); }
-.result-work-section.install h3 { background: #eee5f4; color: var(--accent-dark); }
-.result-work-section.demolition h3 { background: #fff1cf; color: #7a5200; }
+.result-work-section.install h3 { background: #dff1ff; color: #124f78; }
+.result-work-section.demolition h3 { background: #9d174d; color: #fff; }
+.result-work-section.demolition h3 span { color: #ffe4ef; }
 .result-work-section .table-wrap { border: 0; border-radius: 0; }
 .result-work-section[hidden] { display: none; }
 .result-work-section td:nth-child(3) {
