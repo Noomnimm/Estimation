@@ -1028,6 +1028,11 @@ def conductor_group(wire: str) -> str:
     return details[2] if details else ""
 
 
+def is_dde_sac_acsr_transition(wire1: str, wire2: str) -> bool:
+    """DDE transition between 185 SAC and 185 ACSR uses PG3 instead of tensionless."""
+    return {clean_text(wire1), clean_text(wire2)} == {"185 SAC", "185 ACSR"}
+
+
 def add_material(
     totals: dict[tuple[str, str], dict[str, Any]],
     material: str,
@@ -1070,13 +1075,18 @@ def add_wire_materials(
             added += 1
 
     if wire_kind in {"dde", "dde_de"}:
-        material, code = TENSIONLESS_MATERIALS[conductor_group(wire1)]
-        tensionless_quantity = 3 * count
-        add_material(totals, material, code, tensionless_quantity)
-        added += 1
-        for tape_material, tape_code in TENSIONLESS_TAPES:
-            add_material(totals, tape_material, tape_code, tensionless_quantity)
+        if is_dde_sac_acsr_transition(wire1, wire2):
+            material, code = PG3_MATERIAL
+            add_material(totals, material, code, 6 * count)
             added += 1
+        else:
+            material, code = TENSIONLESS_MATERIALS[conductor_group(wire1)]
+            tensionless_quantity = 3 * count
+            add_material(totals, material, code, tensionless_quantity)
+            added += 1
+            for tape_material, tape_code in TENSIONLESS_TAPES:
+                add_material(totals, tape_material, tape_code, tensionless_quantity)
+                added += 1
 
     if wire_kind == "ba":
         if conductor_group(wire2) == "185":

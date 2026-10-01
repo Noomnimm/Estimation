@@ -86,6 +86,18 @@ class HeadRuleTests(unittest.TestCase):
         self.assertNotIn('1020410027', self.equipment('DDE.BL 1-P'))
         self.assertEqual(self.equipment('BA 1-P')['1020300103'], 4)
 
+    def test_dde_185_sac_to_acsr_uses_pg3_instead_of_tensionless(self):
+        for left, right in (("185 SAC", "185 ACSR"), ("185 ACSR", "185 SAC")):
+            with self.subTest(left=left, right=right):
+                values = self.equipment("DDE", wire1=left, wire2=right)
+                self.assertEqual(values["1020300103"], 6)
+                self.assertNotIn("1020410027", values)
+                self.assertNotIn("1020180001", values)
+                self.assertNotIn("1020180008", values)
+                self.assertEqual(values["1020260205"], 3)
+                self.assertEqual(values["1030140011"], 3)
+                self.assertEqual(values["1030110007"], 3)
+
     def test_strain_and_pending(self):
         values = self.equipment('2DE', wire1='185 A')
         self.assertEqual(values['1030110004'], 6)
