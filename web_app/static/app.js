@@ -646,6 +646,8 @@ function renderInsulators() {
   const totals = summarizeInsulatorsByWorkType(state.pages);
   document.getElementById("installUprightCount").textContent = formatAmount(totals.install.upright);
   document.getElementById("installHorizontalCount").textContent = formatAmount(totals.install.horizontal);
+  document.getElementById("demolitionUprightCount").textContent = formatAmount(totals.demolition.upright);
+  document.getElementById("demolitionHorizontalCount").textContent = formatAmount(totals.demolition.horizontal);
   const actualTotals = { linePost: 0, pinPost: 0, suspension: 0, pinType: 0 };
   state.pages.forEach((page) => {
     if (pageWorkType(page) !== "demolition") return;
