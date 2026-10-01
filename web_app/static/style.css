@@ -794,14 +794,6 @@ td select {
 .result-head {
   justify-content: space-between;
 }
-.result-type-tabs { display: flex; gap: 9px; margin-top: 13px; padding: 5px; border-radius: 12px; background: #f3eff6; }
-.result-type-tabs button { flex: 1; padding: 10px 14px; border: 1px solid transparent; border-radius: 9px; background: transparent; font-weight: 800; cursor: pointer; box-shadow: none; }
-.result-type-tabs button.install { color: #14577f; }
-.result-type-tabs button.install.active { background: #d6edfc; border-color: #9dceed; }
-.result-type-tabs button.demolition { color: #9d174d; }
-.result-type-tabs button.demolition.active { background: #f3cbdc; border-color: #dfa6bd; color: #87234d; }
-.result-type-tabs button:disabled { opacity: .42; cursor: not-allowed; }
-.result-type-tabs button span { display: inline-grid; min-width: 22px; height: 22px; place-items: center; margin-left: 5px; padding: 0 6px; border-radius: 999px; background: rgba(255,255,255,.72); color: inherit; font-size: 11px; }
 
 .result-work-section { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .result-work-section h3 { display: flex; justify-content: space-between; align-items: center; margin: 0; padding: 11px 14px; font-size: 15px; }

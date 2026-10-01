@@ -101,10 +101,6 @@ const els = {
   demolitionResultRows: document.getElementById("demolitionResultRows"),
   installResultCount: document.getElementById("installResultCount"),
   demolitionResultCount: document.getElementById("demolitionResultCount"),
-  showInstallResults: document.getElementById("showInstallResults"),
-  showDemolitionResults: document.getElementById("showDemolitionResults"),
-  installResultTabCount: document.getElementById("installResultTabCount"),
-  demolitionResultTabCount: document.getElementById("demolitionResultTabCount"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
   planNumber: document.getElementById("planNumber"),
@@ -661,34 +657,15 @@ function renderResults(items, meta) {
   renderWorkRows(els.demolitionResultRows, demolitionItems, "จำนวนรื้อถอน");
   els.installResultCount.textContent = `${installItems.length} รายการ`;
   els.demolitionResultCount.textContent = `${demolitionItems.length} รายการ`;
-  els.installResultTabCount.textContent = String(installItems.length);
-  els.demolitionResultTabCount.textContent = String(demolitionItems.length);
-  els.showInstallResults.disabled = installItems.length === 0;
-  els.showDemolitionResults.disabled = demolitionItems.length === 0;
-  if (state.resultWorkType === "install" && !installItems.length && demolitionItems.length) state.resultWorkType = "demolition";
-  if (state.resultWorkType === "demolition" && !demolitionItems.length && installItems.length) state.resultWorkType = "install";
   updateResultTypeView();
   els.resultMeta.textContent = meta || `ทั้งหมด ${state.results.length} รายการ`;
 }
 
 function updateResultTypeView() {
   const isInstall = state.resultWorkType === "install";
-  els.installResultSection.hidden = !isInstall || els.showInstallResults.disabled;
-  els.demolitionResultSection.hidden = isInstall || els.showDemolitionResults.disabled;
-  els.showInstallResults.classList.toggle("active", isInstall);
-  els.showDemolitionResults.classList.toggle("active", !isInstall);
-  els.showInstallResults.setAttribute("aria-selected", String(isInstall));
-  els.showDemolitionResults.setAttribute("aria-selected", String(!isInstall));
+  els.installResultSection.hidden = !isInstall || els.installResultRows.children.length === 0;
+  els.demolitionResultSection.hidden = isInstall || els.demolitionResultRows.children.length === 0;
 }
-
-els.showInstallResults.addEventListener("click", () => {
-  state.resultWorkType = "install";
-  updateResultTypeView();
-});
-els.showDemolitionResults.addEventListener("click", () => {
-  state.resultWorkType = "demolition";
-  updateResultTypeView();
-});
 
 function formatAmount(value) {
   const number = Number(value || 0);
@@ -845,6 +822,7 @@ function resetProject() {
   state.activeProjectId = "";
   state.departmentWork = {};
   state.activeWorkType = "install";
+  state.resultWorkType = "install";
   state.pages = [[blankRow(state.department, "install"), blankRow(state.department, "install")]];
   state.currentPage = 0;
   state.results = [];
@@ -881,6 +859,7 @@ async function openSavedProject(projectId, source = "local") {
   state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
   state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
   state.activeWorkType = work.activeWorkType || pageWorkType(state.pages[state.currentPage]);
+  state.resultWorkType = state.activeWorkType;
   state.results = structuredClone(work.results || []);
   els.projectName.value = project.name || "";
   els.planNumber.value = project.planNumber || "";
@@ -1183,6 +1162,7 @@ els.applyPages.addEventListener("click", () => {
   };
   state.pages = [...resizePages("install", installTotal), ...resizePages("demolition", demolitionTotal)];
   if (!workTypePageIndices(state.activeWorkType).length) state.activeWorkType = installTotal ? "install" : "demolition";
+  state.resultWorkType = state.activeWorkType;
   state.currentPage = workTypePageIndices(state.activeWorkType)[0];
   renderInputs();
   setStatus(`กำหนดงานติดตั้ง ${installTotal} หน้า และงานรื้อถอน ${demolitionTotal} หน้าแล้ว`);
@@ -1198,8 +1178,10 @@ document.querySelectorAll(".work-type-button").forEach((button) => {
     }
     saveCurrentPageFromDom();
     state.activeWorkType = workType;
+    state.resultWorkType = workType;
     state.currentPage = indices[0];
     renderInputs();
+    updateResultTypeView();
   });
 });
 
@@ -1549,6 +1531,7 @@ async function changeDepartment(department) {
   state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
   state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
   state.activeWorkType = work.activeWorkType || pageWorkType(state.pages[state.currentPage]);
+  state.resultWorkType = state.activeWorkType;
   state.results = structuredClone(work.results || []);
   try {
     await loadDepartmentSizes(state.department);
