@@ -26,8 +26,8 @@ const STRUCTURE_CATALOG = [
 const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
 const WIRE_CATALOG = [
   { group: "สาย OHGW", code: "1010100002", shortName: "25OHGW", material: "WIRE,STEEL STRANDED 25 SQ.MM.TIS.404" },
-  { group: "สาย SAC 22 kV", code: "1020050004", shortName: "185SAC", material: "CABLE,AERIAL,AL 22 KV. 1X185 SQ.MM." },
-  { group: "สาย SAC 22 kV", code: "1020050000", shortName: "50SAC", material: "CABLE,AERIAL,AL 22 KV. 1X50 SQ.MM." },
+  { group: "สาย SAC — CABLE,AERIAL,AL 22 kV.", code: "1020050004", shortName: "185SAC", material: "CABLE,AERIAL,AL 22 kV. 1x185 sq.mm." },
+  { group: "สาย SAC — CABLE,AERIAL,AL 22 kV.", code: "1020050000", shortName: "50SAC", material: "CABLE,AERIAL,AL 22 kV. 1x50 sq.mm." },
   { group: "สาย PIC 22 kV", code: "1020060004", shortName: "185PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 185 SQ.MM." },
   { group: "สาย PIC 22 kV", code: "1020060002", shortName: "95PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 95 SQ.MM." },
   { group: "สาย PIC 22 kV", code: "1020060001", shortName: "50PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 50 SQ.MM." },
@@ -36,7 +36,7 @@ const WIRE_CATALOG = [
   { group: "สายอลูมิเนียมเปลือย", code: "1020010007", shortName: "185A", material: "CONDUCTOR,AL,BARE 185 SQ.MM.TIS.85" },
   { group: "สายอลูมิเนียมเปลือย", code: "1020010002", shortName: "50A", material: "CONDUCTOR,AL,BARE 50/7 SQ.MM.TIS.85" },
 ];
-const WIRE_GROUP_ORDER = ["สาย OHGW", "สาย SAC 22 kV", "สาย PIC 22 kV", "สาย ACSR", "สายอลูมิเนียมเปลือย"];
+const WIRE_GROUP_ORDER = ["สาย OHGW", "สาย SAC — CABLE,AERIAL,AL 22 kV.", "สาย PIC 22 kV", "สาย ACSR", "สายอลูมิเนียมเปลือย"];
 
 const state = {
   department: DEFAULT_DEPARTMENT,
