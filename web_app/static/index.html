@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Material Calculator</title>
+  <script>
+    (() => {
+      const savedTheme = localStorage.getItem("material-calculator-theme");
+      const preferredTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.dataset.theme = savedTheme || preferredTheme;
+    })();
+  </script>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -13,7 +20,10 @@
         <h1>Material Calculator</h1>
         <p>คำนวณรายการวัสดุจาก BaseData และแตกชุด SET เป็นรายการย่อย</p>
       </div>
-      <div class="status" id="status">พร้อมใช้งาน</div>
+      <div class="topbar-actions">
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="สลับโหมดสี"></button>
+        <div class="status" id="status">พร้อมใช้งาน</div>
+      </div>
     </header>
 
     <nav class="app-tabs" aria-label="เมนูหลัก">

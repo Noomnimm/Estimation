@@ -55,9 +55,11 @@ const state = {
 
 const SAVED_PROJECTS_KEY = "material-calculator-projects-v1";
 const ADMIN_APPROVAL_REFRESH_KEY = "material-calculator-admin-approval-refresh";
+const THEME_KEY = "material-calculator-theme";
 
 const els = {
   status: document.getElementById("status"),
+  themeToggle: document.getElementById("themeToggle"),
   sizeColumnTitle: document.getElementById("sizeColumnTitle"),
   inputTable: document.getElementById("inputTable"),
   headImageColumnTitle: document.getElementById("headImageColumnTitle"),
@@ -163,6 +165,23 @@ const els = {
   headImageDialogImage: document.getElementById("headImageDialogImage"),
   closeHeadImageDialog: document.getElementById("closeHeadImageDialog"),
 };
+
+function applyTheme(theme, persist = false) {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = nextTheme;
+  if (persist) localStorage.setItem(THEME_KEY, nextTheme);
+  if (els.themeToggle) {
+    const isDark = nextTheme === "dark";
+    els.themeToggle.textContent = isDark ? "☀ โหมดกลางวัน" : "☾ โหมดมืด";
+    els.themeToggle.setAttribute("aria-pressed", String(isDark));
+    els.themeToggle.title = isDark ? "เปลี่ยนเป็นโหมดกลางวัน" : "เปลี่ยนเป็นโหมดมืด";
+  }
+}
+
+applyTheme(document.documentElement.dataset.theme);
+els.themeToggle?.addEventListener("click", () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
+});
 
 function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
   return { department, workType, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
