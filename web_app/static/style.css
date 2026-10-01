@@ -785,7 +785,14 @@ td select {
   justify-content: space-between;
 }
 
-#resultRows td:nth-child(3) {
+.result-work-section { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.result-work-section h3 { display: flex; justify-content: space-between; align-items: center; margin: 0; padding: 11px 14px; font-size: 15px; }
+.result-work-section h3 span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.result-work-section.install h3 { background: #eee5f4; color: var(--accent-dark); }
+.result-work-section.demolition h3 { background: #fff1cf; color: #7a5200; }
+.result-work-section .table-wrap { border: 0; border-radius: 0; }
+.result-work-section[hidden] { display: none; }
+.result-work-section td:nth-child(3) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

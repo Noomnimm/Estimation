@@ -207,18 +207,31 @@
         <h2>ผลลัพธ์</h2>
         <span id="resultMeta">ยังไม่มีข้อมูล</span>
       </div>
-      <div class="table-wrap">
-        <table>
+      <div id="installResultSection" class="result-work-section install">
+        <h3>งานติดตั้ง <span id="installResultCount">0 รายการ</span></h3>
+        <div class="table-wrap"><table>
           <thead>
             <tr>
               <th>รายการวัสดุ</th>
               <th>รหัสพัสดุ</th>
-              <th>งานติดตั้ง</th>
-              <th>งานรื้อถอน</th>
+              <th>จำนวนติดตั้ง</th>
             </tr>
           </thead>
-          <tbody id="resultRows"></tbody>
-        </table>
+          <tbody id="installResultRows"></tbody>
+        </table></div>
+      </div>
+      <div id="demolitionResultSection" class="result-work-section demolition">
+        <h3>งานรื้อถอน <span id="demolitionResultCount">0 รายการ</span></h3>
+        <div class="table-wrap"><table>
+          <thead>
+            <tr>
+              <th>รายการวัสดุ</th>
+              <th>รหัสพัสดุ</th>
+              <th>จำนวนรื้อถอน</th>
+            </tr>
+          </thead>
+          <tbody id="demolitionResultRows"></tbody>
+        </table></div>
       </div>
     </section>
     <dialog id="headImageDialog" class="image-dialog"><button id="closeHeadImageDialog" type="button" aria-label="ปิดรูป">×</button><h3 id="headImageDialogTitle"></h3><img id="headImageDialogImage" alt="รูปประกอบหัวเสาขนาดใหญ่"></dialog>

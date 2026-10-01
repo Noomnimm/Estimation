@@ -94,7 +94,12 @@ const els = {
   approvedRequestCount: document.getElementById("approvedRequestCount"),
   rejectedRequestCount: document.getElementById("rejectedRequestCount"),
   clearApprovedRequests: document.getElementById("clearApprovedRequests"),
-  resultRows: document.getElementById("resultRows"),
+  installResultSection: document.getElementById("installResultSection"),
+  demolitionResultSection: document.getElementById("demolitionResultSection"),
+  installResultRows: document.getElementById("installResultRows"),
+  demolitionResultRows: document.getElementById("demolitionResultRows"),
+  installResultCount: document.getElementById("installResultCount"),
+  demolitionResultCount: document.getElementById("demolitionResultCount"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
   planNumber: document.getElementById("planNumber"),
@@ -632,17 +637,23 @@ function renderPageControls() {
 
 function renderResults(items, meta) {
   state.results = items || [];
-  els.resultRows.innerHTML = "";
-  state.results.forEach((item) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
-      <td>${escapeHtml(item["รหัสพัสดุ"] || "")}</td>
-      <td>${formatAmount(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"])}</td>
-      <td>${formatAmount(item["จำนวนรื้อถอน"] ?? 0)}</td>
-    `;
-    els.resultRows.appendChild(tr);
-  });
+  const installItems = state.results.filter((item) => Number(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0) !== 0);
+  const demolitionItems = state.results.filter((item) => Number(item["จำนวนรื้อถอน"] ?? 0) !== 0);
+  const renderWorkRows = (container, rows, quantityKey, fallbackKey = null) => {
+    container.innerHTML = rows.map((item) => `
+      <tr>
+        <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
+        <td>${escapeHtml(item["รหัสพัสดุ"] || "")}</td>
+        <td>${formatAmount(item[quantityKey] ?? (fallbackKey ? item[fallbackKey] : 0))}</td>
+      </tr>
+    `).join("");
+  };
+  renderWorkRows(els.installResultRows, installItems, "จำนวนติดตั้ง", "จำนวนรวม");
+  renderWorkRows(els.demolitionResultRows, demolitionItems, "จำนวนรื้อถอน");
+  els.installResultCount.textContent = `${installItems.length} รายการ`;
+  els.demolitionResultCount.textContent = `${demolitionItems.length} รายการ`;
+  els.installResultSection.hidden = installItems.length === 0;
+  els.demolitionResultSection.hidden = demolitionItems.length === 0;
   els.resultMeta.textContent = meta || `ทั้งหมด ${state.results.length} รายการ`;
 }
 
