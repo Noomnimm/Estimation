@@ -3,6 +3,7 @@ const DEFAULT_DEPARTMENT = DEPARTMENTS[0];
 
 const state = {
   department: DEFAULT_DEPARTMENT,
+  activeWorkType: "install",
   sizes: [],
   pages: [[blankRow(), blankRow()]],
   currentPage: 0,
@@ -35,6 +36,9 @@ const els = {
   countColumnTitle: document.getElementById("countColumnTitle"),
   departmentSelect: document.getElementById("departmentSelect"),
   totalPages: document.getElementById("totalPages"),
+  demolitionPages: document.getElementById("demolitionPages"),
+  installPageCount: document.getElementById("installPageCount"),
+  demolitionPageCount: document.getElementById("demolitionPageCount"),
   applyPages: document.getElementById("applyPages"),
   prevPage: document.getElementById("prevPage"),
   nextPage: document.getElementById("nextPage"),
@@ -116,8 +120,20 @@ const els = {
   closeHeadImageDialog: document.getElementById("closeHeadImageDialog"),
 };
 
-function blankRow(department = DEFAULT_DEPARTMENT) {
-  return { department, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
+function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
+  return { department, workType, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
+}
+
+function pageWorkType(page) {
+  return page?.[0]?.workType === "demolition" ? "demolition" : "install";
+}
+
+function workTypePageIndices(workType = state.activeWorkType) {
+  return state.pages.map((page, index) => ({ page, index })).filter((entry) => pageWorkType(entry.page) === workType).map((entry) => entry.index);
+}
+
+function workTypeLabel(workType) {
+  return workType === "demolition" ? "งานรื้อถอน" : "งานติดตั้ง";
 }
 
 function insulatorRateKey(department, size, head) {
@@ -172,6 +188,7 @@ function saveCurrentPageFromDom() {
       : state.pages[state.currentPage][index].head;
     Object.assign(state.pages[state.currentPage][index], {
       department: state.department,
+      workType: state.activeWorkType,
       size: tr.querySelector(".size").value,
       head: savedHead,
       count: tr.querySelector(".count").value,
@@ -571,18 +588,32 @@ async function loadHeads(size, select, selected, department = state.department, 
 }
 
 function renderPageControls() {
-  els.totalPages.value = String(state.pages.length);
-  els.pageLabel.textContent = `หน้า ${state.currentPage + 1}/${state.pages.length}`;
-  els.prevPage.disabled = state.currentPage === 0;
-  els.nextPage.disabled = state.currentPage === state.pages.length - 1;
+  const installIndices = workTypePageIndices("install");
+  const demolitionIndices = workTypePageIndices("demolition");
+  const activeIndices = state.activeWorkType === "demolition" ? demolitionIndices : installIndices;
+  let localPageIndex = activeIndices.indexOf(state.currentPage);
+  if (localPageIndex < 0 && activeIndices.length) {
+    state.currentPage = activeIndices[0];
+    localPageIndex = 0;
+  }
+  els.totalPages.value = String(installIndices.length);
+  els.demolitionPages.value = String(demolitionIndices.length);
+  els.installPageCount.textContent = String(installIndices.length);
+  els.demolitionPageCount.textContent = String(demolitionIndices.length);
+  document.querySelectorAll(".work-type-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.workType === state.activeWorkType);
+  });
+  els.pageLabel.textContent = `${workTypeLabel(state.activeWorkType)} หน้า ${localPageIndex + 1}/${activeIndices.length}`;
+  els.prevPage.disabled = localPageIndex <= 0;
+  els.nextPage.disabled = localPageIndex < 0 || localPageIndex >= activeIndices.length - 1;
   els.pagePicker.innerHTML = "";
-  state.pages.forEach((_, index) => {
+  activeIndices.forEach((index, localIndex) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = String(index + 1);
+    button.textContent = String(localIndex + 1);
     button.className = "page-number";
     button.classList.toggle("active", index === state.currentPage);
-    button.setAttribute("aria-label", `ไปหน้าที่ ${index + 1}`);
+    button.setAttribute("aria-label", `${workTypeLabel(state.activeWorkType)} หน้าที่ ${localIndex + 1}`);
     button.setAttribute("aria-current", index === state.currentPage ? "page" : "false");
     button.addEventListener("click", () => {
       if (index === state.currentPage) return;
@@ -624,17 +655,20 @@ function escapeHtml(value) {
 }
 
 function clonePages(pages) {
-  return pages.map((page) => page.map((row) => ({ ...blankRow(state.department), ...row })));
+  return pages.map((page) => {
+    const workType = pageWorkType(page);
+    return page.map((row) => ({ ...blankRow(state.department, workType), ...row, workType: row.workType === "demolition" ? "demolition" : workType }));
+  });
 }
 
 function emptyDepartmentWork(department) {
-  return { pages: [[blankRow(department), blankRow(department)]], currentPage: 0, results: [], resultMeta: "ยังไม่มีผลคำนวณ" };
+  return { pages: [[blankRow(department, "install"), blankRow(department, "install")]], currentPage: 0, activeWorkType: "install", results: [], resultMeta: "ยังไม่มีผลคำนวณ" };
 }
 
 function stashCurrentDepartment() {
   saveCurrentPageFromDom();
   state.departmentWork[state.department] = {
-    pages: clonePages(state.pages), currentPage: state.currentPage,
+    pages: clonePages(state.pages), currentPage: state.currentPage, activeWorkType: state.activeWorkType,
     results: structuredClone(state.results), resultMeta: els.resultMeta.textContent || "ยังไม่มีผลคำนวณ",
   };
 }
@@ -729,7 +763,8 @@ function renderSavedProjectList(container, projects, source) {
 function resetProject() {
   state.activeProjectId = "";
   state.departmentWork = {};
-  state.pages = [[blankRow(state.department), blankRow(state.department)]];
+  state.activeWorkType = "install";
+  state.pages = [[blankRow(state.department, "install"), blankRow(state.department, "install")]];
   state.currentPage = 0;
   state.results = [];
   els.projectName.value = "";
@@ -754,7 +789,7 @@ async function openSavedProject(projectId, source = "local") {
   state.departmentWork = project.departments ? structuredClone(project.departments) : {
     [state.department]: {
       pages: project.pages?.length ? structuredClone(project.pages) : [[blankRow(state.department), blankRow(state.department)]],
-      currentPage: Number(project.currentPage || 0), results: structuredClone(project.results || []),
+      currentPage: Number(project.currentPage || 0), activeWorkType: project.activeWorkType || "install", results: structuredClone(project.results || []),
       resultMeta: project.resultMeta || "ยังไม่มีผลคำนวณ",
     },
   };
@@ -764,6 +799,7 @@ async function openSavedProject(projectId, source = "local") {
   state.pages = clonePages(work.pages);
   state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
   state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
+  state.activeWorkType = work.activeWorkType || pageWorkType(state.pages[state.currentPage]);
   state.results = structuredClone(work.results || []);
   els.projectName.value = project.name || "";
   els.planNumber.value = project.planNumber || "";
@@ -797,6 +833,7 @@ async function saveProject(destination) {
     department: state.department,
     pages: clonePages(state.pages),
     currentPage: state.currentPage,
+    activeWorkType: state.activeWorkType,
     results: state.results,
     resultMeta: els.resultMeta.textContent,
     departments: structuredClone(state.departmentWork),
@@ -970,29 +1007,59 @@ els.cloudSavedProjectList.addEventListener("click", handleSavedProjectAction);
 
 els.applyPages.addEventListener("click", () => {
   saveCurrentPageFromDom();
-  const total = Math.max(1, Number.parseInt(els.totalPages.value || "1", 10));
-  while (state.pages.length < total) state.pages.push([blankRow(state.department), blankRow(state.department)]);
-  state.pages = state.pages.slice(0, total);
-  state.currentPage = Math.min(state.currentPage, state.pages.length - 1);
+  let installTotal = Math.max(0, Number.parseInt(els.totalPages.value || "0", 10));
+  const demolitionTotal = Math.max(0, Number.parseInt(els.demolitionPages.value || "0", 10));
+  if (installTotal + demolitionTotal === 0) {
+    installTotal = 1;
+    els.totalPages.value = "1";
+  }
+  const resizePages = (workType, total) => {
+    const pages = state.pages.filter((page) => pageWorkType(page) === workType).slice(0, total);
+    while (pages.length < total) pages.push([blankRow(state.department, workType), blankRow(state.department, workType)]);
+    pages.forEach((page) => page.forEach((row) => { row.workType = workType; row.department = state.department; }));
+    return pages;
+  };
+  state.pages = [...resizePages("install", installTotal), ...resizePages("demolition", demolitionTotal)];
+  if (!workTypePageIndices(state.activeWorkType).length) state.activeWorkType = installTotal ? "install" : "demolition";
+  state.currentPage = workTypePageIndices(state.activeWorkType)[0];
   renderInputs();
-  setStatus("กำหนดจำนวนหน้าแล้ว");
+  setStatus(`กำหนดงานติดตั้ง ${installTotal} หน้า และงานรื้อถอน ${demolitionTotal} หน้าแล้ว`);
+});
+
+document.querySelectorAll(".work-type-button").forEach((button) => {
+  button.addEventListener("click", () => {
+    const workType = button.dataset.workType;
+    const indices = workTypePageIndices(workType);
+    if (!indices.length) {
+      setStatus(`ยังไม่มี${workTypeLabel(workType)} กรุณากำหนดจำนวนหน้าก่อน`, true);
+      return;
+    }
+    saveCurrentPageFromDom();
+    state.activeWorkType = workType;
+    state.currentPage = indices[0];
+    renderInputs();
+  });
 });
 
 els.prevPage.addEventListener("click", () => {
   saveCurrentPageFromDom();
-  state.currentPage = Math.max(0, state.currentPage - 1);
+  const indices = workTypePageIndices();
+  const position = indices.indexOf(state.currentPage);
+  state.currentPage = indices[Math.max(0, position - 1)];
   renderInputs();
 });
 
 els.nextPage.addEventListener("click", () => {
   saveCurrentPageFromDom();
-  state.currentPage = Math.min(state.pages.length - 1, state.currentPage + 1);
+  const indices = workTypePageIndices();
+  const position = indices.indexOf(state.currentPage);
+  state.currentPage = indices[Math.min(indices.length - 1, position + 1)];
   renderInputs();
 });
 
 els.addRow.addEventListener("click", () => {
   saveCurrentPageFromDom();
-  state.pages[state.currentPage].push(blankRow(state.department));
+  state.pages[state.currentPage].push(blankRow(state.department, state.activeWorkType));
   renderInputs();
 });
 
@@ -1005,7 +1072,7 @@ els.removeRow.addEventListener("click", () => {
 });
 
 els.clearPage.addEventListener("click", () => {
-  state.pages[state.currentPage] = [blankRow(state.department), blankRow(state.department)];
+  state.pages[state.currentPage] = [blankRow(state.department, state.activeWorkType), blankRow(state.department, state.activeWorkType)];
   renderInputs();
   setStatus("ล้างข้อมูลหน้านี้แล้ว");
 });
@@ -1319,6 +1386,7 @@ async function changeDepartment(department) {
   state.pages = clonePages(work.pages);
   state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
   state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
+  state.activeWorkType = work.activeWorkType || pageWorkType(state.pages[state.currentPage]);
   state.results = structuredClone(work.results || []);
   try {
     await loadDepartmentSizes(state.department);

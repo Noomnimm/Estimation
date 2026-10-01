@@ -137,10 +137,16 @@
     <div class="calculator-layout tab-panel" data-panel="calculator">
     <section class="workspace tab-panel" data-panel="calculator">
       <div class="controls">
-        <div class="control-group">
-          <label>จำนวนหน้า</label>
-          <input id="totalPages" type="number" min="1" value="1">
+        <div class="control-group page-count-settings">
+          <label>หน้าติดตั้ง</label>
+          <input id="totalPages" type="number" min="0" value="1">
+          <label>หน้ารื้อถอน</label>
+          <input id="demolitionPages" type="number" min="0" value="0">
           <button id="applyPages" type="button">กำหนด</button>
+        </div>
+        <div class="work-type-switch" role="tablist" aria-label="ประเภทงาน">
+          <button type="button" class="work-type-button active" data-work-type="install">งานติดตั้ง <span id="installPageCount">1</span></button>
+          <button type="button" class="work-type-button" data-work-type="demolition">งานรื้อถอน <span id="demolitionPageCount">0</span></button>
         </div>
         <div class="control-group">
           <button id="prevPage" type="button">ก่อนหน้า</button>

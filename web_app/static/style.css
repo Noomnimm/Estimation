@@ -272,6 +272,13 @@ td select:focus,
   outline: 3px solid rgba(99, 49, 138, 0.12);
 }
 
+.page-count-settings input { width: 66px; }
+.work-type-switch { display: flex; gap: 6px; padding: 4px; border: 1px solid #dbcbe5; border-radius: 11px; background: #f8f3fb; }
+.work-type-button { min-height: 34px; padding: 6px 11px; border-color: transparent; background: transparent; color: var(--muted); }
+.work-type-button span { display: inline-grid; min-width: 22px; height: 22px; margin-left: 5px; place-items: center; border-radius: 999px; background: #eadff1; color: var(--accent-dark); font-size: 11px; }
+.work-type-button.active { border-color: var(--accent-dark); background: linear-gradient(135deg, var(--accent-dark), var(--accent)); color: #fff; box-shadow: 0 4px 10px rgba(75, 33, 110, .18); }
+.work-type-button.active span { background: var(--gold); color: #402151; }
+
 .project-actions {
   justify-content: flex-end;
 }

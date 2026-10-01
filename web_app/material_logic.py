@@ -73,6 +73,24 @@ SURGE_ARRESTER_TANK = {
 SURGE_ARRESTER_CODES = {code for _, code in (*SURGE_ARRESTER_CROSSARM.values(), *SURGE_ARRESTER_TANK.values())}
 
 
+def pages_have_work_types(pages: list[list[dict[str, Any]]]) -> bool:
+    return any(str(item.get("workType", "")).strip() for page in pages for item in page)
+
+
+def page_labels(pages: list[list[dict[str, Any]]]) -> list[str]:
+    """Return stable Excel labels while keeping legacy untyped exports unchanged."""
+    if not pages_have_work_types(pages):
+        return [f"หน้า {number}" for number in range(1, len(pages) + 1)]
+    counters = {"install": 0, "demolition": 0}
+    labels: list[str] = []
+    for page in pages:
+        work_type = "demolition" if any(item.get("workType") == "demolition" for item in page) else "install"
+        counters[work_type] += 1
+        prefix = "รื้อถอน" if work_type == "demolition" else "ติดตั้ง"
+        labels.append(f"{prefix} {counters[work_type]}")
+    return labels
+
+
 class MaterialWorkbook:
     def __init__(self) -> None:
         self.base_df: pd.DataFrame | None = None
@@ -361,7 +379,7 @@ class MaterialWorkbook:
         if not totals:
             raise ValueError("ยังไม่มีข้อมูลแต่ละหน้าสำหรับ export")
 
-        page_columns = [f"หน้า {page_number}" for page_number in range(1, len(pages) + 1)]
+        page_columns = page_labels(pages)
         rows = []
         for (head, size), page_totals in sorted(totals.items(), key=lambda item: (natural_key(item[0][1]), natural_key(item[0][0]))):
             row: dict[str, Any] = {HEAD_COL: head, "เสา": size}
@@ -428,7 +446,10 @@ class MaterialWorkbook:
             key = (group, material, code)
             totals.setdefault(key, {})[page_number] = totals.setdefault(key, {}).get(page_number, 0.0) + amount
 
+        labels = page_labels(pages)
+        typed_pages = pages_have_work_types(pages)
         for page_number, page in enumerate(pages, start=1):
+            page_label: Any = labels[page_number - 1] if typed_pages else page_number
             for row_number, item in enumerate(page, start=1):
                 size = clean_text(item.get("size"))
                 head = clean_text(item.get("head"))
@@ -441,9 +462,9 @@ class MaterialWorkbook:
                 add_page_item("ลูกถ้วย", "ลูกถ้วยตั้ง", "", page_number, upright * count)
                 add_page_item("ลูกถ้วย", "ลูกถ้วยนอน", "", page_number, horizontal * count)
                 if upright:
-                    details.append({"หน้า": page_number, HEAD_COL: head, "ที่มา": "เกณฑ์ลูกถ้วย", MATERIAL_COL: "ลูกถ้วยตั้ง", CODE_COL: "", TOTAL_COL: upright * count})
+                    details.append({"หน้า": page_label, HEAD_COL: head, "ที่มา": "เกณฑ์ลูกถ้วย", MATERIAL_COL: "ลูกถ้วยตั้ง", CODE_COL: "", TOTAL_COL: upright * count})
                 if horizontal:
-                    details.append({"หน้า": page_number, HEAD_COL: head, "ที่มา": "เกณฑ์ลูกถ้วย", MATERIAL_COL: "ลูกถ้วยนอน", CODE_COL: "", TOTAL_COL: horizontal * count})
+                    details.append({"หน้า": page_label, HEAD_COL: head, "ที่มา": "เกณฑ์ลูกถ้วย", MATERIAL_COL: "ลูกถ้วยนอน", CODE_COL: "", TOTAL_COL: horizontal * count})
 
                 if self.base_df is not None and set_lookup is not None:
                     matches = self.base_df[
@@ -463,7 +484,7 @@ class MaterialWorkbook:
                             material = clean_text(set_row[SET_DESC_COL])
                             amount = parse_number(set_row[SET_INSTALL_COL]) * set_quantity
                             add_page_item("อุปกรณ์ยึดสาย", material, code, page_number, amount)
-                            details.append({"หน้า": page_number, HEAD_COL: head, "ที่มา": set_code, MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: amount})
+                            details.append({"หน้า": page_label, HEAD_COL: head, "ที่มา": set_code, MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: amount})
 
                 high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
                 wire_kind = classify_wire_head(head) if high_voltage else None
@@ -489,14 +510,14 @@ class MaterialWorkbook:
                         amount,
                     )
                     details.append({
-                        "หน้า": page_number, HEAD_COL: head, "ที่มา": "ช่องเลือกสาย",
+                        "หน้า": page_label, HEAD_COL: head, "ที่มา": "ช่องเลือกสาย",
                         MATERIAL_COL: clean_text(material[MATERIAL_COL]), CODE_COL: clean_text(material[CODE_COL]), TOTAL_COL: amount,
                     })
 
         if not totals:
             raise ValueError("ยังไม่มีข้อมูลลูกถ้วยหรืออุปกรณ์ยึดสายสำหรับ export")
 
-        page_columns = [f"หน้า {number}" for number in range(1, len(pages) + 1)]
+        page_columns = labels
         rows = []
         for (group, material, code), page_totals in sorted(totals.items(), key=lambda item: (item[0][0], item[0][2], item[0][1])):
             row: dict[str, Any] = {"ประเภท": group, MATERIAL_COL: material, CODE_COL: code}
@@ -555,10 +576,13 @@ class MaterialWorkbook:
         return output.getvalue()
 
     def export_page_insulators(self, pages: list[list[dict[str, Any]]]) -> bytes:
-        page_totals: dict[int, tuple[float, float]] = {}
+        page_totals: dict[str, tuple[float, float]] = {}
         details: list[dict[str, Any]] = []
 
+        labels = page_labels(pages)
+        typed_pages = pages_have_work_types(pages)
         for page_number, page in enumerate(pages, start=1):
+            page_label: Any = labels[page_number - 1] if typed_pages else page_number
             upright_total = 0.0
             horizontal_total = 0.0
             for item in page:
@@ -578,7 +602,7 @@ class MaterialWorkbook:
                 upright_total += upright
                 horizontal_total += horizontal
                 details.append({
-                    "หน้า": page_number,
+                    "หน้า": page_label,
                     SIZE_COL: size,
                     HEAD_COL: head,
                     "จำนวนหัว": count,
@@ -587,14 +611,14 @@ class MaterialWorkbook:
                     "ลูกถ้วยตั้ง": upright,
                     "ลูกถ้วยนอน": horizontal,
                 })
-            page_totals[page_number] = (upright_total, horizontal_total)
+            page_totals[page_label] = (upright_total, horizontal_total)
 
         if not details:
             raise ValueError("ยังไม่มีข้อมูลหัวเสาที่มีลูกถ้วยสำหรับ export")
 
         summary_rows = []
-        for page_number, (upright, horizontal) in page_totals.items():
-            summary_rows.append({"หน้า": page_number, "ลูกถ้วยตั้ง": upright, "ลูกถ้วยนอน": horizontal, "รวมลูกถ้วย": upright + horizontal})
+        for page_label, (upright, horizontal) in page_totals.items():
+            summary_rows.append({"หน้า": page_label, "ลูกถ้วยตั้ง": upright, "ลูกถ้วยนอน": horizontal, "รวมลูกถ้วย": upright + horizontal})
         summary_rows.append({
             "หน้า": "รวมทุกหน้า",
             "ลูกถ้วยตั้ง": sum(value[0] for value in page_totals.values()),
@@ -645,19 +669,22 @@ class MaterialWorkbook:
         set_lookup["_set_key"] = set_lookup[SET_COL].astype(str).str.strip().str.lower()
         detail_totals: dict[tuple[int, str, str, str], dict[str, Any]] = {}
 
-        def add_detail(page_number: int, size: str, head: str, head_count: float, material: str, code: str, amount: float) -> None:
+        def add_detail(page_number: int, page_label: str, size: str, head: str, head_count: float, material: str, code: str, amount: float) -> None:
             is_crossarm = code.startswith("10001") or bool(re.match(r"^STEEL\s*CHANNEL", material, re.IGNORECASE))
             if not is_crossarm or amount == 0:
                 return
             key = (page_number, size, head, code)
             if key not in detail_totals:
                 detail_totals[key] = {
-                    "หน้า": page_number, SIZE_COL: size, HEAD_COL: head, "จำนวนหัว": head_count,
+                    "หน้า": page_label, "_page_number": page_number, SIZE_COL: size, HEAD_COL: head, "จำนวนหัว": head_count,
                     MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: 0.0,
                 }
             detail_totals[key][TOTAL_COL] += amount
 
+        labels = page_labels(pages)
+        typed_pages = pages_have_work_types(pages)
         for page_number, page in enumerate(pages, start=1):
+            page_label: Any = labels[page_number - 1] if typed_pages else page_number
             for item in page:
                 size = clean_text(item.get("size"))
                 head = clean_text(item.get("head"))
@@ -680,13 +707,13 @@ class MaterialWorkbook:
                         for _, set_row in set_rows.iterrows():
                             code = clean_text(set_row[CODE_COL])
                             add_detail(
-                                page_number, size, head, count,
+                                page_number, page_label, size, head, count,
                                 clean_text(set_row[SET_DESC_COL]), code,
                                 base_quantity * parse_number(set_row[SET_INSTALL_COL]),
                             )
                     else:
                         add_detail(
-                            page_number, size, head, count,
+                            page_number, page_label, size, head, count,
                             clean_text(base_row[MATERIAL_COL]), base_code, base_quantity,
                         )
 
@@ -694,24 +721,23 @@ class MaterialWorkbook:
         if not details:
             raise ValueError("ไม่พบรายการคอนจากหัวเสาที่เลือก")
 
-        page_count = max(len(pages), 1)
         summary_totals: dict[str, dict[str, Any]] = {}
         for row in details:
             code = row[CODE_COL]
-            page_number = int(row["หน้า"])
+            page_number = int(row["_page_number"])
             summary = summary_totals.setdefault(code, {MATERIAL_COL: row[MATERIAL_COL], "pages": {}})
             summary["pages"][page_number] = summary["pages"].get(page_number, 0.0) + parse_number(row[TOTAL_COL])
         summary_rows = []
         for code, summary in sorted(summary_totals.items()):
             amounts = summary["pages"]
             row: dict[str, Any] = {MATERIAL_COL: summary[MATERIAL_COL], CODE_COL: code}
-            for page_number in range(1, page_count + 1):
-                row[f"หน้า {page_number}"] = amounts.get(page_number, 0.0)
+            for page_number, page_label in enumerate(labels, start=1):
+                row[page_label] = amounts.get(page_number, 0.0)
             row[TOTAL_COL] = sum(amounts.values())
             summary_rows.append(row)
 
         detail_columns = ["หน้า", SIZE_COL, HEAD_COL, "จำนวนหัว", MATERIAL_COL, CODE_COL, TOTAL_COL]
-        summary_columns = [MATERIAL_COL, CODE_COL, *(f"หน้า {number}" for number in range(1, page_count + 1)), TOTAL_COL]
+        summary_columns = [MATERIAL_COL, CODE_COL, *labels, TOTAL_COL]
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             pd.DataFrame(summary_rows, columns=summary_columns).to_excel(writer, index=False, sheet_name="สรุปคอนแยกหน้า")

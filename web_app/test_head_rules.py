@@ -4,11 +4,21 @@ import pandas as pd
 from openpyxl import load_workbook
 from web_app.material_logic import (
     MaterialWorkbook, classify_wire_head, wire_head_multiplier, add_wire_materials,
-    insulator_rate, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, TOTAL_COL,
+    insulator_rate, page_labels, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, TOTAL_COL,
 )
 
 
 class HeadRuleTests(unittest.TestCase):
+    def test_page_labels_separate_installation_and_demolition(self):
+        pages = [
+            [{"workType": "install"}],
+            [{"workType": "install"}],
+            [{"workType": "demolition"}],
+            [{"workType": "demolition"}],
+        ]
+        self.assertEqual(page_labels(pages), ["ติดตั้ง 1", "ติดตั้ง 2", "รื้อถอน 1", "รื้อถอน 2"])
+        self.assertEqual(page_labels([[{}], [{}]]), ["หน้า 1", "หน้า 2"])
+
     def equipment(self, head, wire1='185 SAC', wire2='185 SAC'):
         totals = {}
         add_wire_materials(totals, classify_wire_head(head), wire1, wire2, wire_head_multiplier(head))
