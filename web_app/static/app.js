@@ -193,9 +193,11 @@ function applyTheme(theme, persist = false) {
   if (persist) localStorage.setItem(THEME_KEY, nextTheme);
   if (els.themeToggle) {
     const isDark = nextTheme === "dark";
-    els.themeToggle.textContent = isDark ? "☀ โหมดกลางวัน" : "☾ โหมดมืด";
+    els.themeToggle.textContent = isDark ? "☀" : "☾";
     els.themeToggle.setAttribute("aria-pressed", String(isDark));
-    els.themeToggle.title = isDark ? "เปลี่ยนเป็นโหมดกลางวัน" : "เปลี่ยนเป็นโหมดมืด";
+    const label = isDark ? "เปลี่ยนเป็นโหมดกลางวัน" : "เปลี่ยนเป็นโหมดมืด";
+    els.themeToggle.setAttribute("aria-label", label);
+    els.themeToggle.title = label;
   }
 }
 
