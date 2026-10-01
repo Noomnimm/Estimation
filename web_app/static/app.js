@@ -682,10 +682,10 @@ function renderInsulators() {
   document.getElementById("demolitionSuspensionCount").textContent = formatAmount(actualTotals.suspension);
   document.getElementById("demolitionPinTypeCount").textContent = formatAmount(actualTotals.pinType);
   const reusableTotals = {
-    linePost: Math.floor(actualTotals.linePost * 0.8 / 3),
-    pinPost: Math.floor(actualTotals.pinPost * 0.8 / 3),
-    suspension: Math.floor(actualTotals.suspension * 0.8 / 4),
-    pinType: Math.floor(actualTotals.pinType * 0.8 / 3),
+    linePost: Math.floor(actualTotals.linePost * 0.8 / 3) * 3,
+    pinPost: Math.floor(actualTotals.pinPost * 0.8 / 3) * 3,
+    suspension: Math.floor(actualTotals.suspension * 0.8 / 4) * 4,
+    pinType: Math.floor(actualTotals.pinType * 0.8 / 3) * 3,
   };
   document.getElementById("reusableLinePostCount").textContent = formatAmount(reusableTotals.linePost);
   document.getElementById("reusablePinPostCount").textContent = formatAmount(reusableTotals.pinPost);
