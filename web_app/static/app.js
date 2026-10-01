@@ -25,24 +25,18 @@ const STRUCTURE_CATALOG = [
 ];
 const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
 const WIRE_CATALOG = [
-  { group: "สายหุ้มฉนวน SAC 22 kV", code: "1020060001", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 50 SQ.MM." },
-  { group: "สายหุ้มฉนวน SAC 22 kV", code: "1020060002", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 95 SQ.MM." },
-  { group: "สายหุ้มฉนวน SAC 22 kV", code: "1020060003", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 120 SQ.MM." },
-  { group: "สายหุ้มฉนวน SAC 22 kV", code: "1020060004", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 185 SQ.MM." },
-  { group: "สายอลูมิเนียมเปลือย", code: "1020010001", material: "CONDUCTOR,AL,BARE 35 SQ.MM.TIS.85" },
-  { group: "สายอลูมิเนียมเปลือย", code: "1020010002", material: "CONDUCTOR,AL,BARE 50/7 SQ.MM.TIS.85" },
-  { group: "สายอลูมิเนียมเปลือย", code: "1020010003", material: "CONDUCTOR,AL,BARE 70 SQ.MM.TIS.85" },
-  { group: "สายอลูมิเนียมเปลือย", code: "1020010004", material: "CONDUCTOR,AL,BARE 95 SQ.MM.TIS.85" },
-  { group: "สายอลูมิเนียมเปลือย", code: "1020010005", material: "CONDUCTOR,AL,BARE 120 SQ.MM.TIS.85" },
-  { group: "สายอลูมิเนียมเปลือย", code: "1020010007", material: "CONDUCTOR,AL,BARE 185 SQ.MM.TIS.85" },
-  { group: "สาย ACSR", code: "1020020001", material: "CONDUCTOR,ACSR 35/6 SQ.MM.TIS.86" },
-  { group: "สาย ACSR", code: "1020020002", material: "CONDUCTOR,ACSR 50/8 SQ.MM.TIS.86" },
-  { group: "สาย ACSR", code: "1020020003", material: "CONDUCTOR,ACSR 70/12 SQ.MM.TIS.86" },
-  { group: "สาย ACSR", code: "1020020004", material: "CONDUCTOR,ACSR 95/15 SQ.MM.TIS.86" },
-  { group: "สาย ACSR", code: "1020020005", material: "CONDUCTOR,ACSR 120/20 SQ.MM.TIS.86" },
-  { group: "สาย ACSR", code: "1020020007", material: "CONDUCTOR,ACSR 185/30 SQ.MM.TIS.86" },
+  { group: "สาย OHGW", code: "1010100002", shortName: "25OHGW", material: "WIRE,STEEL STRANDED 25 SQ.MM.TIS.404" },
+  { group: "สาย SAC 22 kV", code: "1020050004", shortName: "185SAC", material: "CABLE,AERIAL,AL 22 KV. 1X185 SQ.MM." },
+  { group: "สาย SAC 22 kV", code: "1020050000", shortName: "50SAC", material: "CABLE,AERIAL,AL 22 KV. 1X50 SQ.MM." },
+  { group: "สาย PIC 22 kV", code: "1020060004", shortName: "185PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 185 SQ.MM." },
+  { group: "สาย PIC 22 kV", code: "1020060002", shortName: "95PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 95 SQ.MM." },
+  { group: "สาย PIC 22 kV", code: "1020060001", shortName: "50PIC", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 50 SQ.MM." },
+  { group: "สาย ACSR", code: "1020020007", shortName: "185ACSR", material: "CONDUCTOR,ACSR 185/30 SQ.MM.TIS.86" },
+  { group: "สาย ACSR", code: "1020020002", shortName: "50ACSR", material: "CONDUCTOR,ACSR 50/8 SQ.MM.TIS.86" },
+  { group: "สายอลูมิเนียมเปลือย", code: "1020010007", shortName: "185A", material: "CONDUCTOR,AL,BARE 185 SQ.MM.TIS.85" },
+  { group: "สายอลูมิเนียมเปลือย", code: "1020010002", shortName: "50A", material: "CONDUCTOR,AL,BARE 50/7 SQ.MM.TIS.85" },
 ];
-const WIRE_GROUP_ORDER = ["สายหุ้มฉนวน SAC 22 kV", "สายอลูมิเนียมเปลือย", "สาย ACSR"];
+const WIRE_GROUP_ORDER = ["สาย OHGW", "สาย SAC 22 kV", "สาย PIC 22 kV", "สาย ACSR", "สายอลูมิเนียมเปลือย"];
 
 const state = {
   department: DEFAULT_DEPARTMENT,
@@ -378,7 +372,7 @@ function renderWireInputs() {
       WIRE_CATALOG.filter((item) => item.group === group).forEach((item) => {
         const option = document.createElement("option");
         option.value = item.code;
-        option.textContent = `${item.code} — ${item.material}`;
+        option.textContent = `${item.shortName} — ${item.code} — ${item.material}`;
         optgroup.appendChild(option);
       });
       select.appendChild(optgroup);
