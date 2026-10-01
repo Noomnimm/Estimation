@@ -25,7 +25,7 @@ const STRUCTURE_CATALOG = [
 ];
 const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
 const WIRE_CATALOG = [
-  { group: "สาย TAC", department: "แผนกแรงสูง TAC", code: "1020050204", shortName: "TAC 3-1x240", material: "CABLE,TWISTED,AL.22KV.3-1X240 SQ.MM." },
+  { group: "สาย TAC", department: "แผนกแรงสูง TAC", code: "1020050204", shortName: "240TAC", material: "CABLE,TWISTED,AL.22KV.3-1X240 SQ.MM." },
   { group: "สาย OHGW", code: "1010100002", shortName: "25OHGW", material: "WIRE,STEEL STRANDED 25 SQ.MM.TIS.404" },
   { group: "สาย Messenger", code: "1010100004", shortName: "Messenger 50/7", material: "WIRE,STEEL STRANDED 50/7 SQ.MM.TIS.404" },
   { group: "สาย SAC — CABLE,AERIAL,AL 22 kV.", code: "1020050004", shortName: "185SAC", material: "CABLE,AERIAL,AL 22 kV. 1x185 sq.mm." },
