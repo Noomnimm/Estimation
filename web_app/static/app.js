@@ -1181,7 +1181,7 @@ async function openSavedProject(projectId, source = "local") {
 
 async function saveProject(destination, cloudFolderId = null) {
   if (destination === "cloud" && !state.cloudUser) {
-    setStatus("กรุณาเข้าสู่ระบบ Google ก่อนบันทึกขึ้น Cloud", true);
+    setStatus("กรุณาเข้าสู่ระบบ Google ผวร. ก่อนบันทึกขึ้น Cloud", true);
     els.googleSignInQuick.scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
