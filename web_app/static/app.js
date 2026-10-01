@@ -24,6 +24,25 @@ const STRUCTURE_CATALOG = [
   { group: "งานปรับปรุงเสา", code: "9010070004", material: "POLE IMPROVEMENT 12.20, 14 M." },
 ];
 const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
+const WIRE_CATALOG = [
+  { group: "สายหุ้มฉนวน SAC 22 kV", code: "1020060001", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 50 SQ.MM." },
+  { group: "สายหุ้มฉนวน SAC 22 kV", code: "1020060002", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 95 SQ.MM." },
+  { group: "สายหุ้มฉนวน SAC 22 kV", code: "1020060003", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 120 SQ.MM." },
+  { group: "สายหุ้มฉนวน SAC 22 kV", code: "1020060004", material: "CONDUCTOR,AL,PARTIALLY INSULATED,SINGLE-CORE,22 KV. 185 SQ.MM." },
+  { group: "สายอลูมิเนียมเปลือย", code: "1020010001", material: "CONDUCTOR,AL,BARE 35 SQ.MM.TIS.85" },
+  { group: "สายอลูมิเนียมเปลือย", code: "1020010002", material: "CONDUCTOR,AL,BARE 50/7 SQ.MM.TIS.85" },
+  { group: "สายอลูมิเนียมเปลือย", code: "1020010003", material: "CONDUCTOR,AL,BARE 70 SQ.MM.TIS.85" },
+  { group: "สายอลูมิเนียมเปลือย", code: "1020010004", material: "CONDUCTOR,AL,BARE 95 SQ.MM.TIS.85" },
+  { group: "สายอลูมิเนียมเปลือย", code: "1020010005", material: "CONDUCTOR,AL,BARE 120 SQ.MM.TIS.85" },
+  { group: "สายอลูมิเนียมเปลือย", code: "1020010007", material: "CONDUCTOR,AL,BARE 185 SQ.MM.TIS.85" },
+  { group: "สาย ACSR", code: "1020020001", material: "CONDUCTOR,ACSR 35/6 SQ.MM.TIS.86" },
+  { group: "สาย ACSR", code: "1020020002", material: "CONDUCTOR,ACSR 50/8 SQ.MM.TIS.86" },
+  { group: "สาย ACSR", code: "1020020003", material: "CONDUCTOR,ACSR 70/12 SQ.MM.TIS.86" },
+  { group: "สาย ACSR", code: "1020020004", material: "CONDUCTOR,ACSR 95/15 SQ.MM.TIS.86" },
+  { group: "สาย ACSR", code: "1020020005", material: "CONDUCTOR,ACSR 120/20 SQ.MM.TIS.86" },
+  { group: "สาย ACSR", code: "1020020007", material: "CONDUCTOR,ACSR 185/30 SQ.MM.TIS.86" },
+];
+const WIRE_GROUP_ORDER = ["สายหุ้มฉนวน SAC 22 kV", "สายอลูมิเนียมเปลือย", "สาย ACSR"];
 
 const state = {
   department: DEFAULT_DEPARTMENT,
@@ -81,6 +100,8 @@ const els = {
   inputRows: document.getElementById("inputRows"),
   structureRows: document.getElementById("structureRows"),
   addStructureRow: document.getElementById("addStructureRow"),
+  wireRows: document.getElementById("wireRows"),
+  addWireRow: document.getElementById("addWireRow"),
   calculate: document.getElementById("calculate"),
   expandSet: document.getElementById("expandSet"),
   exportExcel: document.getElementById("exportExcel"),
@@ -187,8 +208,8 @@ function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
   return { department, workType, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
 }
 
-function blankStructureRow(workType = "install") {
-  return { workType, code: "", material: "", count: "" };
+function blankStructureRow(workType = "install", category = "structure") {
+  return { workType, category, code: "", material: "", count: "" };
 }
 
 function pageWorkType(page) {
@@ -273,22 +294,36 @@ function saveCurrentPageFromDom() {
     });
   });
   const structureRows = [...els.structureRows.querySelectorAll(".structure-row")];
-  state.structurePages[state.currentPage] = structureRows.map((row) => {
+  const wireRows = [...els.wireRows.querySelectorAll(".structure-row")];
+  const savedStructures = structureRows.map((row) => {
     const selected = STRUCTURE_CATALOG.find((item) => item.code === row.querySelector(".structure-item").value);
     return {
       workType: state.activeWorkType,
+      category: "structure",
       code: selected?.code || "",
       material: selected?.material || "",
       count: row.querySelector(".structure-count").value,
     };
   });
+  const savedWires = wireRows.map((row) => {
+    const selected = WIRE_CATALOG.find((item) => item.code === row.querySelector(".wire-item").value);
+    return {
+      workType: state.activeWorkType,
+      category: "wire",
+      code: selected?.code || "",
+      material: selected?.material || "",
+      count: row.querySelector(".wire-count").value,
+    };
+  });
+  state.structurePages[state.currentPage] = [...savedStructures, ...savedWires];
 }
 
 function renderStructureInputs() {
-  const rows = state.structurePages[state.currentPage] || [blankStructureRow(state.activeWorkType)];
-  state.structurePages[state.currentPage] = rows.length ? rows : [blankStructureRow(state.activeWorkType)];
+  const pageRows = state.structurePages[state.currentPage] || [];
+  if (!pageRows.some((row) => row.category !== "wire")) pageRows.unshift(blankStructureRow(state.activeWorkType));
+  state.structurePages[state.currentPage] = pageRows;
   els.structureRows.innerHTML = "";
-  state.structurePages[state.currentPage].forEach((row, index) => {
+  pageRows.map((row, index) => ({ row, index })).filter(({ row }) => row.category !== "wire").forEach(({ row, index }) => {
     const line = document.createElement("div");
     line.className = "structure-row";
     line.innerHTML = `<label><span>รายการเสา/ตอม่อ</span><select class="structure-item"><option value="">เลือกรายการ</option></select></label><label class="structure-count-label"><span>จำนวน</span><input class="structure-count" type="text" inputmode="text" placeholder="เช่น 4+4+5"></label><button class="remove-structure-row" type="button" aria-label="ลบรายการนี้">×</button>`;
@@ -320,14 +355,59 @@ function renderStructureInputs() {
       state.structurePages[state.currentPage].splice(index, 1);
       if (!state.structurePages[state.currentPage].length) state.structurePages[state.currentPage].push(blankStructureRow(state.activeWorkType));
       renderStructureInputs();
+      renderWireInputs();
       markProjectDirty();
     });
     els.structureRows.appendChild(line);
   });
 }
 
+function renderWireInputs() {
+  const pageRows = state.structurePages[state.currentPage] || [];
+  if (!pageRows.some((row) => row.category === "wire")) pageRows.push(blankStructureRow(state.activeWorkType, "wire"));
+  state.structurePages[state.currentPage] = pageRows;
+  els.wireRows.innerHTML = "";
+  pageRows.map((row, index) => ({ row, index })).filter(({ row }) => row.category === "wire").forEach(({ row, index }) => {
+    const line = document.createElement("div");
+    line.className = "structure-row wire-row";
+    line.innerHTML = `<label><span>ชนิดสาย</span><select class="wire-item"><option value="">เลือกชนิดสาย</option></select></label><label><span>จำนวน (เมตร)</span><input class="wire-count" type="text" inputmode="text" placeholder="เช่น 1200 หรือ 400+400"></label><button class="remove-structure-row remove-wire-row" type="button" aria-label="ลบรายการสายนี้">×</button>`;
+    const select = line.querySelector(".wire-item");
+    WIRE_GROUP_ORDER.forEach((group) => {
+      const optgroup = document.createElement("optgroup");
+      optgroup.label = group;
+      WIRE_CATALOG.filter((item) => item.group === group).forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item.code;
+        option.textContent = `${item.code} — ${item.material}`;
+        optgroup.appendChild(option);
+      });
+      select.appendChild(optgroup);
+    });
+    select.value = row.code || "";
+    line.querySelector(".wire-count").value = row.count || "";
+    select.addEventListener("change", () => {
+      const selected = WIRE_CATALOG.find((item) => item.code === select.value);
+      Object.assign(state.structurePages[state.currentPage][index], { workType: state.activeWorkType, category: "wire", code: selected?.code || "", material: selected?.material || "" });
+      markProjectDirty();
+    });
+    line.querySelector(".wire-count").addEventListener("input", (event) => {
+      state.structurePages[state.currentPage][index].count = event.target.value;
+      markProjectDirty();
+    });
+    line.querySelector(".remove-wire-row").addEventListener("click", () => {
+      if (!window.confirm("ลบรายการสายนี้ใช่ไหม?")) return;
+      state.structurePages[state.currentPage].splice(index, 1);
+      renderStructureInputs();
+      renderWireInputs();
+      markProjectDirty();
+    });
+    els.wireRows.appendChild(line);
+  });
+}
+
 function renderInputs() {
   renderStructureInputs();
+  renderWireInputs();
   updateInputColumnTitles();
   els.inputRows.innerHTML = "";
   const page = state.pages[state.currentPage];
@@ -1390,6 +1470,13 @@ els.addStructureRow.addEventListener("click", () => {
   markProjectDirty();
 });
 
+els.addWireRow.addEventListener("click", () => {
+  saveCurrentPageFromDom();
+  state.structurePages[state.currentPage].push(blankStructureRow(state.activeWorkType, "wire"));
+  renderWireInputs();
+  markProjectDirty();
+});
+
 els.removeRow.addEventListener("click", () => {
   if (state.pages[state.currentPage].length <= 1) {
     setStatus("ต้องเหลืออย่างน้อย 1 แถว", true);
@@ -1406,7 +1493,7 @@ els.removeRow.addEventListener("click", () => {
 els.clearPage.addEventListener("click", () => {
   if (!window.confirm("ล้างข้อมูลทั้งหมดในหน้านี้ใช่ไหม?\n\nรายการที่กรอกในหน้านี้จะถูกนำออกทั้งหมด")) return;
   state.pages[state.currentPage] = [blankRow(state.department, state.activeWorkType), blankRow(state.department, state.activeWorkType)];
-  state.structurePages[state.currentPage] = [blankStructureRow(state.activeWorkType)];
+  state.structurePages[state.currentPage] = [blankStructureRow(state.activeWorkType), blankStructureRow(state.activeWorkType, "wire")];
   renderInputs();
   markProjectDirty();
   setStatus("ล้างข้อมูลหน้านี้แล้ว");

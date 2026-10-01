@@ -839,6 +839,10 @@ td select {
 .structure-entry-group .entry-group-heading { background: #e5f4fd; }
 .structure-entry-group .entry-step { background: #2879a9; }
 .structure-entry-group #addStructureRow { border-color: #8cbfdf; background: #fff; color: #155a84; font-weight: 800; }
+.wire-entry-group { border-color: #acd9cb; background: #f8fffc; }
+.wire-entry-group .entry-group-heading { background: #e6f7f1; }
+.wire-entry-group .entry-step { background: #16806b; }
+.wire-entry-group #addWireRow { border-color: #80c4b2; background: #fff; color: #126553; font-weight: 800; }
 .structure-rows { display: grid; gap: 8px; padding: 12px; }
 .structure-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px 38px; gap: 9px; align-items: end; }
 .structure-row label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
@@ -1046,6 +1050,8 @@ td select {
 :root[data-theme="dark"] .head-entry-group .entry-group-heading { background: #302337; }
 :root[data-theme="dark"] .structure-entry-group { background: #17252d; border-color: #31566c; }
 :root[data-theme="dark"] .structure-entry-group .entry-group-heading { background: #203946; }
+:root[data-theme="dark"] .wire-entry-group { background: #172a25; border-color: #315f54; }
+:root[data-theme="dark"] .wire-entry-group .entry-group-heading { background: #1e3d35; }
 :root[data-theme="dark"] .request-image-panel,
 :root[data-theme="dark"] .request-admin-image,
 :root[data-theme="dark"] .drive-connect-panel { background: #2c2132; color: var(--ink); }
