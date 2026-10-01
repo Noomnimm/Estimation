@@ -19,6 +19,20 @@ class HeadRuleTests(unittest.TestCase):
         self.assertEqual(page_labels(pages), ["ติดตั้ง 1", "ติดตั้ง 2", "รื้อถอน 1", "รื้อถอน 2"])
         self.assertEqual(page_labels([[{}], [{}]]), ["หน้า 1", "หน้า 2"])
 
+    def test_page_export_groups_work_types_in_one_sheet(self):
+        workbook = MaterialWorkbook()
+        pages = [
+            [{"workType": "install", "size": "12.2", "head": "SP", "count": 1}],
+            [{"workType": "install", "size": "12.2", "head": "SP", "count": 2}],
+            [{"workType": "demolition", "size": "12.2", "head": "SP", "count": 3}],
+        ]
+        exported = load_workbook(BytesIO(workbook.export_page_summary(pages)), data_only=True)
+        sheet = exported["สรุปแต่ละหน้า"]
+        self.assertEqual(sheet["C2"].value, "งานติดตั้ง")
+        self.assertEqual(sheet["E2"].value, "งานรื้อถอน")
+        self.assertEqual([sheet.cell(3, column).value for column in range(3, 6)], ["ติดตั้ง 1", "ติดตั้ง 2", "รื้อถอน 1"])
+        self.assertIn("C2:D2", {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+
     def equipment(self, head, wire1='185 SAC', wire2='185 SAC'):
         totals = {}
         add_wire_materials(totals, classify_wire_head(head), wire1, wire2, wire_head_multiplier(head))

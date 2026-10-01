@@ -91,6 +91,35 @@ def page_labels(pages: list[list[dict[str, Any]]]) -> list[str]:
     return labels
 
 
+def add_work_type_group_headers(sheet, labels: list[str], start_column: int, row: int = 2) -> None:
+    """Add merged installation/demolition headers above per-page columns."""
+    groups: list[tuple[str, int, int]] = []
+    for offset, label in enumerate(labels):
+        if label.startswith("ติดตั้ง "):
+            group = "งานติดตั้ง"
+        elif label.startswith("รื้อถอน "):
+            group = "งานรื้อถอน"
+        else:
+            continue
+        column = start_column + offset
+        if groups and groups[-1][0] == group and groups[-1][2] == column - 1:
+            groups[-1] = (group, groups[-1][1], column)
+        else:
+            groups.append((group, column, column))
+    colors = {"งานติดตั้ง": "4B216E", "งานรื้อถอน": "B36A00"}
+    for group, first_column, last_column in groups:
+        if last_column > first_column:
+            sheet.merge_cells(start_row=row, start_column=first_column, end_row=row, end_column=last_column)
+        cell = sheet.cell(row=row, column=first_column, value=group)
+        cell.font = Font(name="Tahoma", bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor=colors[group])
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        for column in range(first_column + 1, last_column + 1):
+            sheet.cell(row=row, column=column).fill = PatternFill("solid", fgColor=colors[group])
+    if groups:
+        sheet.row_dimensions[row].height = 23
+
+
 class MaterialWorkbook:
     def __init__(self) -> None:
         self.base_df: pd.DataFrame | None = None
@@ -400,6 +429,7 @@ class MaterialWorkbook:
             title.fill = PatternFill("solid", fgColor="0F766E")
             title.alignment = Alignment(horizontal="center", vertical="center")
             sheet.row_dimensions[1].height = 28
+            add_work_type_group_headers(sheet, page_columns, start_column=3, row=2)
 
             header_fill = PatternFill("solid", fgColor="DDEDEA")
             border = Border(bottom=Side(style="thin", color="AAB7C4"))
@@ -538,6 +568,7 @@ class MaterialWorkbook:
             title.fill = PatternFill("solid", fgColor="63318A")
             title.alignment = Alignment(horizontal="center", vertical="center")
             sheet.row_dimensions[1].height = 28
+            add_work_type_group_headers(sheet, page_columns, start_column=4, row=2)
             for cell in sheet[3]:
                 cell.font = Font(name="Tahoma", bold=True, color="FFFFFF")
                 cell.fill = PatternFill("solid", fgColor="4B216E")
@@ -740,25 +771,31 @@ class MaterialWorkbook:
         summary_columns = [MATERIAL_COL, CODE_COL, *labels, TOTAL_COL]
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            pd.DataFrame(summary_rows, columns=summary_columns).to_excel(writer, index=False, sheet_name="สรุปคอนแยกหน้า")
+            summary_startrow = 1 if typed_pages else 0
+            pd.DataFrame(summary_rows, columns=summary_columns).to_excel(
+                writer, index=False, sheet_name="สรุปคอนแยกหน้า", startrow=summary_startrow
+            )
             pd.DataFrame(details, columns=detail_columns).sort_values(["หน้า", HEAD_COL, CODE_COL]).to_excel(
                 writer, index=False, sheet_name="ที่มาคอน"
             )
             for sheet_name in ("สรุปคอนแยกหน้า", "ที่มาคอน"):
                 sheet = writer.sheets[sheet_name]
-                for cell in sheet[1]:
+                header_row = 2 if sheet_name == "สรุปคอนแยกหน้า" and typed_pages else 1
+                for cell in sheet[header_row]:
                     cell.font = Font(name="Tahoma", bold=True, color="FFFFFF")
                     cell.fill = PatternFill("solid", fgColor="4B216E")
                     cell.alignment = Alignment(horizontal="center", vertical="center")
-                for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row):
+                for row in sheet.iter_rows(min_row=header_row + 1, max_row=sheet.max_row):
                     for cell in row:
                         cell.font = Font(name="Tahoma", size=10)
                     for cell in row[2:]:
                         cell.number_format = "#,##0.###"
-                sheet.freeze_panes = "C2" if sheet_name == "สรุปคอนแยกหน้า" else "A2"
-                sheet.auto_filter.ref = sheet.dimensions
+                sheet.freeze_panes = f"C{header_row + 1}" if sheet_name == "สรุปคอนแยกหน้า" else "A2"
+                sheet.auto_filter.ref = f"A{header_row}:{get_column_letter(sheet.max_column)}{sheet.max_row}"
                 sheet.sheet_view.showGridLines = False
             summary_sheet = writer.sheets["สรุปคอนแยกหน้า"]
+            if typed_pages:
+                add_work_type_group_headers(summary_sheet, labels, start_column=3, row=1)
             summary_sheet.column_dimensions["A"].width = 64
             summary_sheet.column_dimensions["B"].width = 18
             for column in range(3, summary_sheet.max_column + 1):
