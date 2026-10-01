@@ -162,6 +162,8 @@ const els = {
   projectName: document.getElementById("projectName"),
   planNumber: document.getElementById("planNumber"),
   saveLocalProject: document.getElementById("saveLocalProject"),
+  openProjectFile: document.getElementById("openProjectFile"),
+  projectFileInput: document.getElementById("projectFileInput"),
   saveCloudProject: document.getElementById("saveCloudProject"),
   cloudSaveDialog: document.getElementById("cloudSaveDialog"),
   cloudSaveForm: document.getElementById("cloudSaveForm"),
@@ -1038,6 +1040,41 @@ function writeSavedProjects(projects) {
   renderSavedProjects();
 }
 
+function downloadProjectFile(project) {
+  const payload = { format: "material-calculator-project", version: 1, project };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const baseName = project.planNumber || project.name || "งานประมาณการ";
+  const safeName = String(baseName).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+  link.href = url;
+  link.download = `${safeName}.material-calculator.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importProjectFile(file) {
+  const content = await file.text();
+  const parsed = JSON.parse(content);
+  const project = parsed?.format === "material-calculator-project" ? parsed.project : parsed;
+  if (!project || typeof project !== "object" || !project.name || (!project.departments && !Array.isArray(project.pages))) {
+    throw new Error("ไฟล์นี้ไม่ใช่ไฟล์งานของ Material Calculator");
+  }
+  const imported = structuredClone(project);
+  imported.id = imported.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  imported.updatedAt = imported.updatedAt || new Date().toISOString();
+  imported.createdAt = imported.createdAt || imported.updatedAt;
+  const projects = getSavedProjects();
+  const index = projects.findIndex((item) => item.id === imported.id);
+  if (index >= 0) projects[index] = imported;
+  else projects.push(imported);
+  writeSavedProjects(projects);
+  await openSavedProject(imported.id, "local");
+  setStatus(`เปิดไฟล์งาน “${imported.name}” สำเร็จ`);
+}
+
 async function cloudRequest(endpoint, options = {}) {
   const headers = { ...(options.headers || {}), Authorization: `Bearer ${state.googleCredential}` };
   const response = await fetch(endpoint, { ...options, headers });
@@ -1241,8 +1278,9 @@ async function saveProject(destination, cloudFolderId = null) {
   if (index >= 0) projects[index] = project;
   else projects.push(project);
   writeSavedProjects(projects);
-  setSaveState("saved", `✓ บันทึกแล้วในเครื่อง · ${formatSavedDate(now)}`);
-  setStatus("บันทึกงานลงเครื่องนี้แล้ว");
+  downloadProjectFile(project);
+  setSaveState("saved", `✓ ดาวน์โหลดไฟล์แล้ว · ${formatSavedDate(now)}`);
+  setStatus("บันทึกสำรองในเบราว์เซอร์และดาวน์โหลดไฟล์งานลงเครื่องแล้ว");
 }
 
 function waitForGoogleIdentity(timeoutMs = 10000) {
@@ -1338,6 +1376,20 @@ document.querySelectorAll(".app-tab").forEach((button) => {
 });
 
 els.saveLocalProject.addEventListener("click", () => saveProject("local"));
+els.openProjectFile.addEventListener("click", () => {
+  els.projectFileInput.value = "";
+  els.projectFileInput.click();
+});
+els.projectFileInput.addEventListener("change", async () => {
+  const file = els.projectFileInput.files?.[0];
+  if (!file) return;
+  try {
+    setStatus("กำลังเปิดไฟล์งาน...");
+    await importProjectFile(file);
+  } catch (error) {
+    setStatus(`เปิดไฟล์งานไม่สำเร็จ: ${error.message}`, true);
+  }
+});
 function openCloudSaveDialog() {
   if (!state.cloudUser) {
     saveProject("cloud");
