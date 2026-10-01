@@ -164,13 +164,14 @@
         <div class="work-type-switch" role="tablist" aria-label="ประเภทงาน">
           <button type="button" class="work-type-button active" data-work-type="install">งานติดตั้ง <span id="installPageCount">1</span></button>
           <button type="button" class="work-type-button" data-work-type="demolition">งานรื้อถอน <span id="demolitionPageCount">0</span></button>
+          <button type="button" class="work-type-button combined-work-button" data-work-type="combined">รวมงาน</button>
         </div>
-        <div class="control-group">
+        <div class="control-group page-navigation">
           <button id="prevPage" type="button">ก่อนหน้า</button>
           <span id="pageLabel">หน้า 1/1</span>
           <button id="nextPage" type="button">ถัดไป</button>
         </div>
-        <div class="control-group grow">
+        <div class="control-group grow page-clear-control">
           <button id="clearPage" type="button">ล้างหน้านี้</button>
         </div>
       </div>
@@ -276,6 +277,13 @@
             </tr>
           </thead>
           <tbody id="demolitionResultRows"></tbody>
+        </table></div>
+      </div>
+      <div id="combinedResultSection" class="result-work-section combined" hidden>
+        <h3>รวมงาน <span id="combinedResultCount">0 รายการ</span></h3>
+        <div class="table-wrap"><table>
+          <thead><tr><th>รายการพัสดุ</th><th>รหัสพัสดุ</th><th>จำนวนติดตั้ง</th><th>จำนวนรื้อถอน</th></tr></thead>
+          <tbody id="combinedResultRows"></tbody>
         </table></div>
       </div>
     </section>

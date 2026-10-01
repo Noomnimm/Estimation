@@ -44,6 +44,7 @@ const state = {
   department: DEFAULT_DEPARTMENT,
   activeWorkType: "install",
   resultWorkType: "install",
+  combinedView: false,
   sizes: [],
   pages: [[blankRow(), blankRow()]],
   structurePages: [[blankStructureRow()]],
@@ -154,10 +155,14 @@ const els = {
   adminCloudTrashList: document.getElementById("adminCloudTrashList"),
   installResultSection: document.getElementById("installResultSection"),
   demolitionResultSection: document.getElementById("demolitionResultSection"),
+  combinedResultSection: document.getElementById("combinedResultSection"),
   installResultRows: document.getElementById("installResultRows"),
   demolitionResultRows: document.getElementById("demolitionResultRows"),
+  combinedResultRows: document.getElementById("combinedResultRows"),
   installResultCount: document.getElementById("installResultCount"),
   demolitionResultCount: document.getElementById("demolitionResultCount"),
+  combinedResultCount: document.getElementById("combinedResultCount"),
+  workspace: document.querySelector(".workspace"),
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
   planNumber: document.getElementById("planNumber"),
@@ -666,13 +671,15 @@ function createSurgeDetailsRow(row, index) {
 function renderInsulators() {
   const totals = summarizeInsulatorsByWorkType(state.pages);
   const showDemolition = state.activeWorkType === "demolition";
-  els.installInsulatorSummary.hidden = showDemolition;
-  els.demolitionInsulatorSummary.hidden = !showDemolition;
-  els.actualInsulatorSummary.hidden = !showDemolition;
-  els.reusableInsulatorSummary.hidden = !showDemolition;
-  els.insulatorViewHint.textContent = showDemolition
-    ? "งานรื้อถอน · เปรียบเทียบยอดคำนวณกับยอดนับจริง"
-    : "งานติดตั้ง · อัปเดตตามจำนวนที่กรอก";
+  els.installInsulatorSummary.hidden = showDemolition && !state.combinedView;
+  els.demolitionInsulatorSummary.hidden = !showDemolition || state.combinedView;
+  els.actualInsulatorSummary.hidden = !showDemolition && !state.combinedView;
+  els.reusableInsulatorSummary.hidden = !showDemolition && !state.combinedView;
+  els.insulatorViewHint.textContent = state.combinedView
+    ? "รวมงาน · ยอดติดตั้ง ยอดรื้อถอนนับจริง และ Reuse"
+    : showDemolition
+      ? "งานรื้อถอน · เปรียบเทียบยอดคำนวณกับยอดนับจริง"
+      : "งานติดตั้ง · อัปเดตตามจำนวนที่กรอก";
   document.getElementById("installUprightCount").textContent = formatAmount(totals.install.upright);
   document.getElementById("installHorizontalCount").textContent = formatAmount(totals.install.horizontal);
   document.getElementById("demolitionUprightCount").textContent = formatAmount(totals.demolition.upright);
@@ -875,7 +882,7 @@ function renderPageControls() {
   els.installPageCount.textContent = String(installIndices.length);
   els.demolitionPageCount.textContent = String(demolitionIndices.length);
   document.querySelectorAll(".work-type-button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.workType === state.activeWorkType);
+    button.classList.toggle("active", state.combinedView ? button.dataset.workType === "combined" : button.dataset.workType === state.activeWorkType);
   });
   els.pageLabel.textContent = `${workTypeLabel(state.activeWorkType)} หน้า ${localPageIndex + 1}/${activeIndices.length}`;
   els.prevPage.disabled = localPageIndex <= 0;
@@ -914,8 +921,18 @@ function renderResults(items, meta) {
   };
   renderWorkRows(els.installResultRows, installItems, "จำนวนติดตั้ง", "จำนวนรวม");
   renderWorkRows(els.demolitionResultRows, demolitionItems, "จำนวนรื้อถอน");
+  const combinedItems = state.results.filter((item) => Number(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0) !== 0 || Number(item["จำนวนรื้อถอน"] ?? 0) !== 0);
+  els.combinedResultRows.innerHTML = combinedItems.map((item) => `
+    <tr>
+      <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
+      <td>${String(item["รหัสพัสดุ"] || "").trim().toLowerCase().startsWith("set") ? `<button type="button" class="set-expand-button" data-set-code="${escapeHtml(item["รหัสพัสดุ"] || "")}" aria-label="ดูไส้ใน ${escapeHtml(item["รหัสพัสดุ"] || "")} ต่อ 1 SET">+</button>` : ""}<span class="material-code">${escapeHtml(item["รหัสพัสดุ"] || "")}</span></td>
+      <td>${formatAmount(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0)}</td>
+      <td>${formatAmount(item["จำนวนรื้อถอน"] ?? 0)}</td>
+    </tr>
+  `).join("");
   els.installResultCount.textContent = `${installItems.length} รายการ`;
   els.demolitionResultCount.textContent = `${demolitionItems.length} รายการ`;
+  els.combinedResultCount.textContent = `${combinedItems.length} รายการ`;
   updateResultTypeView();
   els.resultMeta.textContent = meta || `ทั้งหมด ${state.results.length} รายการ`;
 }
@@ -941,7 +958,7 @@ async function toggleSetComponents(event) {
     const detailRow = document.createElement("tr");
     detailRow.className = "set-component-row";
     const rows = data.items || [];
-    detailRow.innerHTML = `<td colspan="3"><div class="set-component-panel">
+    detailRow.innerHTML = `<td colspan="${parentRow.children.length}"><div class="set-component-panel">
       <div class="set-component-title">อุปกรณ์ภายใน ${escapeHtml(data.setCode || button.dataset.setCode)} ต่อ 1 SET</div>
       ${rows.length ? `<table><thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ 10 หลัก</th><th>จำนวน</th></tr></thead><tbody>${rows.map((item) => `<tr><td>${escapeHtml(item.material || "")}</td><td>${escapeHtml(item.code || "")}</td><td>${formatAmount(item.quantity)}</td></tr>`).join("")}</tbody></table>` : '<div class="set-component-empty">ไม่พบรายการรหัส 10 หลักใน SET นี้</div>'}
     </div></td>`;
@@ -958,11 +975,19 @@ async function toggleSetComponents(event) {
 
 els.installResultRows.addEventListener("click", toggleSetComponents);
 els.demolitionResultRows.addEventListener("click", toggleSetComponents);
+els.combinedResultRows.addEventListener("click", toggleSetComponents);
 
 function updateResultTypeView() {
+  if (state.combinedView) {
+    els.installResultSection.hidden = true;
+    els.demolitionResultSection.hidden = true;
+    els.combinedResultSection.hidden = els.combinedResultRows.children.length === 0;
+    return;
+  }
   const isInstall = state.resultWorkType === "install";
   els.installResultSection.hidden = !isInstall || els.installResultRows.children.length === 0;
   els.demolitionResultSection.hidden = isInstall || els.demolitionResultRows.children.length === 0;
+  els.combinedResultSection.hidden = true;
 }
 
 function formatAmount(value) {
@@ -1040,19 +1065,47 @@ function writeSavedProjects(projects) {
   renderSavedProjects();
 }
 
-function downloadProjectFile(project) {
-  const payload = { format: "material-calculator-project", version: 1, project };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+async function prepareSaveAs(suggestedName, description, mimeType, extension) {
+  if (typeof window.showSaveFilePicker !== "function") return { fallback: true };
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName,
+      types: [{ description, accept: { [mimeType]: [extension] } }],
+    });
+    return { handle };
+  } catch (error) {
+    if (error?.name === "AbortError") return null;
+    return { fallback: true };
+  }
+}
+
+async function writeBlobToSaveTarget(blob, target, fallbackName) {
+  if (!target) return false;
+  if (target.handle) {
+    const writable = await target.handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return true;
+  }
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  const baseName = project.planNumber || project.name || "งานประมาณการ";
-  const safeName = String(baseName).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
   link.href = url;
-  link.download = `${safeName}.material-calculator.json`;
+  link.download = fallbackName;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+  return true;
+}
+
+async function downloadProjectFile(project) {
+  const payload = { format: "material-calculator-project", version: 1, project };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const baseName = project.planNumber || project.name || "งานประมาณการ";
+  const safeName = String(baseName).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+  const fileName = `${safeName}.material-calculator.json`;
+  const target = await prepareSaveAs(fileName, "ไฟล์งาน Material Calculator", "application/json", ".json");
+  return writeBlobToSaveTarget(blob, target, fileName);
 }
 
 async function importProjectFile(file) {
@@ -1170,6 +1223,8 @@ function resetProject() {
   state.departmentWork = {};
   state.activeWorkType = "install";
   state.resultWorkType = "install";
+  state.combinedView = false;
+  els.workspace.classList.remove("combined-view");
   state.pages = [[blankRow(state.department, "install"), blankRow(state.department, "install")]];
   state.structurePages = [[blankStructureRow("install")]];
   state.currentPage = 0;
@@ -1192,6 +1247,8 @@ async function openSavedProject(projectId, source = "local") {
     return;
   }
   state.activeProjectId = project.id;
+  state.combinedView = false;
+  els.workspace.classList.remove("combined-view");
   state.department = project.department || project.pages?.[0]?.[0]?.department || DEFAULT_DEPARTMENT;
   state.departmentWork = project.departments ? structuredClone(project.departments) : {
     [state.department]: {
@@ -1278,9 +1335,13 @@ async function saveProject(destination, cloudFolderId = null) {
   if (index >= 0) projects[index] = project;
   else projects.push(project);
   writeSavedProjects(projects);
-  downloadProjectFile(project);
-  setSaveState("saved", `✓ ดาวน์โหลดไฟล์แล้ว · ${formatSavedDate(now)}`);
-  setStatus("บันทึกสำรองในเบราว์เซอร์และดาวน์โหลดไฟล์งานลงเครื่องแล้ว");
+  const fileSaved = await downloadProjectFile(project);
+  if (!fileSaved) {
+    setStatus("ยกเลิก Save As — งานยังถูกสำรองไว้ในเบราว์เซอร์");
+    return;
+  }
+  setSaveState("saved", `✓ บันทึกไฟล์แล้ว · ${formatSavedDate(now)}`);
+  setStatus("บันทึกสำรองในเบราว์เซอร์และบันทึกไฟล์งานลงเครื่องแล้ว");
 }
 
 function waitForGoogleIdentity(timeoutMs = 10000) {
@@ -1542,12 +1603,24 @@ els.applyPages.addEventListener("click", () => {
 document.querySelectorAll(".work-type-button").forEach((button) => {
   button.addEventListener("click", () => {
     const workType = button.dataset.workType;
+    if (workType === "combined") {
+      saveCurrentPageFromDom();
+      state.combinedView = true;
+      state.resultWorkType = "combined";
+      els.workspace.classList.add("combined-view");
+      renderPageControls();
+      renderInsulators();
+      updateResultTypeView();
+      return;
+    }
     const indices = workTypePageIndices(workType);
     if (!indices.length) {
       setStatus(`ยังไม่มี${workTypeLabel(workType)} กรุณากำหนดจำนวนหน้าก่อน`, true);
       return;
     }
     saveCurrentPageFromDom();
+    state.combinedView = false;
+    els.workspace.classList.remove("combined-view");
     state.activeWorkType = workType;
     state.resultWorkType = workType;
     state.currentPage = indices[0];
@@ -1657,6 +1730,9 @@ els.expandSet.addEventListener("click", async () => {
 
 els.exportExcel.addEventListener("click", async () => {
   try {
+    const fileName = exportFileName("ผลลัพธ์");
+    const saveTarget = await prepareSaveAs(fileName, "Excel Workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
+    if (!saveTarget) { setStatus("ยกเลิก Save As"); return; }
     setStatus("กำลังสร้าง Excel...");
     const response = await fetch("/api/export", { method: "POST" });
     if (!response.ok) {
@@ -1664,12 +1740,7 @@ els.exportExcel.addEventListener("click", async () => {
       throw new Error(data.error || "Export ไม่สำเร็จ");
     }
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = exportFileName("ผลลัพธ์");
-    link.click();
-    URL.revokeObjectURL(url);
+    await writeBlobToSaveTarget(blob, saveTarget, fileName);
     setStatus("Export สำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
@@ -1679,6 +1750,9 @@ els.exportExcel.addEventListener("click", async () => {
 els.exportPages.addEventListener("click", async () => {
   try {
     saveCurrentPageFromDom();
+    const fileName = exportFileName("รายการหัวเสาแยกหน้า");
+    const saveTarget = await prepareSaveAs(fileName, "Excel Workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
+    if (!saveTarget) { setStatus("ยกเลิก Save As"); return; }
     setStatus("กำลังสร้างสรุปแต่ละหน้า...");
     const response = await fetch("/api/export-pages", {
       method: "POST",
@@ -1690,12 +1764,7 @@ els.exportPages.addEventListener("click", async () => {
       throw new Error(data.error || "Export รายการแต่ละหน้าไม่สำเร็จ");
     }
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = exportFileName("รายการหัวเสาแยกหน้า");
-    link.click();
-    URL.revokeObjectURL(url);
+    await writeBlobToSaveTarget(blob, saveTarget, fileName);
     setStatus("Export รายการแต่ละหน้าสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
@@ -1705,6 +1774,9 @@ els.exportPages.addEventListener("click", async () => {
 els.exportPageHardware.addEventListener("click", async () => {
   try {
     saveCurrentPageFromDom();
+    const fileName = exportFileName("ลูกถ้วย-Preformแยกหน้า");
+    const saveTarget = await prepareSaveAs(fileName, "Excel Workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
+    if (!saveTarget) { setStatus("ยกเลิก Save As"); return; }
     setStatus("กำลังสร้างไฟล์ลูกถ้วย/Preform และสรุปลูกถ้วยแยกหน้า...");
     const response = await fetch("/api/export-page-hardware", {
       method: "POST",
@@ -1716,12 +1788,7 @@ els.exportPageHardware.addEventListener("click", async () => {
       throw new Error(data.error || "Export ลูกถ้วยและอุปกรณ์ยึดสายไม่สำเร็จ");
     }
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = exportFileName("ลูกถ้วย-Preformแยกหน้า");
-    link.click();
-    URL.revokeObjectURL(url);
+    await writeBlobToSaveTarget(blob, saveTarget, fileName);
     setStatus("Export ลูกถ้วย/Preform และสรุปลูกถ้วยแยกหน้าสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
@@ -1731,6 +1798,9 @@ els.exportPageHardware.addEventListener("click", async () => {
 els.exportPageCrossarms.addEventListener("click", async () => {
   try {
     saveCurrentPageFromDom();
+    const fileName = exportFileName("คอนแยกหน้า");
+    const saveTarget = await prepareSaveAs(fileName, "Excel Workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
+    if (!saveTarget) { setStatus("ยกเลิก Save As"); return; }
     setStatus("กำลัง Export คอนแยกตามหน้าและหัวเสา...");
     const response = await fetch("/api/export-page-crossarms", {
       method: "POST",
@@ -1742,12 +1812,7 @@ els.exportPageCrossarms.addEventListener("click", async () => {
       throw new Error(data.error || "Export คอนแยกหน้าไม่สำเร็จ");
     }
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = exportFileName("คอนแยกหน้า");
-    link.click();
-    URL.revokeObjectURL(url);
+    await writeBlobToSaveTarget(blob, saveTarget, fileName);
     setStatus("Export คอนแยกหน้าสำเร็จ");
   } catch (error) {
     setStatus(error.message, true);
