@@ -98,6 +98,10 @@ const els = {
   addWireRow: document.getElementById("addWireRow"),
   actualInsulatorEntry: document.getElementById("actualInsulatorEntry"),
   actualInsulatorInputs: [...document.querySelectorAll("[data-actual-insulator]")],
+  installInsulatorSummary: document.getElementById("installInsulatorSummary"),
+  demolitionInsulatorSummary: document.getElementById("demolitionInsulatorSummary"),
+  actualInsulatorSummary: document.getElementById("actualInsulatorSummary"),
+  insulatorViewHint: document.getElementById("insulatorViewHint"),
   calculate: document.getElementById("calculate"),
   expandSet: document.getElementById("expandSet"),
   exportExcel: document.getElementById("exportExcel"),
@@ -644,6 +648,13 @@ function createSurgeDetailsRow(row, index) {
 
 function renderInsulators() {
   const totals = summarizeInsulatorsByWorkType(state.pages);
+  const showDemolition = state.activeWorkType === "demolition";
+  els.installInsulatorSummary.hidden = showDemolition;
+  els.demolitionInsulatorSummary.hidden = !showDemolition;
+  els.actualInsulatorSummary.hidden = !showDemolition;
+  els.insulatorViewHint.textContent = showDemolition
+    ? "งานรื้อถอน · เปรียบเทียบยอดคำนวณกับยอดนับจริง"
+    : "งานติดตั้ง · อัปเดตตามจำนวนที่กรอก";
   document.getElementById("installUprightCount").textContent = formatAmount(totals.install.upright);
   document.getElementById("installHorizontalCount").textContent = formatAmount(totals.install.horizontal);
   document.getElementById("demolitionUprightCount").textContent = formatAmount(totals.demolition.upright);
