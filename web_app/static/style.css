@@ -429,9 +429,12 @@ button.compact { min-height: 32px; padding: 5px 9px; }
 .cloud-folder-heading-actions { display: flex; align-items: center; gap: 10px; }
 .cloud-folder-heading-actions button { border: 0; border-radius: 9px; padding: 8px 12px; background: var(--accent); color: #fff; font-weight: 800; cursor: pointer; }
 .cloud-project-folder { margin-top: 12px; border: 1px solid #ddcce8; border-radius: 12px; overflow: hidden; background: #fff; }
-.cloud-project-folder-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px; background: linear-gradient(90deg, #f1e8f7, #fff8e7); }
+.cloud-project-folder-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 13px; background: linear-gradient(90deg, #f1e8f7, #fff8e7); cursor: pointer; list-style: none; user-select: none; }
+.cloud-project-folder-title::-webkit-details-marker { display: none; }
 .cloud-project-folder-title > div { display: flex; align-items: center; gap: 8px; }
 .cloud-project-folder-title small { color: var(--muted); }
+.folder-chevron { color: #6f328e; font-size: 22px; line-height: 1; transition: transform .18s ease; }
+.cloud-project-folder[open] .folder-chevron { transform: rotate(90deg); }
 .folder-icon { color: #7a3f98; }
 .folder-delete { border: 0; background: transparent; color: #a33b3b; cursor: pointer; font-weight: 700; }
 .cloud-folder-projects { padding: 8px; }

@@ -781,13 +781,13 @@ function renderCloudProjectFolders(projects) {
   const folders = [{ id: "", name: "งานทั่วไป" }, ...state.cloudFolders];
   els.cloudSavedProjectList.innerHTML = folders.map((folder) => {
     const folderProjects = projects.filter((project) => String(project.folderId || "") === folder.id);
-    return `<section class="cloud-project-folder">
-      <div class="cloud-project-folder-title">
-        <div><span class="folder-icon">▰</span><strong>${escapeHtml(folder.name)}</strong><small>${folderProjects.length} งาน</small></div>
+    return `<details class="cloud-project-folder">
+      <summary class="cloud-project-folder-title">
+        <div><span class="folder-chevron">›</span><span class="folder-icon">▰</span><strong>${escapeHtml(folder.name)}</strong><small>${folderProjects.length} งาน</small></div>
         ${folder.id ? `<button type="button" class="folder-delete" data-action="delete-folder" data-folder-id="${escapeHtml(folder.id)}">ลบโฟลเดอร์</button>` : ""}
-      </div>
+      </summary>
       <div class="cloud-folder-projects">${folderProjects.length ? savedProjectCardsMarkup(folderProjects, "cloud") : '<div class="empty-saved compact">ยังไม่มีงานในโฟลเดอร์นี้</div>'}</div>
-    </section>`;
+    </details>`;
   }).join("");
 }
 
@@ -1075,6 +1075,7 @@ async function handleCloudFolderChange(event) {
 async function handleCloudFolderAction(event) {
   const button = event.target.closest('button[data-action="delete-folder"]');
   if (!button) return;
+  event.preventDefault();
   const folder = state.cloudFolders.find((item) => item.id === button.dataset.folderId);
   if (!folder || !window.confirm(`ลบโฟลเดอร์ “${folder.name}” ใช่ไหม`)) return;
   try {
