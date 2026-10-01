@@ -40,8 +40,13 @@
       </div>
       <div class="project-actions">
         <span id="saveHint">ยังไม่ได้บันทึกงานนี้</span>
+        <div class="quick-cloud-auth">
+          <div id="googleSignInQuick"></div>
+          <span id="cloudQuickUser" hidden></span>
+        </div>
         <button id="newProject" type="button">สร้างงานใหม่</button>
-        <button id="saveProject" class="primary" type="button">บันทึกงาน</button>
+        <button id="saveLocalProject" type="button">บันทึกงานลงเครื่อง</button>
+        <button id="saveCloudProject" class="primary" type="button">บันทึกขึ้น Cloud</button>
       </div>
     </section>
 
@@ -60,7 +65,14 @@
         </div>
       </div>
       <div id="cloudNotice" class="cloud-notice" hidden></div>
-      <div id="savedProjectList" class="saved-list"></div>
+      <div class="saved-source-section">
+        <div class="saved-source-heading"><h3>งานในเครื่องนี้</h3><span id="localSavedCount">0 งาน</span></div>
+        <div id="localSavedProjectList" class="saved-list"></div>
+      </div>
+      <div class="saved-source-section cloud-source-section">
+        <div class="saved-source-heading"><h3>งานบน Cloud</h3><span id="cloudSavedCount">0 งาน</span></div>
+        <div id="cloudSavedProjectList" class="saved-list"></div>
+      </div>
     </section>
 
     <section class="base-editor tab-panel" data-panel="base-request" hidden>

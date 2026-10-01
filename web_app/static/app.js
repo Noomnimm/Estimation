@@ -93,15 +93,21 @@ const els = {
   resultMeta: document.getElementById("resultMeta"),
   projectName: document.getElementById("projectName"),
   planNumber: document.getElementById("planNumber"),
-  saveProject: document.getElementById("saveProject"),
+  saveLocalProject: document.getElementById("saveLocalProject"),
+  saveCloudProject: document.getElementById("saveCloudProject"),
   newProject: document.getElementById("newProject"),
   saveHint: document.getElementById("saveHint"),
   savedCount: document.getElementById("savedCount"),
-  savedProjectList: document.getElementById("savedProjectList"),
+  localSavedProjectList: document.getElementById("localSavedProjectList"),
+  cloudSavedProjectList: document.getElementById("cloudSavedProjectList"),
+  localSavedCount: document.getElementById("localSavedCount"),
+  cloudSavedCount: document.getElementById("cloudSavedCount"),
   savedLocationText: document.getElementById("savedLocationText"),
   googleSignIn: document.getElementById("googleSignIn"),
+  googleSignInQuick: document.getElementById("googleSignInQuick"),
   cloudUser: document.getElementById("cloudUser"),
   cloudUserName: document.getElementById("cloudUserName"),
+  cloudQuickUser: document.getElementById("cloudQuickUser"),
   googleSignOut: document.getElementById("googleSignOut"),
   cloudNotice: document.getElementById("cloudNotice"),
   headImageDialog: document.getElementById("headImageDialog"),
@@ -681,17 +687,26 @@ function switchTab(tabName) {
 }
 
 function renderSavedProjects() {
-  const projects = (state.cloudUser ? state.cloudProjects : getSavedProjects())
-    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-  els.savedCount.textContent = String(projects.length);
-  els.savedLocationText.textContent = state.cloudUser
-    ? "ข้อมูลจาก Google Sheet กลางของทีม"
-    : "ข้อมูลในเบราว์เซอร์เครื่องนี้ - เข้าสู่ระบบเพื่อเปิดงาน Cloud";
+  const localProjects = getSavedProjects().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const cloudProjects = [...state.cloudProjects].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  els.savedCount.textContent = String(localProjects.length + cloudProjects.length);
+  els.localSavedCount.textContent = `${localProjects.length} งาน`;
+  els.cloudSavedCount.textContent = state.cloudUser ? `${cloudProjects.length} งาน` : "ยังไม่เข้าสู่ระบบ";
+  els.savedLocationText.textContent = "แสดงงานในเครื่องนี้และงานบน Google Sheet แยกจากกัน";
+  renderSavedProjectList(els.localSavedProjectList, localProjects, "local");
+  if (state.cloudUser) {
+    renderSavedProjectList(els.cloudSavedProjectList, cloudProjects, "cloud");
+  } else {
+    els.cloudSavedProjectList.innerHTML = '<div class="empty-saved">เข้าสู่ระบบ Google เพื่อดูและเปิดงานบน Cloud</div>';
+  }
+}
+
+function renderSavedProjectList(container, projects, source) {
   if (!projects.length) {
-    els.savedProjectList.innerHTML = '<div class="empty-saved">ยังไม่มีงานที่บันทึกไว้</div>';
+    container.innerHTML = '<div class="empty-saved">ยังไม่มีงานที่บันทึกไว้</div>';
     return;
   }
-  els.savedProjectList.innerHTML = projects.map((project) => `
+  container.innerHTML = projects.map((project) => `
     <article class="saved-card">
       <div class="saved-info">
         <h3>${escapeHtml(project.name)}</h3>
@@ -703,8 +718,9 @@ function renderSavedProjects() {
         </div>
       </div>
       <div class="saved-actions">
-        <button type="button" data-action="open" data-source="${state.cloudUser ? "cloud" : "local"}" data-project-id="${escapeHtml(project.id)}">เปิดงาน</button>
-        <button type="button" class="danger" data-action="delete" data-source="${state.cloudUser ? "cloud" : "local"}" data-project-id="${escapeHtml(project.id)}">ลบ</button>
+        <span class="saved-source-badge ${source}">${source === "cloud" ? "Cloud" : "เครื่องนี้"}</span>
+        <button type="button" data-action="open" data-source="${source}" data-project-id="${escapeHtml(project.id)}">เปิดงาน</button>
+        <button type="button" class="danger" data-action="delete" data-source="${source}" data-project-id="${escapeHtml(project.id)}">ลบ</button>
       </div>
     </article>
   `).join("");
@@ -758,7 +774,12 @@ async function openSavedProject(projectId, source = "local") {
   setStatus("เปิดงานเดิมสำเร็จ");
 }
 
-async function saveProject() {
+async function saveProject(destination) {
+  if (destination === "cloud" && !state.cloudUser) {
+    setStatus("กรุณาเข้าสู่ระบบ Google ก่อนบันทึกขึ้น Cloud", true);
+    els.googleSignInQuick.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
   stashCurrentDepartment();
   const name = els.projectName.value.trim();
   if (!name) {
@@ -766,7 +787,7 @@ async function saveProject() {
     setStatus("กรุณาใส่ชื่องานก่อนบันทึก", true);
     return;
   }
-  const projects = getSavedProjects();
+  const projects = destination === "cloud" ? state.cloudProjects : getSavedProjects();
   const now = new Date().toISOString();
   const id = state.activeProjectId || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const project = {
@@ -783,12 +804,9 @@ async function saveProject() {
     updatedAt: now,
   };
   const index = projects.findIndex((item) => item.id === id);
-  if (index >= 0) projects[index] = project;
-  else projects.push(project);
   state.activeProjectId = id;
-  writeSavedProjects(projects);
-  els.saveHint.textContent = `บันทึกล่าสุด ${formatSavedDate(now)}`;
-  if (state.cloudUser) {
+  els.saveHint.textContent = `${destination === "cloud" ? "Cloud" : "เครื่องนี้"} · บันทึกล่าสุด ${formatSavedDate(now)}`;
+  if (destination === "cloud") {
     try {
       setStatus("กำลังบันทึกลง Google Sheet...");
       const data = await cloudRequest("/api/cloud-projects", {
@@ -803,11 +821,14 @@ async function saveProject() {
       setStatus("บันทึกงานลง Google Sheet แล้ว");
       return;
     } catch (error) {
-      setStatus(`บันทึกในเครื่องแล้ว แต่ Cloud ไม่สำเร็จ: ${error.message}`, true);
+      setStatus(`บันทึกขึ้น Cloud ไม่สำเร็จ: ${error.message}`, true);
       return;
     }
   }
-  setStatus(state.cloudConfigured ? "บันทึกในเครื่องแล้ว - เข้าสู่ระบบเพื่อบันทึก Cloud" : "บันทึกงานแล้ว");
+  if (index >= 0) projects[index] = project;
+  else projects.push(project);
+  writeSavedProjects(projects);
+  setStatus("บันทึกงานลงเครื่องนี้แล้ว");
 }
 
 function waitForGoogleIdentity(timeoutMs = 10000) {
@@ -828,11 +849,13 @@ function waitForGoogleIdentity(timeoutMs = 10000) {
 async function setupCloudLogin(config) {
   state.cloudConfigured = Boolean(config.configured);
   if (!state.cloudConfigured) {
+    els.saveCloudProject.disabled = true;
     els.cloudNotice.hidden = false;
     els.cloudNotice.textContent = "Cloud ยังไม่พร้อมใช้งาน ผู้ดูแลต้องตั้งค่า Google Client ID และ Service Account บน Render";
     renderSavedProjects();
     return;
   }
+  els.saveCloudProject.disabled = false;
   try {
     await waitForGoogleIdentity();
     window.google.accounts.id.initialize({
@@ -843,6 +866,12 @@ async function setupCloudLogin(config) {
     window.google.accounts.id.renderButton(els.googleSignIn, {
       theme: "outline",
       size: "large",
+      text: "signin_with",
+      locale: "th",
+    });
+    window.google.accounts.id.renderButton(els.googleSignInQuick, {
+      theme: "outline",
+      size: "medium",
       text: "signin_with",
       locale: "th",
     });
@@ -865,8 +894,11 @@ async function loadCloudProjects() {
     state.cloudProjects = data.projects || [];
     state.cloudUser = data.user || null;
     els.googleSignIn.hidden = true;
+    els.googleSignInQuick.hidden = true;
     els.cloudUser.hidden = false;
     els.cloudUserName.textContent = state.cloudUser.name || state.cloudUser.email;
+    els.cloudQuickUser.hidden = false;
+    els.cloudQuickUser.textContent = `Cloud: ${state.cloudUser.name || state.cloudUser.email}`;
     els.cloudNotice.hidden = true;
     renderSavedProjects();
     setStatus("เชื่อมต่อ Google Sheet แล้ว");
@@ -876,7 +908,9 @@ async function loadCloudProjects() {
     state.cloudProjects = [];
     sessionStorage.removeItem("material-calculator-google-credential");
     els.googleSignIn.hidden = false;
+    els.googleSignInQuick.hidden = false;
     els.cloudUser.hidden = true;
+    els.cloudQuickUser.hidden = true;
     els.cloudNotice.hidden = false;
     els.cloudNotice.textContent = error.message;
     renderSavedProjects();
@@ -887,7 +921,8 @@ document.querySelectorAll(".app-tab").forEach((button) => {
   button.addEventListener("click", () => switchTab(button.dataset.tab));
 });
 
-els.saveProject.addEventListener("click", saveProject);
+els.saveLocalProject.addEventListener("click", () => saveProject("local"));
+els.saveCloudProject.addEventListener("click", () => saveProject("cloud"));
 els.newProject.addEventListener("click", resetProject);
 els.googleSignOut.addEventListener("click", () => {
   window.google?.accounts?.id?.disableAutoSelect();
@@ -896,11 +931,13 @@ els.googleSignOut.addEventListener("click", () => {
   state.cloudProjects = [];
   sessionStorage.removeItem("material-calculator-google-credential");
   els.googleSignIn.hidden = false;
+  els.googleSignInQuick.hidden = false;
   els.cloudUser.hidden = true;
+  els.cloudQuickUser.hidden = true;
   renderSavedProjects();
   setStatus("ออกจากระบบ Google แล้ว");
 });
-els.savedProjectList.addEventListener("click", (event) => {
+function handleSavedProjectAction(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   const projectId = button.dataset.projectId;
@@ -927,7 +964,9 @@ els.savedProjectList.addEventListener("click", (event) => {
   writeSavedProjects(getSavedProjects().filter((item) => item.id !== projectId));
   if (state.activeProjectId === projectId) state.activeProjectId = "";
   setStatus("ลบงานที่บันทึกแล้ว");
-});
+}
+els.localSavedProjectList.addEventListener("click", handleSavedProjectAction);
+els.cloudSavedProjectList.addEventListener("click", handleSavedProjectAction);
 
 els.applyPages.addEventListener("click", () => {
   saveCurrentPageFromDom();

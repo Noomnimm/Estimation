@@ -276,6 +276,11 @@ td select:focus,
   justify-content: flex-end;
 }
 
+.quick-cloud-auth { display: flex; align-items: center; min-height: 32px; }
+#cloudQuickUser { max-width: 230px; padding: 7px 10px; border: 1px solid #c9b2da; border-radius: 9px; background: #f8f1fc; color: var(--accent-dark); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#saveLocalProject { border-color: #87679d; color: var(--accent-dark); background: #fff; }
+#saveCloudProject { background: linear-gradient(135deg, #5b2584, #8141a6); }
+
 #saveHint {
   width: 100%;
   color: var(--muted);
@@ -405,6 +410,16 @@ button.compact { min-height: 32px; padding: 5px 9px; }
   gap: 10px;
   margin-top: 14px;
 }
+
+.saved-source-section { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fbf9fc; }
+.saved-source-section.cloud-source-section { background: linear-gradient(135deg, #faf5fd, #fffaf0); }
+.saved-source-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.saved-source-heading h3 { margin: 0; color: var(--accent-dark); }
+.saved-source-heading span { color: var(--muted); font-size: 12px; }
+.saved-source-section .saved-list { margin-top: 10px; }
+.saved-source-badge { padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.saved-source-badge.local { background: #eee5f4; color: #5a326f; }
+.saved-source-badge.cloud { background: #fff0bd; color: #785500; }
 
 .saved-card {
   display: flex;
