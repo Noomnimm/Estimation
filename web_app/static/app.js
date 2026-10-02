@@ -2246,8 +2246,11 @@ async function loadPublicPendingRequests() {
     }
     if (!data) throw lastError;
     if (loadSequence !== publicPendingLoadSequence) return false;
+    const resolvedIds = new Set(data.resolvedRequestIds || []);
     const serverRequests = data.requests || [];
-    state.publicPendingRequests = serverRequests;
+    const serverIds = new Set(serverRequests.map((request) => request.id));
+    const retainedRequests = readPublicPendingCache().filter((request) => !serverIds.has(request.id) && !resolvedIds.has(request.id));
+    state.publicPendingRequests = [...serverRequests, ...retainedRequests];
     writePublicPendingCache(state.publicPendingRequests);
     renderPublicPendingRequests();
     return true;
@@ -2524,7 +2527,10 @@ async function loadBaseRequests() {
   try {
     const data = await adminFetch("/api/base-requests/admin");
     if (loadSequence !== adminRequestLoadSequence) return false;
-    state.baseRequests = data.requests || [];
+    const serverRequests = data.requests || [];
+    const serverIds = new Set(serverRequests.map((request) => request.id));
+    const retainedPending = state.baseRequests.filter((request) => request.status === "pending" && !serverIds.has(request.id));
+    state.baseRequests = [...serverRequests, ...retainedPending];
     renderBaseRequests();
     return true;
   } catch (error) {
