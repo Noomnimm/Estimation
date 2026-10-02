@@ -933,6 +933,10 @@ td select {
 .result-work-section.demolition h3 { background: #f7dce7; color: #87234d; }
 .result-work-section.demolition h3 span { color: #a3486d; }
 .result-work-section.combined h3 { background: #e8edf1; color: #344653; }
+.combined-result-table { min-width: 720px; }
+.combined-result-table .combined-material-column { width: 46%; }
+.combined-result-table .combined-code-column { width: 26%; }
+.combined-result-table .combined-quantity-column { width: 14%; }
 .result-work-section.combined td:nth-child(3),
 .result-work-section.combined td:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
 .result-work-section .table-wrap { border: 0; border-radius: 0; }
