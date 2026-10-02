@@ -4,11 +4,18 @@ import pandas as pd
 from openpyxl import load_workbook
 from web_app.material_logic import (
     MaterialWorkbook, classify_wire_head, wire_head_multiplier, add_wire_materials,
-    insulator_rate, page_labels, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, TOTAL_COL,
+    insulator_rate, page_labels, parse_number, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, TOTAL_COL,
 )
 
 
 class HeadRuleTests(unittest.TestCase):
+    def test_count_expressions_support_basic_arithmetic(self):
+        self.assertEqual(parse_number("(4+4)*2"), 16)
+        self.assertEqual(parse_number("1200/3+100"), 500)
+        self.assertEqual(parse_number("10-2*3"), 4)
+        self.assertEqual(parse_number("1/0"), 0)
+        self.assertEqual(parse_number("2**8"), 0)
+
     def test_manual_poles_and_stubs_are_added_to_selected_work_type(self):
         workbook = MaterialWorkbook()
         workbook.base_df = pd.DataFrame(columns=[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL])

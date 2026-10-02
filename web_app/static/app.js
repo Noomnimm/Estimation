@@ -356,7 +356,7 @@ function renderStructureInputs() {
   pageRows.map((row, index) => ({ row, index })).filter(({ row }) => row.category !== "wire").forEach(({ row, index }, visibleIndex) => {
     const line = document.createElement("div");
     line.className = "structure-row";
-    line.innerHTML = `<label>${visibleIndex === 0 ? "<span>รายการเสา/ตอม่อ</span>" : ""}<select class="structure-item" aria-label="รายการเสา/ตอม่อ"><option value="">เลือกรายการ</option></select></label><label class="structure-count-label"><span>จำนวน</span><input class="structure-count" type="text" inputmode="text" placeholder="เช่น 4+4+5"></label><button class="remove-structure-row" type="button" aria-label="ลบรายการนี้">×</button>`;
+    line.innerHTML = `<label>${visibleIndex === 0 ? "<span>รายการเสา/ตอม่อ</span>" : ""}<select class="structure-item" aria-label="รายการเสา/ตอม่อ"><option value="">เลือกรายการ</option></select></label><label class="structure-count-label">${visibleIndex === 0 ? "<span>จำนวน</span>" : ""}<input class="structure-count" type="text" inputmode="text" aria-label="จำนวนเสา/ตอม่อ" placeholder="เช่น (4+4)*2"></label><button class="remove-structure-row" type="button" aria-label="ลบรายการนี้">×</button>`;
     const select = line.querySelector(".structure-item");
     STRUCTURE_GROUP_ORDER.forEach((group) => {
       const optgroup = document.createElement("optgroup");
@@ -400,7 +400,7 @@ function renderWireInputs() {
   pageRows.map((row, index) => ({ row, index })).filter(({ row }) => row.category === "wire").forEach(({ row, index }, visibleIndex) => {
     const line = document.createElement("div");
     line.className = "structure-row wire-row";
-    line.innerHTML = `<label>${visibleIndex === 0 ? "<span>ชนิดสาย</span>" : ""}<select class="wire-item" aria-label="ชนิดสาย"><option value="">เลือกชนิดสาย</option></select></label><label><span>จำนวน (เมตร)</span><input class="wire-count" type="text" inputmode="text" placeholder="เช่น 1200 หรือ 400+400"></label><button class="remove-structure-row remove-wire-row" type="button" aria-label="ลบรายการสายนี้">×</button>`;
+    line.innerHTML = `<label>${visibleIndex === 0 ? "<span>ชนิดสาย</span>" : ""}<select class="wire-item" aria-label="ชนิดสาย"><option value="">เลือกชนิดสาย</option></select></label><label>${visibleIndex === 0 ? "<span>จำนวน (เมตร)</span>" : ""}<input class="wire-count" type="text" inputmode="text" aria-label="จำนวนสาย (เมตร)" placeholder="เช่น 1200/3+100"></label><button class="remove-structure-row remove-wire-row" type="button" aria-label="ลบรายการสายนี้">×</button>`;
     const select = line.querySelector(".wire-item");
     WIRE_GROUP_ORDER.forEach((group) => {
       const groupItems = WIRE_CATALOG.filter((item) => item.group === group && (!item.department || item.department === state.department));

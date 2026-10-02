@@ -1240,7 +1240,7 @@ def parse_number(value: Any) -> float:
             return 0.0
         try:
             return float(evaluate_add_sub(ast.parse(expression, mode="eval").body))
-        except (SyntaxError, TypeError, ValueError):
+        except (SyntaxError, TypeError, ValueError, ArithmeticError):
             return 0.0
     try:
         return float(value)
@@ -1251,14 +1251,20 @@ def parse_number(value: Any) -> float:
 def evaluate_add_sub(node: ast.AST) -> float:
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
         return float(node.value)
-    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
         left = evaluate_add_sub(node.left)
         right = evaluate_add_sub(node.right)
-        return left + right if isinstance(node.op, ast.Add) else left - right
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        return left / right
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
         value = evaluate_add_sub(node.operand)
         return value if isinstance(node.op, ast.UAdd) else -value
-    raise ValueError("รองรับเฉพาะตัวเลข เครื่องหมาย +, - และวงเล็บ")
+    raise ValueError("รองรับเฉพาะตัวเลข เครื่องหมาย +, -, *, / และวงเล็บ")
 
 
 def natural_key(value: str) -> list[tuple[int, Any]]:
