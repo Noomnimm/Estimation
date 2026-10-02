@@ -48,18 +48,20 @@
           <select id="departmentSelect"></select>
         </label>
       </div>
-      <div class="project-actions">
-        <span id="saveHint" class="save-state new">● ยังไม่ได้บันทึกงานนี้</span>
-        <div class="quick-cloud-auth">
-          <div id="googleSignInQuick"></div>
-          <span id="cloudQuickUser" hidden></span>
+      <div class="project-action-panel">
+        <div class="project-status-row">
+          <span id="saveHint" class="save-state new">● ยังไม่ได้บันทึกงานนี้</span>
+          <div class="quick-cloud-auth">
+            <div id="googleSignInQuick"></div>
+            <span id="cloudQuickUser" hidden></span>
+          </div>
         </div>
-        <button id="newProject" type="button">สร้างงานใหม่</button>
-        <button id="openProjectFile" type="button">เปิดไฟล์งาน</button>
-        <input id="projectFileInput" type="file" accept=".json,.mcproject,application/json" hidden>
-        <button id="saveLocalProject" type="button">บันทึกงานลงเครื่อง</button>
-        <button id="saveLocalAs" type="button">บันทึกเป็น…</button>
-        <button id="saveCloudProject" class="primary" type="button">บันทึกขึ้น Cloud</button>
+        <div class="project-actions">
+          <div class="project-action-cluster"><span>จัดการงาน</span><button id="newProject" type="button">สร้างงานใหม่</button><button id="openProjectFile" type="button">เปิดไฟล์งาน</button></div>
+          <input id="projectFileInput" type="file" accept=".json,.mcproject,application/json" hidden>
+          <div class="project-action-cluster"><span>บันทึกในเครื่อง</span><button id="saveLocalProject" type="button">บันทึก</button><button id="saveLocalAs" type="button">บันทึกเป็น…</button></div>
+          <div class="project-action-cluster cloud-action-cluster"><span>Cloud</span><button id="saveCloudProject" class="primary" type="button">บันทึกขึ้น Cloud</button></div>
+        </div>
       </div>
     </section>
 
