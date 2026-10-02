@@ -86,6 +86,8 @@ const THEME_KEY = "material-calculator-theme";
 const FILE_HANDLE_DB = "material-calculator-file-handles";
 const FILE_HANDLE_STORE = "project-files";
 const LATEST_FILE_HANDLE_KEY = "__latest_project_file__";
+let publicPendingLoadSequence = 0;
+let adminRequestLoadSequence = 0;
 
 const els = {
   status: document.getElementById("status"),
@@ -2181,14 +2183,19 @@ async function submitBaseRequest(event) {
 }
 
 async function loadPublicPendingRequests() {
+  const loadSequence = ++publicPendingLoadSequence;
   try {
     const response = await fetch(`/api/base-requests/pending?refresh=${Date.now()}`, { cache: "no-store" });
     const data = await readJson(response);
+    if (loadSequence !== publicPendingLoadSequence) return false;
     state.publicPendingRequests = data.requests || [];
     renderPublicPendingRequests();
+    return true;
   } catch (error) {
+    if (loadSequence !== publicPendingLoadSequence) return false;
     els.publicPendingRequestList.innerHTML = `<div class="empty-saved">${escapeHtml(error.message)}</div>`;
     els.publicPendingRequestCount.textContent = "โหลดไม่สำเร็จ";
+    return false;
   }
 }
 
@@ -2448,12 +2455,15 @@ els.connectGoogleDrive.addEventListener("click", async () => {
 });
 
 async function loadBaseRequests() {
+  const loadSequence = ++adminRequestLoadSequence;
   try {
     const data = await adminFetch("/api/base-requests/admin");
+    if (loadSequence !== adminRequestLoadSequence) return false;
     state.baseRequests = data.requests || [];
     renderBaseRequests();
     return true;
   } catch (error) {
+    if (loadSequence !== adminRequestLoadSequence) return false;
     state.adminToken = "";
     sessionStorage.removeItem("material-calculator-admin-token");
     showAdminPanel();
