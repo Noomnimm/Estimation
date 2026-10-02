@@ -208,6 +208,21 @@ class BaseRequestTests(unittest.TestCase):
         self.assertNotIn("employeeId", requests[0])
         self.assertEqual(requests[0]["rows"][0]["code"], "Set1")
 
+    def test_just_submitted_request_survives_temporarily_stale_sheet_read(self):
+        store = MemoryBaseRequestStore()
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "12", "head": "WAITING FOR SHEET",
+            "rows": [{"material": "TEST", "code": "Set1", "quantity": 1}],
+        })
+        saved_rows = store.rows
+        store.rows = []
+
+        requests = store.list_base_requests()
+
+        self.assertEqual([item["id"] for item in requests], [request["id"]])
+        store.rows = saved_rows
+
     def test_admin_can_edit_request_while_approving_and_original_is_audited(self):
         store = MemoryBaseRequestStore()
         request = store.submit_base_request({

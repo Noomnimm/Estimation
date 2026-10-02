@@ -58,6 +58,7 @@ class GoogleSheetProjectStore:
         self._service = None
         self._drive_service = None
         self._lock = threading.RLock()
+        self._pending_request_cache: dict[str, dict[str, Any]] = {}
 
     @property
     def configured(self) -> bool:
@@ -158,12 +159,22 @@ class GoogleSheetProjectStore:
         with self._lock:
             self._ensure_named_sheet(REQUEST_SHEET, REQUEST_HEADERS)
             self._append_named_record(REQUEST_SHEET, REQUEST_HEADERS, record)
-        return self._request_to_public(record)
+            public_record = self._request_to_public(record)
+            self._pending_request_cache[public_record["id"]] = public_record
+        return public_record
 
     def list_base_requests(self) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
-        return [self._request_to_public(row) for row in reversed(rows)]
+            requests = [self._request_to_public(row) for row in reversed(rows)]
+            stored_by_id = {request["id"]: request for request in requests}
+            for request_id, request in list(self._pending_request_cache.items()):
+                stored = stored_by_id.get(request_id)
+                if stored and stored.get("status") != "pending":
+                    self._pending_request_cache.pop(request_id, None)
+                elif not stored:
+                    requests.insert(0, request)
+            return requests
 
     def list_pending_base_requests(self) -> list[dict[str, Any]]:
         """Return pending request details that are safe to show without Admin access."""
@@ -263,6 +274,7 @@ class GoogleSheetProjectStore:
                         "image_name": stored_rows.get("image_name", "") if isinstance(stored_rows, dict) else "",
                         "image_mime_type": stored_rows.get("image_mime_type", "") if isinstance(stored_rows, dict) else "",
                     })
+            self._pending_request_cache.pop(request_id, None)
         return self._request_to_public(record)
 
     def list_approved_base_rows(self) -> list[dict[str, Any]]:
