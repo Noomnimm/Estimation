@@ -1144,6 +1144,18 @@ td select {
 }
 :root[data-theme="dark"] .set-expand-button { border-color: #60717d; background: #30383e; color: #dce5eb; }
 :root[data-theme="dark"] .set-expand-button:hover { border-color: #7f929f; background: #3b464d; color: #fff; }
+:root[data-theme="dark"] .export-actions button,
+:root[data-theme="dark"] .export-actions #exportPageHardware {
+  border-color: #4d5860;
+  background: #30363b;
+  color: #edf1f3;
+}
+:root[data-theme="dark"] .export-actions button:hover,
+:root[data-theme="dark"] .export-actions #exportPageHardware:hover {
+  border-color: #6b7c87;
+  background: #353d43;
+  color: #fff;
+}
 :root[data-theme="dark"] button.danger,
 :root[data-theme="dark"] .folder-delete,
 :root[data-theme="dark"] .remove-head-row,
