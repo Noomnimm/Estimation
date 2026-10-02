@@ -165,6 +165,18 @@ class GoogleSheetProjectStore:
             rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
         return [self._request_to_public(row) for row in reversed(rows)]
 
+    def list_pending_base_requests(self) -> list[dict[str, Any]]:
+        """Return pending request details that are safe to show without Admin access."""
+        public_fields = {
+            "id", "submittedAt", "action", "targetDepartment", "size", "head", "rows",
+            "originalRows", "sourceSize", "sourceHead", "insulatorUpright", "insulatorHorizontal",
+        }
+        return [
+            {key: value for key, value in request.items() if key in public_fields}
+            for request in self.list_base_requests()
+            if request.get("status") == "pending"
+        ]
+
     def clear_approved_requests(self) -> int:
         """Clear approved request history without touching published BaseData rows."""
         with self._lock:

@@ -175,6 +175,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/base-requests/admin":
             self.list_base_requests()
             return
+        if parsed.path == "/api/base-requests/pending":
+            self.handle_json(lambda: {"requests": CLOUD_STORE.list_pending_base_requests()})
+            return
         if parsed.path == "/api/base-admin/cloud-trash":
             self.list_admin_cloud_trash()
             return

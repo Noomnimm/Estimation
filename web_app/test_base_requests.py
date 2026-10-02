@@ -187,6 +187,27 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(store.approved, [])
         self.assertEqual(store.rows[0]["status"], "rejected")
 
+    def test_public_pending_requests_hide_submitter_identity(self):
+        store = MemoryBaseRequestStore()
+        pending = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "12", "head": "PENDING",
+            "rows": [{"material": "TEST", "code": "Set1", "quantity": 1}],
+        })
+        rejected = store.submit_base_request({
+            "submitter_name": "อีกคน", "employee_id": "654321", "department": "กวว.",
+            "size": "12", "head": "REJECTED",
+            "rows": [{"material": "TEST", "code": "Set2", "quantity": 1}],
+        })
+        store.review_base_request(rejected["id"], False, "admin")
+
+        requests = store.list_pending_base_requests()
+
+        self.assertEqual([request["id"] for request in requests], [pending["id"]])
+        self.assertNotIn("submitterName", requests[0])
+        self.assertNotIn("employeeId", requests[0])
+        self.assertEqual(requests[0]["rows"][0]["code"], "Set1")
+
     def test_admin_can_edit_request_while_approving_and_original_is_audited(self):
         store = MemoryBaseRequestStore()
         request = store.submit_base_request({

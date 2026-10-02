@@ -125,6 +125,10 @@
         <label class="note-field"><span>เหตุผลหรือหมายเหตุ</span><textarea id="requestNote" rows="3"></textarea></label>
         <div class="actions"><button class="primary" type="submit">ส่งให้ Admin ตรวจ</button></div>
       </form>
+      <section class="pending-request-board">
+        <div class="pending-request-heading"><div><h3>รายการรออนุมัติ</h3><p>กด + เพื่อดูรายละเอียดคำขอ หรือกด − เพื่อพับเก็บ</p></div><strong id="publicPendingRequestCount">0 รายการ</strong></div>
+        <div id="publicPendingRequestList" class="public-pending-request-list"><div class="empty-saved">กำลังโหลดรายการ...</div></div>
+      </section>
     </section>
 
     <section class="base-editor tab-panel" data-panel="base-admin" hidden>

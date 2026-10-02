@@ -70,6 +70,7 @@ const state = {
   baseRequestOriginalRows: [],
   baseRequestImage: null,
   baseRequests: [],
+  publicPendingRequests: [],
   activeRequestStatus: "pending",
   insulatorRates: {},
   headImages: {},
@@ -151,6 +152,8 @@ const els = {
   requestMaterialRows: document.getElementById("requestMaterialRows"),
   addRequestMaterial: document.getElementById("addRequestMaterial"),
   requestNote: document.getElementById("requestNote"),
+  publicPendingRequestCount: document.getElementById("publicPendingRequestCount"),
+  publicPendingRequestList: document.getElementById("publicPendingRequestList"),
   adminLoginPanel: document.getElementById("adminLoginPanel"),
   adminRequestsPanel: document.getElementById("adminRequestsPanel"),
   adminLoginForm: document.getElementById("adminLoginForm"),
@@ -1323,6 +1326,7 @@ function switchTab(tabName) {
     panel.hidden = panel.dataset.panel !== tabName;
   });
   if (tabName === "saved") renderSavedProjects();
+  if (tabName === "base-request") loadPublicPendingRequests();
   if (tabName === "base-admin") {
     state.activeRequestStatus = "pending";
     showAdminPanel();
@@ -2169,10 +2173,66 @@ async function submitBaseRequest(event) {
       state.activeRequestStatus = "pending";
       renderBaseRequests();
     }
+    await loadPublicPendingRequests();
     setStatus(`ส่งคำขอ ${data.request.id.slice(0, 8)} ให้ Admin แล้ว`);
   } catch (error) {
     setStatus(error.message, true);
   }
+}
+
+async function loadPublicPendingRequests() {
+  try {
+    const response = await fetch(`/api/base-requests/pending?refresh=${Date.now()}`, { cache: "no-store" });
+    const data = await readJson(response);
+    state.publicPendingRequests = data.requests || [];
+    renderPublicPendingRequests();
+  } catch (error) {
+    els.publicPendingRequestList.innerHTML = `<div class="empty-saved">${escapeHtml(error.message)}</div>`;
+    els.publicPendingRequestCount.textContent = "โหลดไม่สำเร็จ";
+  }
+}
+
+function renderPublicPendingRequests() {
+  els.publicPendingRequestCount.textContent = `${state.publicPendingRequests.length} รายการ`;
+  els.publicPendingRequestList.innerHTML = "";
+  if (!state.publicPendingRequests.length) {
+    els.publicPendingRequestList.innerHTML = '<div class="empty-saved">ไม่มีรายการรออนุมัติ</div>';
+    return;
+  }
+  const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขข้อมูลเดิม", rename: "แก้ไขหัวเสา", copy: "คัดลอกเป็นหัวใหม่" };
+  state.publicPendingRequests.forEach((request) => {
+    const card = document.createElement("article");
+    card.className = "public-pending-request";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "public-pending-toggle";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.innerHTML = `<span class="pending-toggle-symbol">+</span><span><strong>${escapeHtml(request.size)} · ${escapeHtml(request.head)}</strong><small>${escapeHtml(request.targetDepartment || DEFAULT_DEPARTMENT)} · ${escapeHtml(actionLabels[request.action] || "เพิ่มข้อมูล")} · ${escapeHtml(formatSavedDate(request.submittedAt))}</small></span><em>${(request.rows || []).length} รายการ</em>`;
+    const details = document.createElement("div");
+    details.className = "public-pending-details";
+    details.hidden = true;
+    const insulators = document.createElement("p");
+    insulators.textContent = `ลูกถ้วยตั้ง ${formatAmount(request.insulatorUpright)} ลูก · ลูกถ้วยนอน ${formatAmount(request.insulatorHorizontal)} ลูก`;
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ/SET</th><th>จำนวน</th></tr></thead>";
+    const body = document.createElement("tbody");
+    (request.rows || []).forEach((item) => {
+      const row = document.createElement("tr");
+      [item.material, item.code, formatAmount(item.quantity)].forEach((value) => { const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell); });
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    const wrap = document.createElement("div"); wrap.className = "table-wrap"; wrap.appendChild(table);
+    details.append(insulators, wrap);
+    toggle.addEventListener("click", () => {
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!expanded));
+      toggle.querySelector(".pending-toggle-symbol").textContent = expanded ? "+" : "−";
+      details.hidden = expanded;
+    });
+    card.append(toggle, details);
+    els.publicPendingRequestList.appendChild(card);
+  });
 }
 
 function setSelectOptions(select, values, placeholder) {
