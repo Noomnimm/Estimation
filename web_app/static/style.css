@@ -413,6 +413,7 @@ td select:focus,
 .image-dialog img { display: block; max-width: 100%; max-height: calc(92vh - 80px); margin: auto; object-fit: contain; }
 .form-grid label, .note-field, .admin-login label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
 .form-grid input, .form-grid select, .note-field textarea, .admin-login input { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; font: inherit; }
+.form-grid input[readonly] { background: var(--soft); color: var(--text); font-weight: 700; cursor: default; }
 .request-material-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
 .request-material-head h3 { margin: 0; font-size: 16px; }
 .pending-request-board { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }

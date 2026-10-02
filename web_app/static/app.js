@@ -141,6 +141,8 @@ const els = {
   requestHeadField: document.getElementById("requestHeadField"),
   requestSizeLabel: document.getElementById("requestSizeLabel"),
   requestHeadLabel: document.getElementById("requestHeadLabel"),
+  requestLastEditorField: document.getElementById("requestLastEditorField"),
+  requestLastEditor: document.getElementById("requestLastEditor"),
   requestInsulatorUpright: document.getElementById("requestInsulatorUpright"),
   requestInsulatorHorizontal: document.getElementById("requestInsulatorHorizontal"),
   requestImagePanel: document.getElementById("requestImagePanel"),
@@ -2332,14 +2334,14 @@ els.refreshPublicPendingRequests.addEventListener("click", async () => {
   }
 });
 
-function setSelectOptions(select, values, placeholder, lastEditors = null) {
+function setSelectOptions(select, values, placeholder) {
   select.innerHTML = "";
   const empty = document.createElement("option");
   empty.value = ""; empty.textContent = placeholder; select.appendChild(empty);
   values.forEach((value) => {
     const option = document.createElement("option");
     option.value = value;
-    option.textContent = lastEditors ? `${value} · แก้ไขล่าสุดโดย ${lastEditors[value] || "Admin"}` : value;
+    option.textContent = value;
     select.appendChild(option);
   });
 }
@@ -2394,6 +2396,8 @@ async function switchRequestAction() {
   els.existingDataHint.hidden = !usesSource;
   els.requestSizeField.hidden = action !== "add";
   els.requestHeadLabel.textContent = usesSource ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
+  els.requestLastEditorField.hidden = !usesSource || deleting;
+  els.requestLastEditor.value = "";
   els.addRequestMaterial.hidden = deleting;
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
@@ -2427,7 +2431,7 @@ async function loadReplaceHeads() {
   try {
     const response = await fetch(`/api/heads?size=${encodeURIComponent(els.replaceSize.value)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
-    setSelectOptions(els.replaceHead, data.heads, "เลือกหัวเสา", data.lastEditors || {});
+    setSelectOptions(els.replaceHead, data.heads, "เลือกหัวเสา");
     els.existingDataHint.textContent = "เลือกหัวเสาเพื่อดูรายการเดิม";
   } catch (error) { setStatus(error.message, true); }
 }
@@ -2435,6 +2439,7 @@ async function loadReplaceHeads() {
 async function loadExistingBaseEntry() {
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
+  els.requestLastEditor.value = "";
   if (!els.replaceSize.value || !els.replaceHead.value) return;
   try {
     const response = await fetch(`/api/base-entry?size=${encodeURIComponent(els.replaceSize.value)}&head=${encodeURIComponent(els.replaceHead.value)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
@@ -2446,7 +2451,7 @@ async function loadExistingBaseEntry() {
     renderRequestImagePreview();
     data.rows.forEach((row) => addRequestMaterialRow(row, true));
     const action = els.requestAction.value;
-    const editorLabel = `แก้ไขล่าสุดโดย ${data.lastModifiedBy || "Admin"}`;
+    els.requestLastEditor.value = data.lastModifiedBy || "Admin";
     if (action === "rename") {
       els.requestHead.value = els.replaceHead.value;
     } else if (action === "copy") {
@@ -2455,12 +2460,12 @@ async function loadExistingBaseEntry() {
       els.requestMaterialRows.querySelectorAll("input, button").forEach((control) => { control.disabled = true; });
     }
     els.existingDataHint.textContent = action === "rename"
-      ? `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว · ${editorLabel} · ใส่ชื่อหัวเสาใหม่ด้านบน`
+      ? `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว · ใส่ชื่อหัวเสาใหม่ด้านบน`
       : action === "copy"
-        ? `คัดลอกข้อมูลเดิม ${data.rows.length} รายการแล้ว · ${editorLabel} · เปลี่ยนชื่อและแก้ไส้ในได้ทันที`
+        ? `คัดลอกข้อมูลเดิม ${data.rows.length} รายการแล้ว · เปลี่ยนชื่อและแก้ไส้ในได้ทันที`
         : action === "delete"
-          ? `หัวเสานี้มี ${data.rows.length} รายการ · ${editorLabel} · และจะถูกลบทั้งหมดหลัง Admin อนุมัติ`
-        : `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว · ${editorLabel} · แก้ไข เพิ่ม หรือนำรายการออกได้`;
+          ? `หัวเสานี้มี ${data.rows.length} รายการ และจะถูกลบทั้งหมดหลัง Admin อนุมัติ`
+        : `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว · แก้ไข เพิ่ม หรือนำรายการออกได้`;
   } catch (error) { setStatus(error.message, true); }
 }
 
