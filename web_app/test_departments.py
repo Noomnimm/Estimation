@@ -28,6 +28,7 @@ class DepartmentTests(unittest.TestCase):
         ])
 
     def test_department_filters_selectors_and_calculation(self):
+        self.assertIn("แผนกแรงต่ำ", self.workbook.get_departments())
         self.assertEqual(self.workbook.get_sizes("แผนกแรงสูง TAC"), [])
         self.assertEqual(self.workbook.get_heads("1", "แผนกหม้อแปลง"), ["HEAD"])
         result = self.workbook.calculate([[

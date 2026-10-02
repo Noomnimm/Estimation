@@ -212,7 +212,7 @@ class MaterialWorkbook:
         return len(rows)
 
     def get_departments(self) -> list[str]:
-        configured = [DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC", "แผนกหม้อแปลง", "แผนกสายส่ง"]
+        configured = [DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC", "แผนกแรงต่ำ", "แผนกหม้อแปลง", "แผนกสายส่ง"]
         return configured
 
     def get_sizes(self, department: str = DEFAULT_DEPARTMENT) -> list[str]:

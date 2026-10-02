@@ -1,6 +1,12 @@
-const DEPARTMENTS = ["แผนกแรงสูง", "แผนกแรงสูง TAC", "แผนกหม้อแปลง", "แผนกสายส่ง"];
+const DEPARTMENTS = ["แผนกแรงสูง", "แผนกแรงสูง TAC", "แผนกแรงต่ำ", "แผนกหม้อแปลง", "แผนกสายส่ง"];
 const DEFAULT_DEPARTMENT = DEPARTMENTS[0];
 const STRUCTURE_CATALOG = [
+  { group: "เสาคอนกรีต", department: "แผนกแรงต่ำ", code: "1000010001", material: "เสา คอร. 8.00m" },
+  { group: "เสาคอนกรีต", department: "แผนกแรงต่ำ", code: "1000010002", material: "เสา คอร. 9.00m" },
+  { group: "เสาคอนกรีต", department: "แผนกแรงต่ำ", code: "1000010004", material: "เสา คอร. 12.00m" },
+  { group: "ตอม่อสำหรับเสาแรงต่ำ", department: "แผนกแรงต่ำ", code: "Set14301", material: "ตอม่อ คอร. 0.25 x 0.25 x 3.50m" },
+  { group: "ตอม่อสำหรับเสาแรงต่ำ", department: "แผนกแรงต่ำ", code: "Set14302", material: "ตอม่อ คอร. 0.25 x 0.25 x 4.50m" },
+  { group: "ตอม่อสำหรับเสาแรงต่ำ", department: "แผนกแรงต่ำ", code: "Set14303", material: "ตอม่อ คอร. 0.25 x 0.25 x 5.50m" },
   { group: "เสาคอนกรีต", code: "1000010004", material: "POLE,CONCRETE, 12 M.LONG" },
   { group: "เสาคอนกรีต", code: "1000010006", material: "POLE,CONCRETE, 14 M. LONG" },
   { group: "เสาคอนกรีต", code: "1000010012", material: "POLE,CONCRETE, 12.20 M. LONG" },
@@ -23,7 +29,7 @@ const STRUCTURE_CATALOG = [
   { group: "ฐานรากและตอม่อ", code: "Set14202", material: "POLE FOUNDATION 12.20, 14 M." },
   { group: "งานปรับปรุงเสา", code: "9010070004", material: "POLE IMPROVEMENT 12.20, 14 M." },
 ];
-const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
+const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสาแรงต่ำ", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
 const WIRE_CATALOG = [
   { group: "สาย TAC", department: "แผนกแรงสูง TAC", code: "1020050204", shortName: "240TAC", material: "CABLE,TWISTED,AL.22KV.3-1X240 SQ.MM." },
   { group: "สาย OHGW", code: "1010100002", shortName: "25OHGW", material: "WIRE,STEEL STRANDED 25 SQ.MM.TIS.404" },
@@ -324,7 +330,7 @@ function saveCurrentPageFromDom() {
   const structureRows = [...els.structureRows.querySelectorAll(".structure-row")];
   const wireRows = [...els.wireRows.querySelectorAll(".structure-row")];
   const savedStructures = structureRows.map((row) => {
-    const selected = STRUCTURE_CATALOG.find((item) => item.code === row.querySelector(".structure-item").value);
+    const selected = structureCatalogForDepartment().find((item) => item.code === row.querySelector(".structure-item").value);
     return {
       workType: state.activeWorkType,
       category: "structure",
@@ -361,10 +367,13 @@ function renderStructureInputs() {
     line.className = "structure-row";
     line.innerHTML = `<label>${visibleIndex === 0 ? "<span>รายการเสา/ตอม่อ</span>" : ""}<select class="structure-item" aria-label="รายการเสา/ตอม่อ"><option value="">เลือกรายการ</option></select></label><label class="structure-count-label">${visibleIndex === 0 ? "<span>จำนวน</span>" : ""}<input class="structure-count" type="text" inputmode="text" aria-label="จำนวนเสา/ตอม่อ" placeholder="เช่น (4+4)*2"></label><button class="remove-structure-row" type="button" aria-label="ลบรายการนี้">×</button>`;
     const select = line.querySelector(".structure-item");
+    const departmentCatalog = structureCatalogForDepartment();
     STRUCTURE_GROUP_ORDER.forEach((group) => {
+      const groupItems = departmentCatalog.filter((item) => item.group === group);
+      if (!groupItems.length) return;
       const optgroup = document.createElement("optgroup");
       optgroup.label = group;
-      STRUCTURE_CATALOG.filter((item) => item.group === group).forEach((item) => {
+      groupItems.forEach((item) => {
         const option = document.createElement("option");
         option.value = item.code;
         option.textContent = `${item.code} — ${item.material}`;
@@ -375,7 +384,7 @@ function renderStructureInputs() {
     select.value = row.code || "";
     line.querySelector(".structure-count").value = row.count || "";
     select.addEventListener("change", () => {
-      const selected = STRUCTURE_CATALOG.find((item) => item.code === select.value);
+      const selected = departmentCatalog.find((item) => item.code === select.value);
       Object.assign(state.structurePages[state.currentPage][index], { workType: state.activeWorkType, code: selected?.code || "", material: selected?.material || "" });
       markProjectDirty();
     });
@@ -393,6 +402,11 @@ function renderStructureInputs() {
     });
     els.structureRows.appendChild(line);
   });
+}
+
+function structureCatalogForDepartment(department = state.department) {
+  const isLowVoltage = department === "แผนกแรงต่ำ";
+  return STRUCTURE_CATALOG.filter((item) => isLowVoltage ? item.department === department : !item.department);
 }
 
 function renderWireInputs() {
