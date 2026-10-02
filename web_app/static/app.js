@@ -2225,7 +2225,7 @@ function forgetPublicPendingRequest(requestId) {
   renderPublicPendingRequests();
 }
 
-async function loadPublicPendingRequests() {
+async function loadPublicPendingRequests(forceServerSnapshot = false) {
   const loadSequence = ++publicPendingLoadSequence;
   const initialCache = readPublicPendingCache();
   if (initialCache.length) {
@@ -2247,11 +2247,15 @@ async function loadPublicPendingRequests() {
     }
     if (!data) throw lastError;
     if (loadSequence !== publicPendingLoadSequence) return false;
-    const resolvedIds = new Set(data.resolvedRequestIds || []);
     const serverRequests = data.requests || [];
-    const serverIds = new Set(serverRequests.map((request) => request.id));
-    const retainedRequests = readPublicPendingCache().filter((request) => !serverIds.has(request.id) && !resolvedIds.has(request.id));
-    state.publicPendingRequests = [...serverRequests, ...retainedRequests];
+    if (forceServerSnapshot) {
+      state.publicPendingRequests = serverRequests;
+    } else {
+      const resolvedIds = new Set(data.resolvedRequestIds || []);
+      const serverIds = new Set(serverRequests.map((request) => request.id));
+      const retainedRequests = readPublicPendingCache().filter((request) => !serverIds.has(request.id) && !resolvedIds.has(request.id));
+      state.publicPendingRequests = [...serverRequests, ...retainedRequests];
+    }
     writePublicPendingCache(state.publicPendingRequests);
     renderPublicPendingRequests();
     return true;
@@ -2318,7 +2322,7 @@ els.refreshPublicPendingRequests.addEventListener("click", async () => {
   try {
     els.refreshPublicPendingRequests.disabled = true;
     els.refreshPublicPendingRequests.textContent = "กำลังโหลด...";
-    if (await loadPublicPendingRequests()) {
+    if (await loadPublicPendingRequests(true)) {
       setStatus(`โหลดรายการรออนุมัติล่าสุดแล้ว (${els.publicPendingRequestCount.textContent})`);
     }
   } finally {
