@@ -207,6 +207,8 @@ class BaseRequestTests(unittest.TestCase):
         self.assertNotIn("submitterName", requests[0])
         self.assertNotIn("employeeId", requests[0])
         self.assertEqual(requests[0]["rows"][0]["code"], "Set1")
+        overview = store.public_base_request_overview()
+        self.assertEqual(overview["resolvedRequestIds"], [rejected["id"]])
 
     def test_just_submitted_request_survives_temporarily_stale_sheet_read(self):
         store = MemoryBaseRequestStore()

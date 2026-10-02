@@ -178,15 +178,24 @@ class GoogleSheetProjectStore:
 
     def list_pending_base_requests(self) -> list[dict[str, Any]]:
         """Return pending request details that are safe to show without Admin access."""
+        return self.public_base_request_overview()["requests"]
+
+    def public_base_request_overview(self) -> dict[str, Any]:
+        """Return safe pending details plus IDs that have completed review."""
         public_fields = {
             "id", "submittedAt", "action", "targetDepartment", "size", "head", "rows",
             "originalRows", "sourceSize", "sourceHead", "insulatorUpright", "insulatorHorizontal",
         }
-        return [
+        all_requests = self.list_base_requests()
+        pending = [
             {key: value for key, value in request.items() if key in public_fields}
-            for request in self.list_base_requests()
+            for request in all_requests
             if request.get("status") == "pending"
         ]
+        return {
+            "requests": pending,
+            "resolvedRequestIds": [request["id"] for request in all_requests if request.get("status") != "pending"],
+        }
 
     def clear_approved_requests(self) -> int:
         """Clear approved request history without touching published BaseData rows."""

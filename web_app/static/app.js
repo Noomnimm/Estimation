@@ -86,6 +86,7 @@ const THEME_KEY = "material-calculator-theme";
 const FILE_HANDLE_DB = "material-calculator-file-handles";
 const FILE_HANDLE_STORE = "project-files";
 const LATEST_FILE_HANDLE_KEY = "__latest_project_file__";
+const PUBLIC_PENDING_CACHE_KEY = "material-calculator-pending-requests-v1";
 let publicPendingLoadSequence = 0;
 let adminRequestLoadSequence = 0;
 
@@ -2179,6 +2180,7 @@ async function submitBaseRequest(event) {
       state.activeRequestStatus = "pending";
       renderBaseRequests();
     }
+    rememberPublicPendingRequest(data.request);
     await loadPublicPendingRequests();
     setStatus(`ส่งคำขอ ${data.request.id.slice(0, 8)} ให้ Admin แล้ว`);
   } catch (error) {
@@ -2186,8 +2188,42 @@ async function submitBaseRequest(event) {
   }
 }
 
+function publicPendingSnapshot(request) {
+  return {
+    id: request.id, submittedAt: request.submittedAt, action: request.action,
+    targetDepartment: request.targetDepartment, size: request.size, head: request.head,
+    rows: request.rows || [], originalRows: request.originalRows || [],
+    sourceSize: request.sourceSize || "", sourceHead: request.sourceHead || "",
+    insulatorUpright: request.insulatorUpright, insulatorHorizontal: request.insulatorHorizontal,
+  };
+}
+
+function readPublicPendingCache() {
+  try {
+    const value = JSON.parse(localStorage.getItem(PUBLIC_PENDING_CACHE_KEY) || "[]");
+    return Array.isArray(value) ? value.filter((item) => item?.id) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePublicPendingCache(requests) {
+  localStorage.setItem(PUBLIC_PENDING_CACHE_KEY, JSON.stringify(requests.map(publicPendingSnapshot)));
+}
+
+function rememberPublicPendingRequest(request) {
+  const requests = readPublicPendingCache().filter((item) => item.id !== request.id);
+  requests.unshift(publicPendingSnapshot(request));
+  writePublicPendingCache(requests);
+}
+
 async function loadPublicPendingRequests() {
   const loadSequence = ++publicPendingLoadSequence;
+  const initialCache = readPublicPendingCache();
+  if (initialCache.length) {
+    state.publicPendingRequests = initialCache;
+    renderPublicPendingRequests();
+  }
   try {
     let data;
     let lastError;
@@ -2203,13 +2239,25 @@ async function loadPublicPendingRequests() {
     }
     if (!data) throw lastError;
     if (loadSequence !== publicPendingLoadSequence) return false;
-    state.publicPendingRequests = data.requests || [];
+    const resolvedIds = new Set(data.resolvedRequestIds || []);
+    const serverRequests = data.requests || [];
+    const serverIds = new Set(serverRequests.map((request) => request.id));
+    const cachedRequests = readPublicPendingCache().filter((request) => !resolvedIds.has(request.id) && !serverIds.has(request.id));
+    state.publicPendingRequests = [...serverRequests, ...cachedRequests];
+    writePublicPendingCache(state.publicPendingRequests);
     renderPublicPendingRequests();
     return true;
   } catch (error) {
     if (loadSequence !== publicPendingLoadSequence) return false;
-    els.publicPendingRequestList.innerHTML = `<div class="empty-saved">${escapeHtml(error.message)}</div>`;
-    els.publicPendingRequestCount.textContent = "โหลดไม่สำเร็จ";
+    const cachedRequests = readPublicPendingCache();
+    if (cachedRequests.length) {
+      state.publicPendingRequests = cachedRequests;
+      renderPublicPendingRequests();
+      setStatus(`${error.message} — แสดงรายการที่บันทึกไว้ในเครื่องก่อน`, true);
+    } else {
+      els.publicPendingRequestList.innerHTML = `<div class="empty-saved">${escapeHtml(error.message)}</div>`;
+      els.publicPendingRequestCount.textContent = "โหลดไม่สำเร็จ";
+    }
     return false;
   }
 }
