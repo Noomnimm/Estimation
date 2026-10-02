@@ -420,6 +420,8 @@ td select:focus,
 .pending-request-heading h3, .pending-request-heading p { margin: 0; }
 .pending-request-heading p { margin-top: 3px; color: var(--muted); font-size: 12px; }
 .pending-request-heading > strong { color: var(--accent-dark); font-size: 13px; white-space: nowrap; }
+.pending-request-heading-actions { display: flex; align-items: center; gap: 8px; }
+.pending-request-heading-actions > strong { color: var(--accent-dark); font-size: 13px; white-space: nowrap; }
 .public-pending-request-list { display: grid; gap: 9px; }
 .public-pending-request { overflow: hidden; border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: 11px; background: #fff; }
 .public-pending-toggle { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 11px 13px; border: 0; border-radius: 0; background: transparent; text-align: left; }

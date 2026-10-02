@@ -157,6 +157,7 @@ const els = {
   requestNote: document.getElementById("requestNote"),
   publicPendingRequestCount: document.getElementById("publicPendingRequestCount"),
   publicPendingRequestList: document.getElementById("publicPendingRequestList"),
+  refreshPublicPendingRequests: document.getElementById("refreshPublicPendingRequests"),
   adminLoginPanel: document.getElementById("adminLoginPanel"),
   adminRequestsPanel: document.getElementById("adminRequestsPanel"),
   adminLoginForm: document.getElementById("adminLoginForm"),
@@ -2311,6 +2312,20 @@ function renderPublicPendingRequests() {
     els.publicPendingRequestList.appendChild(card);
   });
 }
+
+els.refreshPublicPendingRequests.addEventListener("click", async () => {
+  const originalText = els.refreshPublicPendingRequests.textContent;
+  try {
+    els.refreshPublicPendingRequests.disabled = true;
+    els.refreshPublicPendingRequests.textContent = "กำลังโหลด...";
+    if (await loadPublicPendingRequests()) {
+      setStatus(`โหลดรายการรออนุมัติล่าสุดแล้ว (${els.publicPendingRequestCount.textContent})`);
+    }
+  } finally {
+    els.refreshPublicPendingRequests.disabled = false;
+    els.refreshPublicPendingRequests.textContent = originalText;
+  }
+});
 
 function setSelectOptions(select, values, placeholder) {
   select.innerHTML = "";
