@@ -8,6 +8,7 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
     def __init__(self):
         super().__init__()
         self.rows = []
+        self.journal = []
         self.approved = []
         self.hide_request_reads = False
         self.fail_request_reads = False
@@ -21,6 +22,10 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
             saved["_row_number"] = len(self.rows) + 2
             self.rows.append(saved)
             return saved["_row_number"]
+        elif sheet_name == "BaseDataRequestJournal":
+            saved["_row_number"] = len(self.journal) + 2
+            self.journal.append(saved)
+            return saved["_row_number"]
         else:
             self.approved.append(saved)
         return None
@@ -30,6 +35,8 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
             raise TimeoutError("Google Sheet timeout")
         if sheet_name == "BaseDataRequests" and self.hide_request_reads:
             return []
+        if sheet_name == "BaseDataRequestJournal":
+            return [dict(row) for row in self.journal]
         return [dict(row) for row in self.rows]
 
     def _update_named_record(self, sheet_name, headers, record, row_number):
@@ -247,6 +254,24 @@ class BaseRequestTests(unittest.TestCase):
         requests = store.list_base_requests()
 
         self.assertEqual([item["id"] for item in requests], [request["id"]])
+
+    def test_request_journal_recovers_pending_request_after_server_restart(self):
+        store = MemoryBaseRequestStore()
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "12", "head": "SURVIVES DEPLOY",
+            "rows": [{"material": "TEST", "code": "Set1", "quantity": 1}],
+        })
+
+        restarted = MemoryBaseRequestStore()
+        restarted.journal = [dict(event) for event in store.journal]
+        recovered = restarted.list_base_requests()
+
+        self.assertEqual([item["id"] for item in recovered], [request["id"]])
+        reviewed = restarted.review_base_request(request["id"], True, "admin")
+        self.assertEqual(reviewed["status"], "approved")
+        self.assertEqual(restarted.list_pending_base_requests(), [])
+        self.assertEqual(restarted.approved[0]["code"], "Set1")
 
     def test_admin_can_edit_request_while_approving_and_original_is_audited(self):
         store = MemoryBaseRequestStore()

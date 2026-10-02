@@ -31,6 +31,8 @@ REQUEST_HEADERS = [
     "action", "size", "head", "rows_json", "note", "status", "reviewed_at",
     "reviewed_by", "review_note",
 ]
+REQUEST_JOURNAL_SHEET = "BaseDataRequestJournal"
+REQUEST_JOURNAL_HEADERS = ["event_id", "request_id", "event", "record_json", "created_at", "actor"]
 APPROVED_SHEET = "ApprovedBaseData"
 APPROVED_HEADERS = [
     "size", "head", "material", "code", "quantity", "action", "request_id",
@@ -166,6 +168,11 @@ class GoogleSheetProjectStore:
             row_number = self._append_named_record(REQUEST_SHEET, REQUEST_HEADERS, record)
             if row_number:
                 record["_row_number"] = row_number
+            try:
+                self._append_request_journal(record, "submitted", values["submitter_name"])
+            except Exception:
+                # The primary request row is already durable; do not make the user submit twice.
+                pass
             public_record = self._request_to_public(record)
             self._pending_request_cache[public_record["id"]] = public_record
             self._pending_record_cache[public_record["id"]] = dict(record)
@@ -177,14 +184,26 @@ class GoogleSheetProjectStore:
             try:
                 rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
             except Exception:
-                if self._base_request_snapshot or self._pending_request_cache:
+                journal_records = self._read_request_journal_records()
+                if journal_records:
+                    rows = []
+                elif self._base_request_snapshot or self._pending_request_cache:
                     cached = list(self._base_request_snapshot)
                     pending = list(self._pending_request_cache.values())
                     pending_ids = {request["id"] for request in pending}
                     return [*pending, *[request for request in cached if request["id"] not in pending_ids]]
-                raise
+                else:
+                    raise
+            else:
+                journal_records = self._read_request_journal_records()
             requests = [self._request_to_public(row) for row in reversed(rows)]
             stored_by_id = {request["id"]: request for request in requests}
+            for journal_record in journal_records:
+                request_id = journal_record.get("request_id")
+                if request_id and request_id not in stored_by_id:
+                    public_record = self._request_to_public(journal_record)
+                    requests.insert(0, public_record)
+                    stored_by_id[request_id] = public_record
             for request_id, request in list(self._pending_request_cache.items()):
                 stored = stored_by_id.get(request_id)
                 if stored and stored.get("status") != "pending":
@@ -219,7 +238,12 @@ class GoogleSheetProjectStore:
         """Clear approved request history without touching published BaseData rows."""
         with self._lock:
             rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
-            row_numbers = [int(row["_row_number"]) for row in rows if row.get("status") == "approved"]
+            approved_rows = [row for row in rows if row.get("status") == "approved"]
+            row_numbers = [int(row["_row_number"]) for row in approved_rows]
+            for row in approved_rows:
+                archived = dict(row)
+                archived["status"] = "archived"
+                self._append_request_journal(archived, "archived", "admin")
             if row_numbers:
                 self._clear_named_rows(REQUEST_SHEET, len(REQUEST_HEADERS), row_numbers)
         return len(row_numbers)
@@ -234,6 +258,8 @@ class GoogleSheetProjectStore:
             if not record:
                 cached_record = self._pending_record_cache.get(request_id)
                 record = dict(cached_record) if cached_record and cached_record.get("_row_number") else None
+            if not record:
+                record = next((item for item in self._read_request_journal_records() if item.get("request_id") == request_id and item.get("status") == "pending"), None)
             if not record:
                 raise ValueError("ไม่พบคำขอที่ต้องการตรวจ")
             if record.get("status") != "pending":
@@ -284,7 +310,8 @@ class GoogleSheetProjectStore:
                 "status": "approved" if approve else "rejected", "reviewed_at": now,
                 "reviewed_by": reviewer, "review_note": str(note).strip(),
             })
-            self._update_named_record(REQUEST_SHEET, REQUEST_HEADERS, record, record["_row_number"])
+            if record.get("_row_number"):
+                self._update_named_record(REQUEST_SHEET, REQUEST_HEADERS, record, record["_row_number"])
             if approve:
                 self._ensure_named_sheet(APPROVED_SHEET, APPROVED_HEADERS)
                 stored_rows = json.loads(record["rows_json"])
@@ -311,7 +338,36 @@ class GoogleSheetProjectStore:
             self._pending_record_cache.pop(request_id, None)
             public_record = self._request_to_public(record)
             self._base_request_snapshot = [public_record, *[item for item in self._base_request_snapshot if item["id"] != request_id]]
+            self._append_request_journal(record, "approved" if approve else "rejected", reviewer)
         return public_record
+
+    def _append_request_journal(self, record: dict[str, Any], event: str, actor: str) -> None:
+        self._ensure_named_sheet(REQUEST_JOURNAL_SHEET, REQUEST_JOURNAL_HEADERS)
+        clean_record = {key: value for key, value in record.items() if not key.startswith("_")}
+        self._append_named_record(REQUEST_JOURNAL_SHEET, REQUEST_JOURNAL_HEADERS, {
+            "event_id": uuid.uuid4().hex,
+            "request_id": record.get("request_id", ""),
+            "event": event,
+            "record_json": json.dumps(clean_record, ensure_ascii=False, separators=(",", ":")),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "actor": str(actor).strip(),
+        })
+
+    def _read_request_journal_records(self) -> list[dict[str, Any]]:
+        try:
+            events = self._read_named_rows(REQUEST_JOURNAL_SHEET, REQUEST_JOURNAL_HEADERS, "event_id")
+        except Exception:
+            return []
+        latest: dict[str, dict[str, Any]] = {}
+        for event in events:
+            try:
+                record = json.loads(event.get("record_json", "{}"))
+            except (TypeError, json.JSONDecodeError):
+                continue
+            request_id = str(event.get("request_id", "")).strip()
+            if request_id and isinstance(record, dict):
+                latest[request_id] = record
+        return [record for record in latest.values() if record.get("status") != "archived"]
 
     def list_approved_base_rows(self) -> list[dict[str, Any]]:
         if not self.service_configured:
