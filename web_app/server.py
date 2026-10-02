@@ -34,6 +34,7 @@ DEFAULT_TRANSMISSION = ROOT.parent / "สายส่ง 115kV.xlsx"
 WORKBOOK = MaterialWorkbook()
 CLOUD_STORE = GoogleSheetProjectStore()
 HEAD_IMAGES: dict[tuple[str, str, str], dict[str, str]] = {}
+HEAD_EDITORS: dict[tuple[str, str, str], str] = {}
 ADMIN_USERNAME = os.environ.get("BASE_ADMIN_USERNAME", "").strip()
 ADMIN_PASSWORD = os.environ.get("BASE_ADMIN_PASSWORD", "")
 ADMIN_SECRET = os.environ.get("BASE_ADMIN_SESSION_SECRET", "").strip() or ADMIN_PASSWORD
@@ -49,6 +50,7 @@ if DEFAULT_SET.exists():
 
 def reload_approved_base() -> None:
     HEAD_IMAGES.clear()
+    HEAD_EDITORS.clear()
     if not DEFAULT_BASE.exists():
         return
     WORKBOOK.load_base(DEFAULT_BASE)
@@ -80,6 +82,7 @@ def reload_approved_base() -> None:
                   & (WORKBOOK.base_df[DEPARTMENT_COL].astype(str).str.strip() == department))
             ]
             HEAD_IMAGES.pop((department, remove_size, remove_head), None)
+            HEAD_EDITORS.pop((department, remove_size, remove_head), None)
         additions = [{
             SIZE_COL: size, HEAD_COL: head, MATERIAL_COL: str(row.get("material", "")).strip(),
             CODE_COL: str(row.get("code", "")).strip(), QTY_COL: float(row.get("quantity", 0)),
@@ -89,6 +92,7 @@ def reload_approved_base() -> None:
         } for row in request_rows if action != "delete"]
         if additions:
             WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
+            HEAD_EDITORS[(department, size, head)] = str(first.get("last_modified_by", "")).strip() or "Admin"
         image_file_id = str(first.get("image_file_id", "")).strip()
         if image_file_id:
             HEAD_IMAGES[(department, size, head)] = {
@@ -136,6 +140,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "heads": heads,
                     "insulatorRates": {head: WORKBOOK.get_insulator_rate(size, head, department) for head in heads},
                     "headImages": {head: HEAD_IMAGES[(department, str(size).strip(), head)] for head in heads if (department, str(size).strip(), head) in HEAD_IMAGES},
+                    "lastEditors": {head: HEAD_EDITORS.get((department, str(size).strip(), head), "Admin") for head in heads},
                 }
             self.handle_json(heads_response)
             return
@@ -245,6 +250,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 "size": size, "head": head, "rows": rows,
                 "insulatorUpright": upright, "insulatorHorizontal": horizontal,
                 "image": HEAD_IMAGES.get((department, size, head), {}),
+                "lastModifiedBy": HEAD_EDITORS.get((department, size, head), "Admin"),
             })
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)

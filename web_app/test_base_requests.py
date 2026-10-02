@@ -183,6 +183,7 @@ class BaseRequestTests(unittest.TestCase):
         self.assertTrue(all(row["department"] == "แผนกแรงสูง TAC" for row in store.approved))
         self.assertTrue(all(row["insulator_upright"] == 5.0 for row in store.approved))
         self.assertTrue(all(row["insulator_horizontal"] == 10.0 for row in store.approved))
+        self.assertTrue(all(row["last_modified_by"] == "ผู้ทดสอบ" for row in store.approved))
 
     def test_reject_does_not_publish_rows(self):
         store = MemoryBaseRequestStore()
@@ -343,6 +344,7 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(store.approved[0]["action"], "delete")
         self.assertEqual(store.approved[0]["source_head"], "DDE")
         self.assertEqual(store.approved[0]["code"], "")
+        self.assertEqual(store.approved[0]["last_modified_by"], "ผู้ทดสอบ")
 
     def test_rename_request_requires_source(self):
         store = MemoryBaseRequestStore()

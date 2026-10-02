@@ -2332,12 +2332,15 @@ els.refreshPublicPendingRequests.addEventListener("click", async () => {
   }
 });
 
-function setSelectOptions(select, values, placeholder) {
+function setSelectOptions(select, values, placeholder, lastEditors = null) {
   select.innerHTML = "";
   const empty = document.createElement("option");
   empty.value = ""; empty.textContent = placeholder; select.appendChild(empty);
   values.forEach((value) => {
-    const option = document.createElement("option"); option.value = value; option.textContent = value; select.appendChild(option);
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = lastEditors ? `${value} · แก้ไขล่าสุดโดย ${lastEditors[value] || "Admin"}` : value;
+    select.appendChild(option);
   });
 }
 
@@ -2424,7 +2427,7 @@ async function loadReplaceHeads() {
   try {
     const response = await fetch(`/api/heads?size=${encodeURIComponent(els.replaceSize.value)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
-    setSelectOptions(els.replaceHead, data.heads, "เลือกหัวเสา");
+    setSelectOptions(els.replaceHead, data.heads, "เลือกหัวเสา", data.lastEditors || {});
     els.existingDataHint.textContent = "เลือกหัวเสาเพื่อดูรายการเดิม";
   } catch (error) { setStatus(error.message, true); }
 }
@@ -2443,6 +2446,7 @@ async function loadExistingBaseEntry() {
     renderRequestImagePreview();
     data.rows.forEach((row) => addRequestMaterialRow(row, true));
     const action = els.requestAction.value;
+    const editorLabel = `แก้ไขล่าสุดโดย ${data.lastModifiedBy || "Admin"}`;
     if (action === "rename") {
       els.requestHead.value = els.replaceHead.value;
     } else if (action === "copy") {
@@ -2451,12 +2455,12 @@ async function loadExistingBaseEntry() {
       els.requestMaterialRows.querySelectorAll("input, button").forEach((control) => { control.disabled = true; });
     }
     els.existingDataHint.textContent = action === "rename"
-      ? `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว ใส่ชื่อหัวเสาใหม่ด้านบน`
+      ? `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว · ${editorLabel} · ใส่ชื่อหัวเสาใหม่ด้านบน`
       : action === "copy"
-        ? `คัดลอกข้อมูลเดิม ${data.rows.length} รายการแล้ว เปลี่ยนชื่อและแก้ไส้ในได้ทันที`
+        ? `คัดลอกข้อมูลเดิม ${data.rows.length} รายการแล้ว · ${editorLabel} · เปลี่ยนชื่อและแก้ไส้ในได้ทันที`
         : action === "delete"
-          ? `หัวเสานี้มี ${data.rows.length} รายการ และจะถูกลบทั้งหมดหลัง Admin อนุมัติ`
-        : `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว แก้ไข เพิ่ม หรือนำรายการออกได้`;
+          ? `หัวเสานี้มี ${data.rows.length} รายการ · ${editorLabel} · และจะถูกลบทั้งหมดหลัง Admin อนุมัติ`
+        : `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว · ${editorLabel} · แก้ไข เพิ่ม หรือนำรายการออกได้`;
   } catch (error) { setStatus(error.message, true); }
 }
 

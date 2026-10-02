@@ -37,6 +37,7 @@ APPROVED_HEADERS = [
     "approved_at", "approved_by", "department", "insulator_upright", "insulator_horizontal",
     "source_size", "source_head",
     "image_file_id", "image_name", "image_mime_type",
+    "last_modified_by",
 ]
 FOLDER_SHEET = "ProjectFolders"
 FOLDER_HEADERS = ["folder_id", "folder_name", "owner_email", "created_at", "updated_at", "deleted_at"]
@@ -304,6 +305,7 @@ class GoogleSheetProjectStore:
                         "image_file_id": stored_rows.get("image_file_id", "") if isinstance(stored_rows, dict) else "",
                         "image_name": stored_rows.get("image_name", "") if isinstance(stored_rows, dict) else "",
                         "image_mime_type": stored_rows.get("image_mime_type", "") if isinstance(stored_rows, dict) else "",
+                        "last_modified_by": record.get("submitter_name", "") or "Admin",
                     })
             self._pending_request_cache.pop(request_id, None)
             self._pending_record_cache.pop(request_id, None)
