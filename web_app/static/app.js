@@ -157,6 +157,7 @@ const els = {
   adminUsername: document.getElementById("adminUsername"),
   adminPassword: document.getElementById("adminPassword"),
   adminLogout: document.getElementById("adminLogout"),
+  refreshBaseRequests: document.getElementById("refreshBaseRequests"),
   connectGoogleDrive: document.getElementById("connectGoogleDrive"),
   driveConnectStatus: document.getElementById("driveConnectStatus"),
   baseRequestList: document.getElementById("baseRequestList"),
@@ -1322,7 +1323,10 @@ function switchTab(tabName) {
     panel.hidden = panel.dataset.panel !== tabName;
   });
   if (tabName === "saved") renderSavedProjects();
-  if (tabName === "base-admin") showAdminPanel();
+  if (tabName === "base-admin") {
+    state.activeRequestStatus = "pending";
+    showAdminPanel();
+  }
 }
 
 function renderSavedProjects() {
@@ -2160,6 +2164,11 @@ async function submitBaseRequest(event) {
     renderRequestImagePreview();
     els.requestAction.value = "add";
     await switchRequestAction();
+    if (state.adminToken) {
+      state.baseRequests = [data.request, ...state.baseRequests.filter((item) => item.id !== data.request.id)];
+      state.activeRequestStatus = "pending";
+      renderBaseRequests();
+    }
     setStatus(`ส่งคำขอ ${data.request.id.slice(0, 8)} ให้ Admin แล้ว`);
   } catch (error) {
     setStatus(error.message, true);
@@ -2383,13 +2392,28 @@ async function loadBaseRequests() {
     const data = await adminFetch("/api/base-requests/admin");
     state.baseRequests = data.requests || [];
     renderBaseRequests();
+    return true;
   } catch (error) {
     state.adminToken = "";
     sessionStorage.removeItem("material-calculator-admin-token");
     showAdminPanel();
     setStatus(error.message, true);
+    return false;
   }
 }
+
+els.refreshBaseRequests.addEventListener("click", async () => {
+  const originalText = els.refreshBaseRequests.textContent;
+  try {
+    els.refreshBaseRequests.disabled = true;
+    els.refreshBaseRequests.textContent = "กำลังโหลด...";
+    state.activeRequestStatus = "pending";
+    if (await loadBaseRequests()) setStatus(`โหลดรายการรอตรวจล่าสุดแล้ว (${els.pendingRequestCount.textContent} รายการ)`);
+  } finally {
+    els.refreshBaseRequests.disabled = false;
+    els.refreshBaseRequests.textContent = originalText;
+  }
+});
 
 function renderBaseRequests() {
   const counts = { pending: 0, approved: 0, rejected: 0 };
