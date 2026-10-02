@@ -174,7 +174,10 @@ class GoogleSheetProjectStore:
                 self._clear_named_rows(REQUEST_SHEET, len(REQUEST_HEADERS), row_numbers)
         return len(row_numbers)
 
-    def review_base_request(self, request_id: str, approve: bool, reviewer: str, note: str = "") -> dict[str, Any]:
+    def review_base_request(
+        self, request_id: str, approve: bool, reviewer: str, note: str = "",
+        edits: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         with self._lock:
             rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
             record = next((row for row in rows if row["request_id"] == request_id), None)
@@ -182,6 +185,47 @@ class GoogleSheetProjectStore:
                 raise ValueError("ไม่พบคำขอที่ต้องการตรวจ")
             if record.get("status") != "pending":
                 raise ValueError("คำขอนี้ถูกตรวจแล้ว")
+            if edits is not None:
+                if not approve:
+                    raise ValueError("แก้ไขข้อมูลได้เฉพาะตอนอนุมัติ")
+                if not isinstance(edits, dict):
+                    raise ValueError("ข้อมูลที่แก้ไขไม่ถูกต้อง")
+                stored_rows = json.loads(record.get("rows_json", "{}"))
+                if not isinstance(stored_rows, dict):
+                    stored_rows = {"new": stored_rows if isinstance(stored_rows, list) else []}
+                edited_size = str(edits.get("size", "")).strip()
+                edited_head = str(edits.get("head", "")).strip()
+                if not edited_size or not edited_head:
+                    raise ValueError("กรุณากรอกขนาดเสาและรหัสหัวเสา")
+                edited_rows = edits.get("rows", [])
+                if not isinstance(edited_rows, list) or not edited_rows:
+                    raise ValueError("กรุณาเพิ่มรายการวัสดุอย่างน้อย 1 รายการ")
+                if len(edited_rows) > 100:
+                    raise ValueError("หนึ่งคำขอเพิ่มรายการวัสดุได้ไม่เกิน 100 รายการ")
+                clean_rows = []
+                for item in edited_rows:
+                    material = str(item.get("material", "")).strip()
+                    code = str(item.get("code", "")).strip()
+                    try:
+                        quantity = float(item.get("quantity", 0))
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError("จำนวนวัสดุต้องเป็นตัวเลข") from exc
+                    if not material or not code or quantity == 0:
+                        raise ValueError("ทุกรายการต้องมีชื่อวัสดุ รหัสพัสดุ/SET และจำนวนที่ไม่เป็นศูนย์")
+                    clean_rows.append({"material": material, "code": code, "quantity": quantity})
+                stored_rows["submitted"] = {
+                    "size": record.get("size", ""), "head": record.get("head", ""),
+                    "new": stored_rows.get("new", []),
+                    "insulator_upright": stored_rows.get("insulator_upright", ""),
+                    "insulator_horizontal": stored_rows.get("insulator_horizontal", ""),
+                }
+                stored_rows["new"] = clean_rows
+                stored_rows["insulator_upright"] = self._nonnegative_number(edits.get("insulator_upright"), "ลูกถ้วยตั้ง")
+                stored_rows["insulator_horizontal"] = self._nonnegative_number(edits.get("insulator_horizontal"), "ลูกถ้วยนอน")
+                stored_rows["admin_edited"] = True
+                record["size"] = edited_size
+                record["head"] = edited_head
+                record["rows_json"] = json.dumps(stored_rows, ensure_ascii=False, separators=(",", ":"))
             now = datetime.now(timezone.utc).isoformat()
             record.update({
                 "status": "approved" if approve else "rejected", "reviewed_at": now,
@@ -347,6 +391,8 @@ class GoogleSheetProjectStore:
             image_file_id = stored_rows.get("image_file_id", "")
             image_name = stored_rows.get("image_name", "")
             image_mime_type = stored_rows.get("image_mime_type", "")
+            submitted = stored_rows.get("submitted")
+            admin_edited = bool(stored_rows.get("admin_edited"))
         else:
             rows = stored_rows
             original_rows = []
@@ -358,6 +404,8 @@ class GoogleSheetProjectStore:
             image_file_id = ""
             image_name = ""
             image_mime_type = ""
+            submitted = None
+            admin_edited = False
         return {
             "id": record.get("request_id", ""), "submittedAt": record.get("submitted_at", ""),
             "submitterName": record.get("submitter_name", ""), "employeeId": record.get("employee_id", ""),
@@ -371,6 +419,7 @@ class GoogleSheetProjectStore:
             "note": record.get("note", ""), "status": record.get("status", "pending"),
             "reviewedAt": record.get("reviewed_at", ""), "reviewedBy": record.get("reviewed_by", ""),
             "reviewNote": record.get("review_note", ""),
+            "adminEdited": admin_edited, "submitted": submitted,
         }
 
     def verify_user(self, credential: str) -> dict[str, str]:

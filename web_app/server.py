@@ -494,7 +494,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             payload = self.read_json()
             request = CLOUD_STORE.review_base_request(
                 str(payload.get("requestId", "")), bool(payload.get("approve")), admin,
-                str(payload.get("note", "")),
+                str(payload.get("note", "")), payload.get("edits"),
             )
             if payload.get("approve"):
                 reload_approved_base()

@@ -187,6 +187,42 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(store.approved, [])
         self.assertEqual(store.rows[0]["status"], "rejected")
 
+    def test_admin_can_edit_request_while_approving_and_original_is_audited(self):
+        store = MemoryBaseRequestStore()
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "12", "head": "หัวเดิม", "insulator_upright": 1, "insulator_horizontal": 2,
+            "rows": [{"material": "รายการเดิม", "code": "Set1", "quantity": 1}],
+        })
+
+        reviewed = store.review_base_request(request["id"], True, "admin", edits={
+            "size": "12.2", "head": "หัวที่ Admin แก้", "insulator_upright": 3,
+            "insulator_horizontal": 4,
+            "rows": [{"material": "รายการที่แก้", "code": "Set2", "quantity": 5}],
+        })
+
+        self.assertTrue(reviewed["adminEdited"])
+        self.assertEqual(reviewed["submitted"]["head"], "หัวเดิม")
+        self.assertEqual(reviewed["submitted"]["new"][0]["code"], "Set1")
+        self.assertEqual(reviewed["head"], "หัวที่ Admin แก้")
+        self.assertEqual(store.approved[0]["code"], "Set2")
+        self.assertEqual(store.approved[0]["quantity"], 5.0)
+        self.assertEqual(store.approved[0]["insulator_upright"], 3.0)
+
+    def test_invalid_admin_edit_keeps_request_pending(self):
+        store = MemoryBaseRequestStore()
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "12", "head": "TEST",
+            "rows": [{"material": "รายการเดิม", "code": "Set1", "quantity": 1}],
+        })
+        with self.assertRaisesRegex(ValueError, "อย่างน้อย 1 รายการ"):
+            store.review_base_request(request["id"], True, "admin", edits={
+                "size": "12", "head": "TEST", "rows": [],
+            })
+        self.assertEqual(store.rows[0]["status"], "pending")
+        self.assertEqual(store.approved, [])
+
     def test_copy_request_keeps_source_and_new_target(self):
         store = MemoryBaseRequestStore()
         request = store.submit_base_request({

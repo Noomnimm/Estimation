@@ -2416,6 +2416,10 @@ function renderBaseRequests() {
     status.textContent = request.status === "pending" ? "รอตรวจ" : request.status === "approved" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว";
     footer.appendChild(status);
     if (request.status === "pending") {
+      const editButton = document.createElement("button");
+      editButton.type = "button"; editButton.textContent = "แก้ไขก่อนอนุมัติ"; editButton.className = "secondary";
+      editButton.addEventListener("click", () => showAdminRequestEditor(card, request, insulatorReview, wrap));
+      footer.appendChild(editButton);
       for (const [label, approve, className] of [["อนุมัติ", true, "primary"], ["ปฏิเสธ", false, "danger"]]) {
         const button = document.createElement("button");
         button.type = "button"; button.textContent = label; button.className = className;
@@ -2425,6 +2429,23 @@ function renderBaseRequests() {
     }
     card.append(title, meta, insulatorReview);
     if (request.note) { const note = document.createElement("p"); note.textContent = `หมายเหตุ: ${request.note}`; card.appendChild(note); }
+    if (request.adminEdited && request.submitted) {
+      const audit = document.createElement("details");
+      audit.className = "admin-edit-audit";
+      const summary = document.createElement("summary");
+      summary.textContent = `Admin แก้ไขก่อนอนุมัติ · ดูข้อมูลเดิม (${request.submitted.size} · ${request.submitted.head})`;
+      const auditTable = document.createElement("table");
+      auditTable.innerHTML = "<thead><tr><th>รายการวัสดุเดิม</th><th>รหัสเดิม</th><th>จำนวนเดิม</th></tr></thead>";
+      const auditBody = document.createElement("tbody");
+      (request.submitted.new || []).forEach((item) => {
+        const row = document.createElement("tr");
+        [item.material, item.code, item.quantity].forEach((value) => { const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell); });
+        auditBody.appendChild(row);
+      });
+      auditTable.appendChild(auditBody);
+      const auditWrap = document.createElement("div"); auditWrap.className = "table-wrap"; auditWrap.appendChild(auditTable);
+      audit.append(summary, auditWrap); card.appendChild(audit);
+    }
     if (request.imageFileId) {
       const imageButton = document.createElement("button");
       imageButton.type = "button";
@@ -2470,7 +2491,62 @@ function compareBaseRows(originalRows, newRows) {
   });
 }
 
-async function reviewBaseRequest(requestId, approve, button) {
+function showAdminRequestEditor(card, request, insulatorReview, tableWrap) {
+  if (card.querySelector(".admin-request-editor")) return;
+  const editor = document.createElement("div");
+  editor.className = "admin-request-editor";
+  editor.innerHTML = `
+    <div class="admin-edit-grid">
+      <label>ขนาดเสา<input class="admin-edit-size" type="text"></label>
+      <label>รหัสหัวเสา<input class="admin-edit-head" type="text"></label>
+      <label>ลูกถ้วยตั้งต่อ 1 หัว<input class="admin-edit-upright" type="number" min="0" step="any"></label>
+      <label>ลูกถ้วยนอนต่อ 1 หัว<input class="admin-edit-horizontal" type="number" min="0" step="any"></label>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ/SET</th><th>จำนวน</th><th></th></tr></thead><tbody></tbody></table></div>
+    <div class="admin-edit-actions"><button type="button" class="admin-edit-add">+ เพิ่มรายการ</button><span></span><button type="button" class="admin-edit-cancel">ยกเลิก</button><button type="button" class="primary admin-edit-approve">บันทึกและอนุมัติ</button></div>`;
+  editor.querySelector(".admin-edit-size").value = request.size || "";
+  editor.querySelector(".admin-edit-head").value = request.head || "";
+  editor.querySelector(".admin-edit-upright").value = request.insulatorUpright ?? 0;
+  editor.querySelector(".admin-edit-horizontal").value = request.insulatorHorizontal ?? 0;
+  const tbody = editor.querySelector("tbody");
+  const addRow = (item = {}) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td><input class="admin-edit-material" type="text"></td><td><input class="admin-edit-code" type="text"></td><td><input class="admin-edit-quantity" type="number" step="any"></td><td><button type="button" class="danger compact" aria-label="ลบรายการ">×</button></td>`;
+    row.querySelector(".admin-edit-material").value = item.material || "";
+    row.querySelector(".admin-edit-code").value = item.code || "";
+    row.querySelector(".admin-edit-quantity").value = item.quantity ?? "";
+    row.querySelector("button").addEventListener("click", () => row.remove());
+    tbody.appendChild(row);
+  };
+  (request.rows || []).forEach(addRow);
+  editor.querySelector(".admin-edit-add").addEventListener("click", () => addRow());
+  const closeEditor = () => {
+    editor.remove(); insulatorReview.hidden = false; tableWrap.hidden = false;
+    card.querySelector(".request-card-footer").hidden = false;
+  };
+  editor.querySelector(".admin-edit-cancel").addEventListener("click", closeEditor);
+  editor.querySelector(".admin-edit-approve").addEventListener("click", (event) => {
+    const rows = [...tbody.querySelectorAll("tr")].map((row) => ({
+      material: row.querySelector(".admin-edit-material").value.trim(),
+      code: row.querySelector(".admin-edit-code").value.trim(),
+      quantity: row.querySelector(".admin-edit-quantity").value,
+    }));
+    const edits = {
+      size: editor.querySelector(".admin-edit-size").value.trim(),
+      head: editor.querySelector(".admin-edit-head").value.trim(),
+      insulator_upright: editor.querySelector(".admin-edit-upright").value,
+      insulator_horizontal: editor.querySelector(".admin-edit-horizontal").value,
+      rows,
+    };
+    reviewBaseRequest(request.id, true, event.currentTarget, edits);
+  });
+  insulatorReview.hidden = true; tableWrap.hidden = true;
+  card.querySelector(".request-card-footer").hidden = true;
+  card.appendChild(editor);
+  editor.querySelector(".admin-edit-size").focus();
+}
+
+async function reviewBaseRequest(requestId, approve, button, edits = null) {
   const note = window.prompt(approve ? "หมายเหตุการอนุมัติ (เว้นว่างได้)" : "เหตุผลที่ปฏิเสธ");
   if (note === null) return;
   const originalButtonText = button?.textContent || "";
@@ -2482,7 +2558,7 @@ async function reviewBaseRequest(requestId, approve, button) {
   try {
     await adminFetch("/api/base-requests/review", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId, approve, note }),
+      body: JSON.stringify({ requestId, approve, note, ...(edits ? { edits } : {}) }),
     });
     if (approve) {
       sessionStorage.setItem(ADMIN_APPROVAL_REFRESH_KEY, "1");
