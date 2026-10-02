@@ -8,6 +8,7 @@ import html
 import json
 import mimetypes
 import os
+import threading
 import traceback
 import time
 from http import HTTPStatus
@@ -116,9 +117,6 @@ def verify_admin_token(token: str) -> str:
     except Exception as exc:
         raise PermissionError("เซสชัน Admin ไม่ถูกต้องหรือหมดอายุ") from exc
     return username
-
-
-reload_approved_base()
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -672,7 +670,8 @@ def main() -> None:
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer((host, port), AppHandler)
-    print(f"Material Calculator Web is running at http://{host}:{port}")
+    print(f"Material Calculator Web is running at http://{host}:{port}", flush=True)
+    threading.Thread(target=reload_approved_base, name="approved-base-loader", daemon=True).start()
     server.serve_forever()
 
 
