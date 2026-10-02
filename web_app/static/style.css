@@ -1159,13 +1159,13 @@ td select {
 :root[data-theme="dark"] .project-action-cluster button,
 :root[data-theme="dark"] .project-action-cluster #saveLocalProject,
 :root[data-theme="dark"] .project-action-cluster #saveCloudProject,
-:root[data-theme="dark"] .work-type-button,
-:root[data-theme="dark"] .work-type-button.active {
+:root[data-theme="dark"] .work-type-button {
   border-color: #4d5860;
   background: #2c3237;
   color: #e8edf0;
   box-shadow: none;
 }
+:root[data-theme="dark"] .work-type-switch { border-color: #4d5860; background: #252a2e; }
 :root[data-theme="dark"] .project-action-cluster button:hover,
 :root[data-theme="dark"] .project-action-cluster #saveLocalProject:hover,
 :root[data-theme="dark"] .project-action-cluster #saveCloudProject:hover,
@@ -1175,10 +1175,13 @@ td select {
   color: #fff;
 }
 :root[data-theme="dark"] .work-type-button.active {
-  border-color: #87949d;
-  background: #353c41;
-  box-shadow: inset 0 0 0 1px #697780;
+  border-color: #e3e8eb;
+  background: #e3e8eb;
+  color: #30373c;
+  box-shadow: none;
 }
+:root[data-theme="dark"] .work-type-button span { background: #40484e; color: #e8edf0; }
+:root[data-theme="dark"] .work-type-button.active span { background: #59656d; color: #fff; }
 :root[data-theme="dark"] .project-action-cluster button:disabled {
   border-color: #424a50;
   background: #292e32;
