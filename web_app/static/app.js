@@ -308,10 +308,21 @@ async function postJson(endpoint, payload = {}) {
   return readJson(response);
 }
 
-async function readJson(response) {
-  const data = await response.json();
+async function readJson(response, fallbackMessage = "เกิดข้อผิดพลาด") {
+  const raw = await response.text();
+  if (!raw.trim()) {
+    throw new Error(response.ok
+      ? "เซิร์ฟเวอร์ไม่ส่งข้อมูลกลับมา กรุณาลองใหม่อีกครั้ง"
+      : `${fallbackMessage} (เซิร์ฟเวอร์ไม่ตอบกลับ รหัส ${response.status})`);
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(`${fallbackMessage} (เซิร์ฟเวอร์ตอบข้อมูลไม่สมบูรณ์ รหัส ${response.status})`);
+  }
   if (!response.ok) {
-    throw new Error(data.error || "เกิดข้อผิดพลาด");
+    throw new Error(data.error || fallbackMessage);
   }
   return data;
 }
@@ -1310,9 +1321,7 @@ async function importProjectFile(file, fileHandle = null) {
 async function cloudRequest(endpoint, options = {}) {
   const headers = { ...(options.headers || {}), Authorization: `Bearer ${state.googleCredential}` };
   const response = await fetch(endpoint, { ...options, headers });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "เชื่อมต่อ Google Sheet ไม่สำเร็จ");
-  return data;
+  return readJson(response, "เชื่อมต่อ Google Sheet ไม่สำเร็จ");
 }
 
 function formatSavedDate(value) {
@@ -1946,8 +1955,7 @@ els.exportExcel.addEventListener("click", async () => {
     setStatus("กำลังสร้าง Excel...");
     const response = await fetch("/api/export", { method: "POST" });
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || "Export ไม่สำเร็จ");
+      await readJson(response, "Export ไม่สำเร็จ");
     }
     const blob = await response.blob();
     await writeBlobToSaveTarget(blob, saveTarget, fileName);
@@ -1970,8 +1978,7 @@ els.exportPages.addEventListener("click", async () => {
       body: JSON.stringify({ pages: state.pages }),
     });
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || "Export รายการแต่ละหน้าไม่สำเร็จ");
+      await readJson(response, "Export รายการแต่ละหน้าไม่สำเร็จ");
     }
     const blob = await response.blob();
     await writeBlobToSaveTarget(blob, saveTarget, fileName);
@@ -1994,8 +2001,7 @@ els.exportPageHardware.addEventListener("click", async () => {
       body: JSON.stringify({ pages: state.pages }),
     });
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || "Export ลูกถ้วยและอุปกรณ์ยึดสายไม่สำเร็จ");
+      await readJson(response, "Export ลูกถ้วยและอุปกรณ์ยึดสายไม่สำเร็จ");
     }
     const blob = await response.blob();
     await writeBlobToSaveTarget(blob, saveTarget, fileName);
@@ -2018,8 +2024,7 @@ els.exportPageCrossarms.addEventListener("click", async () => {
       body: JSON.stringify({ pages: state.pages }),
     });
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || "Export คอนแยกหน้าไม่สำเร็จ");
+      await readJson(response, "Export คอนแยกหน้าไม่สำเร็จ");
     }
     const blob = await response.blob();
     await writeBlobToSaveTarget(blob, saveTarget, fileName);
@@ -2156,8 +2161,7 @@ async function submitBaseRequest(event) {
         note: els.requestNote.value,
       }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "ส่งคำขอไม่สำเร็จ");
+    const data = await readJson(response, "ส่งคำขอไม่สำเร็จ");
     els.requestSize.value = "";
     els.requestHead.value = "";
     els.requestInsulatorUpright.value = "0";
@@ -2185,8 +2189,19 @@ async function submitBaseRequest(event) {
 async function loadPublicPendingRequests() {
   const loadSequence = ++publicPendingLoadSequence;
   try {
-    const response = await fetch(`/api/base-requests/pending?refresh=${Date.now()}`, { cache: "no-store" });
-    const data = await readJson(response);
+    let data;
+    let lastError;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch(`/api/base-requests/pending?refresh=${Date.now()}`, { cache: "no-store" });
+        data = await readJson(response, "โหลดรายการรออนุมัติไม่สำเร็จ");
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+    }
+    if (!data) throw lastError;
     if (loadSequence !== publicPendingLoadSequence) return false;
     state.publicPendingRequests = data.requests || [];
     renderPublicPendingRequests();
@@ -2367,9 +2382,7 @@ async function loadExistingBaseEntry() {
 async function adminFetch(url, options = {}) {
   const headers = { ...(options.headers || {}), Authorization: `Bearer ${state.adminToken}` };
   const response = await fetch(url, { ...options, headers });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "ดำเนินการ Admin ไม่สำเร็จ");
-  return data;
+  return readJson(response, "ดำเนินการ Admin ไม่สำเร็จ");
 }
 
 function showAdminPanel() {
@@ -2779,8 +2792,7 @@ els.adminLoginForm.addEventListener("submit", async (event) => {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: els.adminUsername.value, password: els.adminPassword.value }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "เข้าสู่ระบบไม่สำเร็จ");
+    const data = await readJson(response, "เข้าสู่ระบบไม่สำเร็จ");
     state.adminToken = data.token;
     sessionStorage.setItem("material-calculator-admin-token", data.token);
     els.adminPassword.value = "";
