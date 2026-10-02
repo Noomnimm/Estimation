@@ -75,6 +75,7 @@ const ADMIN_APPROVAL_REFRESH_KEY = "material-calculator-admin-approval-refresh";
 const THEME_KEY = "material-calculator-theme";
 const FILE_HANDLE_DB = "material-calculator-file-handles";
 const FILE_HANDLE_STORE = "project-files";
+const LATEST_FILE_HANDLE_KEY = "__latest_project_file__";
 
 const els = {
   status: document.getElementById("status"),
@@ -1089,13 +1090,32 @@ async function rememberProjectFileHandle(projectId, handle) {
     if (!database) return;
     await new Promise((resolve, reject) => {
       const transaction = database.transaction(FILE_HANDLE_STORE, "readwrite");
-      transaction.objectStore(FILE_HANDLE_STORE).put(handle, projectId);
+      const store = transaction.objectStore(FILE_HANDLE_STORE);
+      store.put(handle, projectId);
+      store.put(handle, LATEST_FILE_HANDLE_KEY);
       transaction.oncomplete = resolve;
       transaction.onerror = () => reject(transaction.error);
     });
     database.close();
   } catch {
     // Some browsers can write files but cannot persist file handles. The current tab still reuses it.
+  }
+}
+
+async function getLatestProjectFileHandle() {
+  try {
+    const database = await openFileHandleDatabase();
+    if (!database) return null;
+    const handle = await new Promise((resolve, reject) => {
+      const transaction = database.transaction(FILE_HANDLE_STORE, "readonly");
+      const request = transaction.objectStore(FILE_HANDLE_STORE).get(LATEST_FILE_HANDLE_KEY);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    return handle;
+  } catch {
+    return null;
   }
 }
 
@@ -1204,7 +1224,7 @@ async function downloadProjectFile(project, forceSaveAs = false) {
   return saved;
 }
 
-async function importProjectFile(file) {
+async function importProjectFile(file, fileHandle = null) {
   const content = await file.text();
   const parsed = JSON.parse(content);
   const project = parsed?.format === "material-calculator-project" ? parsed.project : parsed;
@@ -1220,6 +1240,7 @@ async function importProjectFile(file) {
   if (index >= 0) projects[index] = imported;
   else projects.push(imported);
   writeSavedProjects(projects);
+  if (fileHandle) await rememberProjectFileHandle(imported.id, fileHandle);
   await openSavedProject(imported.id, "local");
   setStatus(`เปิดไฟล์งาน “${imported.name}” สำเร็จ`);
 }
@@ -1534,7 +1555,27 @@ document.querySelectorAll(".app-tab").forEach((button) => {
 
 els.saveLocalProject.addEventListener("click", () => saveProject("local"));
 els.saveLocalAs.addEventListener("click", () => saveProject("local", null, true));
-els.openProjectFile.addEventListener("click", () => {
+els.openProjectFile.addEventListener("click", async () => {
+  if (typeof window.showOpenFilePicker === "function") {
+    try {
+      const latestHandle = await getLatestProjectFileHandle();
+      const pickerOptions = {
+        multiple: false,
+        types: [{
+          description: "ไฟล์งาน Material Calculator",
+          accept: { "application/json": [".json", ".mcproject"] },
+        }],
+      };
+      if (latestHandle) pickerOptions.startIn = latestHandle;
+      const [handle] = await window.showOpenFilePicker(pickerOptions);
+      if (!handle) return;
+      setStatus("กำลังเปิดไฟล์งาน...");
+      await importProjectFile(await handle.getFile(), handle);
+    } catch (error) {
+      if (error?.name !== "AbortError") setStatus(`เปิดไฟล์งานไม่สำเร็จ: ${error.message}`, true);
+    }
+    return;
+  }
   els.projectFileInput.value = "";
   els.projectFileInput.click();
 });
