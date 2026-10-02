@@ -816,24 +816,28 @@ td select {
 
 .input-table #sizeColumnTitle,
 .input-table .size-cell {
-  width: 24%;
+  width: 22%;
 }
 
 .input-table #headColumnTitle,
 .input-table .head-cell {
-  width: 52%;
+  width: 50%;
 }
 
 .input-table #countColumnTitle,
 .input-table .count-cell {
-  width: 24%;
+  width: 22%;
 }
+
+.input-table .head-remove-column,
+.input-table .head-remove-cell { width: 6%; min-width: 48px; text-align: center; }
+.remove-head-row { width: 38px; height: 40px; padding: 0; border-color: #e2b5c7; background: #fbe7ef; color: #8a234e; font-size: 20px; }
 
 .input-table.has-head-images #headImageColumnTitle { width: 12%; min-width: 112px; }
 .input-table.has-head-images #sizeColumnTitle,
-.input-table.has-head-images .size-cell { width: 20%; }
+.input-table.has-head-images .size-cell { width: 18%; }
 .input-table.has-head-images #headColumnTitle,
-.input-table.has-head-images .head-cell { width: 48%; }
+.input-table.has-head-images .head-cell { width: 44%; }
 .input-table.has-head-images #countColumnTitle,
 .input-table.has-head-images .count-cell { width: 20%; }
 
@@ -883,7 +887,6 @@ td select {
 .bottom-row-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 12px; }
 .bottom-row-actions button { min-width: 105px; font-weight: 800; }
 .bottom-row-actions #addRow { border-color: #8cbfdf; background: #e2f3ff; color: #155a84; }
-.bottom-row-actions #removeRow { border-color: #e2b5c7; background: #fbe7ef; color: #8a234e; }
 
 .actions button:first-child {
   background: linear-gradient(135deg, var(--accent-dark), var(--accent));

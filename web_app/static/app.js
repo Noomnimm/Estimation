@@ -96,7 +96,6 @@ const els = {
   pageLabel: document.getElementById("pageLabel"),
   pagePicker: document.getElementById("pagePicker"),
   addRow: document.getElementById("addRow"),
-  removeRow: document.getElementById("removeRow"),
   clearPage: document.getElementById("clearPage"),
   inputRows: document.getElementById("inputRows"),
   structureRows: document.getElementById("structureRows"),
@@ -462,6 +461,7 @@ function renderInputs() {
       <td class="size-cell"><select class="size"></select></td>
       <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div></td>
       <td class="count-cell"><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
+      <td class="head-remove-cell"><button class="remove-head-row" type="button" aria-label="ลบหัวเสาแถวนี้">×</button></td>
     `;
 
     const sizeSelect = tr.querySelector(".size");
@@ -566,6 +566,15 @@ function renderInputs() {
       page[index].count = countInput.value;
       renderInsulators();
     });
+    tr.querySelector(".remove-head-row").addEventListener("click", () => {
+      if (!window.confirm("ลบหัวเสารายการนี้ใช่ไหม?")) return;
+      saveCurrentPageFromDom();
+      state.pages[state.currentPage].splice(index, 1);
+      if (!state.pages[state.currentPage].length) state.pages[state.currentPage].push(blankRow(state.department, state.activeWorkType));
+      renderInputs();
+      markProjectDirty();
+      setStatus("ลบหัวเสารายการนี้แล้ว");
+    });
 
     els.inputRows.appendChild(tr);
     const wireKind = classifyWireHead(row.head);
@@ -630,7 +639,7 @@ function createSurgeDetailsRow(row, index) {
   const detailRow = document.createElement("tr");
   detailRow.className = "surge-details-row";
   const cell = document.createElement("td");
-  cell.colSpan = state.department === "แผนกแรงสูง TAC" ? 4 : 3;
+  cell.colSpan = state.department === "แผนกแรงสูง TAC" ? 5 : 4;
   const panel = document.createElement("div");
   panel.className = "surge-details";
   panel.innerHTML = `
@@ -760,7 +769,7 @@ function createWireDetailsRow(row, index, wireKind) {
   const detailRow = document.createElement("tr");
   detailRow.className = "wire-details-row";
   const cell = document.createElement("td");
-  cell.colSpan = state.department === "แผนกแรงสูง TAC" ? 4 : 3;
+  cell.colSpan = state.department === "แผนกแรงสูง TAC" ? 5 : 4;
   const panel = document.createElement("div");
   panel.className = "wire-details";
 
@@ -1813,19 +1822,6 @@ els.actualInsulatorInputs.forEach((input) => {
     renderInsulators();
     markProjectDirty();
   });
-});
-
-els.removeRow.addEventListener("click", () => {
-  if (state.pages[state.currentPage].length <= 1) {
-    setStatus("ต้องเหลืออย่างน้อย 1 แถว", true);
-    return;
-  }
-  if (!window.confirm("ต้องการลบแถวสุดท้ายใช่ไหม? ข้อมูลในแถวนี้จะถูกนำออก")) return;
-  saveCurrentPageFromDom();
-  state.pages[state.currentPage].pop();
-  renderInputs();
-  markProjectDirty();
-  setStatus("ลบแถวสุดท้ายแล้ว");
 });
 
 els.clearPage.addEventListener("click", () => {
