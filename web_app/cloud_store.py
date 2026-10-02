@@ -102,8 +102,11 @@ class GoogleSheetProjectStore:
         missing = [label for key, label in required.items() if not values[key]]
         if missing:
             raise ValueError(f"กรุณากรอก {', '.join(missing)}")
+        action = str(payload.get("action", "add")).strip().lower()
+        if action not in {"add", "replace", "rename", "copy", "delete"}:
+            action = "add"
         rows = payload.get("rows", [])
-        if not isinstance(rows, list) or not rows:
+        if not isinstance(rows, list) or (not rows and action != "delete"):
             raise ValueError("กรุณาเพิ่มรายการวัสดุอย่างน้อย 1 รายการ")
         if len(rows) > 100:
             raise ValueError("หนึ่งคำขอเพิ่มรายการวัสดุได้ไม่เกิน 100 รายการ")
@@ -118,9 +121,6 @@ class GoogleSheetProjectStore:
             if not material or not code or quantity == 0:
                 raise ValueError("ทุกรายการต้องมีชื่อวัสดุ รหัสพัสดุ/SET และจำนวนที่ไม่เป็นศูนย์")
             clean_rows.append({"material": material, "code": code, "quantity": quantity})
-        action = str(payload.get("action", "add")).strip().lower()
-        if action not in {"add", "replace", "rename", "copy"}:
-            action = "add"
         original_rows = payload.get("original_rows", []) if action != "add" else []
         if not isinstance(original_rows, list):
             original_rows = []
@@ -141,9 +141,9 @@ class GoogleSheetProjectStore:
         image_file_id = str(payload.get("image_file_id", "")).strip()
         image_name = str(payload.get("image_name", "")).strip()
         image_mime_type = str(payload.get("image_mime_type", "")).strip()
-        source_size = str(payload.get("source_size", "")).strip() or (values["size"] if action == "replace" else "")
-        source_head = str(payload.get("source_head", "")).strip() or (values["head"] if action == "replace" else "")
-        if action in {"rename", "copy"} and (not source_size or not source_head):
+        source_size = str(payload.get("source_size", "")).strip() or (values["size"] if action in {"replace", "delete"} else "")
+        source_head = str(payload.get("source_head", "")).strip() or (values["head"] if action in {"replace", "delete"} else "")
+        if action in {"rename", "copy", "delete"} and (not source_size or not source_head):
             raise ValueError("กรุณาเลือกขนาดเสาและหัวเสาต้นฉบับ")
         record = {
             "request_id": uuid.uuid4().hex,
@@ -288,6 +288,8 @@ class GoogleSheetProjectStore:
                 self._ensure_named_sheet(APPROVED_SHEET, APPROVED_HEADERS)
                 stored_rows = json.loads(record["rows_json"])
                 new_rows = stored_rows.get("new", []) if isinstance(stored_rows, dict) else stored_rows
+                if record["action"] == "delete":
+                    new_rows = [{"material": "", "code": "", "quantity": 0}]
                 for item in new_rows:
                     self._append_named_record(APPROVED_SHEET, APPROVED_HEADERS, {
                         "size": record["size"], "head": record["head"],

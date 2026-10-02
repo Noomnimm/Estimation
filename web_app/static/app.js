@@ -2147,8 +2147,8 @@ async function submitBaseRequest(event) {
     const action = els.requestAction.value;
     const usesSource = action !== "add";
     const size = action === "add" ? els.requestSize.value : els.replaceSize.value;
-    const head = action === "replace" ? els.replaceHead.value : els.requestHead.value;
-    const requestImage = els.requestTargetDepartment.value === "แผนกแรงสูง TAC" ? await uploadSelectedRequestImage() : null;
+    const head = ["replace", "delete"].includes(action) ? els.replaceHead.value : els.requestHead.value;
+    const requestImage = action !== "delete" && els.requestTargetDepartment.value === "แผนกแรงสูง TAC" ? await uploadSelectedRequestImage() : null;
     const response = await fetch("/api/base-requests", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2157,7 +2157,7 @@ async function submitBaseRequest(event) {
         target_department: els.requestTargetDepartment.value,
         insulator_upright: els.requestInsulatorUpright.value,
         insulator_horizontal: els.requestInsulatorHorizontal.value,
-        size, head, rows: requestMaterialValues(), original_rows: usesSource ? state.baseRequestOriginalRows : [],
+        size, head, rows: action === "delete" ? [] : requestMaterialValues(), original_rows: usesSource ? state.baseRequestOriginalRows : [],
         source_size: usesSource ? els.replaceSize.value : "", source_head: usesSource ? els.replaceHead.value : "",
         image_file_id: requestImage?.id || "", image_name: requestImage?.name || "", image_mime_type: requestImage?.mimeType || "",
         note: els.requestNote.value,
@@ -2281,7 +2281,7 @@ function renderPublicPendingRequests() {
     els.publicPendingRequestList.innerHTML = '<div class="empty-saved">ไม่มีรายการรออนุมัติ</div>';
     return;
   }
-  const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขข้อมูลเดิม", rename: "แก้ไขหัวเสา", copy: "คัดลอกเป็นหัวใหม่" };
+  const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขข้อมูลเดิม", rename: "แก้ไขหัวเสา", copy: "คัดลอกเป็นหัวใหม่", delete: "ลบหัวเสา" };
   state.publicPendingRequests.forEach((request) => {
     const card = document.createElement("article");
     card.className = "public-pending-request";
@@ -2289,7 +2289,8 @@ function renderPublicPendingRequests() {
     toggle.type = "button";
     toggle.className = "public-pending-toggle";
     toggle.setAttribute("aria-expanded", "false");
-    toggle.innerHTML = `<span class="pending-toggle-symbol">+</span><span><strong>${escapeHtml(request.size)} · ${escapeHtml(request.head)}</strong><small>${escapeHtml(request.targetDepartment || DEFAULT_DEPARTMENT)} · ${escapeHtml(actionLabels[request.action] || "เพิ่มข้อมูล")} · ${escapeHtml(formatSavedDate(request.submittedAt))}</small></span><em>${(request.rows || []).length} รายการ</em>`;
+    const displayedRows = request.action === "delete" ? (request.originalRows || []) : (request.rows || []);
+    toggle.innerHTML = `<span class="pending-toggle-symbol">+</span><span><strong>${escapeHtml(request.size)} · ${escapeHtml(request.head)}</strong><small>${escapeHtml(request.targetDepartment || DEFAULT_DEPARTMENT)} · ${escapeHtml(actionLabels[request.action] || "เพิ่มข้อมูล")} · ${escapeHtml(formatSavedDate(request.submittedAt))}</small></span><em>${displayedRows.length} รายการ</em>`;
     const details = document.createElement("div");
     details.className = "public-pending-details";
     details.hidden = true;
@@ -2298,7 +2299,7 @@ function renderPublicPendingRequests() {
     const table = document.createElement("table");
     table.innerHTML = "<thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ/SET</th><th>จำนวน</th></tr></thead>";
     const body = document.createElement("tbody");
-    (request.rows || []).forEach((item) => {
+    displayedRows.forEach((item) => {
       const row = document.createElement("tr");
       [item.material, item.code, formatAmount(item.quantity)].forEach((value) => { const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell); });
       body.appendChild(row);
@@ -2384,16 +2385,18 @@ async function changeDepartment(department) {
 async function switchRequestAction() {
   const action = els.requestAction.value;
   const usesSource = action !== "add";
-  els.requestAddTarget.hidden = action === "replace";
+  const deleting = action === "delete";
+  els.requestAddTarget.hidden = action === "replace" || deleting;
   els.requestReplaceTarget.hidden = !usesSource;
   els.existingDataHint.hidden = !usesSource;
   els.requestSizeField.hidden = action !== "add";
   els.requestHeadLabel.textContent = usesSource ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
+  els.addRequestMaterial.hidden = deleting;
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
   state.baseRequestImage = null;
   els.requestImage.value = "";
-  els.requestImagePanel.hidden = els.requestTargetDepartment.value !== "แผนกแรงสูง TAC";
+  els.requestImagePanel.hidden = deleting || els.requestTargetDepartment.value !== "แผนกแรงสูง TAC";
   renderRequestImagePreview();
   if (!usesSource) {
     addRequestMaterialRow();
@@ -2444,11 +2447,15 @@ async function loadExistingBaseEntry() {
       els.requestHead.value = els.replaceHead.value;
     } else if (action === "copy") {
       els.requestHead.value = `${els.replaceHead.value} COPY`;
+    } else if (action === "delete") {
+      els.requestMaterialRows.querySelectorAll("input, button").forEach((control) => { control.disabled = true; });
     }
     els.existingDataHint.textContent = action === "rename"
       ? `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว ใส่ชื่อหัวเสาใหม่ด้านบน`
       : action === "copy"
         ? `คัดลอกข้อมูลเดิม ${data.rows.length} รายการแล้ว เปลี่ยนชื่อและแก้ไส้ในได้ทันที`
+        : action === "delete"
+          ? `หัวเสานี้มี ${data.rows.length} รายการ และจะถูกลบทั้งหมดหลัง Admin อนุมัติ`
         : `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว แก้ไข เพิ่ม หรือนำรายการออกได้`;
   } catch (error) { setStatus(error.message, true); }
 }
@@ -2612,7 +2619,7 @@ function renderBaseRequests() {
       ? `${sourceLabel} → ${request.size} · ${request.head}`
       : `${request.size} · ${request.head}`;
     const meta = document.createElement("p");
-    const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขไส้ในหัวเดิม", rename: "แก้ไขหัวเสา", copy: "คัดลอกเป็นหัวใหม่" };
+    const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขไส้ในหัวเดิม", rename: "แก้ไขหัวเสา", copy: "คัดลอกเป็นหัวใหม่", delete: "ลบหัวเสา" };
     meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${actionLabels[request.action] || "เพิ่มข้อมูล"}`;
     const insulatorReview = document.createElement("div");
     insulatorReview.className = "admin-insulator-review";
@@ -2642,10 +2649,12 @@ function renderBaseRequests() {
     status.textContent = request.status === "pending" ? "รอตรวจ" : request.status === "approved" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว";
     footer.appendChild(status);
     if (request.status === "pending") {
-      const editButton = document.createElement("button");
-      editButton.type = "button"; editButton.textContent = "แก้ไขก่อนอนุมัติ"; editButton.className = "secondary";
-      editButton.addEventListener("click", () => showAdminRequestEditor(card, request, insulatorReview, wrap));
-      footer.appendChild(editButton);
+      if (request.action !== "delete") {
+        const editButton = document.createElement("button");
+        editButton.type = "button"; editButton.textContent = "แก้ไขก่อนอนุมัติ"; editButton.className = "secondary";
+        editButton.addEventListener("click", () => showAdminRequestEditor(card, request, insulatorReview, wrap));
+        footer.appendChild(editButton);
+      }
       for (const [label, approve, className] of [["อนุมัติ", true, "primary"], ["ปฏิเสธ", false, "danger"]]) {
         const button = document.createElement("button");
         button.type = "button"; button.textContent = label; button.className = className;

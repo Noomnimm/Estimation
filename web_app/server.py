@@ -71,7 +71,7 @@ def reload_approved_base() -> None:
         size, head = str(first.get("size", "")).strip(), str(first.get("head", "")).strip()
         department = str(first.get("department", "")).strip() or DEFAULT_DEPARTMENT
         action = str(first.get("action", "add")).strip()
-        if action in {"replace", "rename"}:
+        if action in {"replace", "rename", "delete"}:
             remove_size = str(first.get("source_size", "")).strip() or size
             remove_head = str(first.get("source_head", "")).strip() or head
             WORKBOOK.base_df = WORKBOOK.base_df[
@@ -86,8 +86,9 @@ def reload_approved_base() -> None:
             DEPARTMENT_COL: department,
             INSULATOR_UPRIGHT_COL: pd.NA if row.get("insulator_upright", "") == "" else row.get("insulator_upright"),
             INSULATOR_HORIZONTAL_COL: pd.NA if row.get("insulator_horizontal", "") == "" else row.get("insulator_horizontal"),
-        } for row in request_rows]
-        WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
+        } for row in request_rows if action != "delete"]
+        if additions:
+            WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
         image_file_id = str(first.get("image_file_id", "")).strip()
         if image_file_id:
             HEAD_IMAGES[(department, size, head)] = {

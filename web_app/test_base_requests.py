@@ -324,6 +324,26 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(store.approved[0]["source_head"], "DDE")
         self.assertEqual(store.approved[0]["image_file_id"], "drive-image-1")
 
+    def test_delete_request_publishes_tombstone_for_selected_head(self):
+        store = MemoryBaseRequestStore()
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "target_department": "แผนกแรงสูง", "action": "delete",
+            "size": "12.2", "head": "DDE", "source_size": "12.2", "source_head": "DDE",
+            "original_rows": [{"material": "SET เดิม", "code": "Set1", "quantity": 1}],
+            "rows": [],
+        })
+
+        reviewed = store.review_base_request(request["id"], True, "admin")
+
+        self.assertEqual(reviewed["action"], "delete")
+        self.assertEqual(reviewed["rows"], [])
+        self.assertEqual(reviewed["originalRows"][0]["code"], "Set1")
+        self.assertEqual(len(store.approved), 1)
+        self.assertEqual(store.approved[0]["action"], "delete")
+        self.assertEqual(store.approved[0]["source_head"], "DDE")
+        self.assertEqual(store.approved[0]["code"], "")
+
     def test_rename_request_requires_source(self):
         store = MemoryBaseRequestStore()
         with self.assertRaisesRegex(ValueError, "หัวเสาต้นฉบับ"):
