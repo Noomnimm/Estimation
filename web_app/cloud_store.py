@@ -61,6 +61,8 @@ class GoogleSheetProjectStore:
         self._lock = threading.RLock()
         self._pending_request_cache: dict[str, dict[str, Any]] = {}
         self._pending_record_cache: dict[str, dict[str, Any]] = {}
+        self._base_request_snapshot: list[dict[str, Any]] = []
+        self._checked_named_sheets: set[tuple[str, tuple[str, ...]]] = set()
 
     @property
     def configured(self) -> bool:
@@ -166,11 +168,20 @@ class GoogleSheetProjectStore:
             public_record = self._request_to_public(record)
             self._pending_request_cache[public_record["id"]] = public_record
             self._pending_record_cache[public_record["id"]] = dict(record)
+            self._base_request_snapshot = [public_record, *[item for item in self._base_request_snapshot if item["id"] != public_record["id"]]]
         return public_record
 
     def list_base_requests(self) -> list[dict[str, Any]]:
         with self._lock:
-            rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
+            try:
+                rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
+            except Exception:
+                if self._base_request_snapshot or self._pending_request_cache:
+                    cached = list(self._base_request_snapshot)
+                    pending = list(self._pending_request_cache.values())
+                    pending_ids = {request["id"] for request in pending}
+                    return [*pending, *[request for request in cached if request["id"] not in pending_ids]]
+                raise
             requests = [self._request_to_public(row) for row in reversed(rows)]
             stored_by_id = {request["id"]: request for request in requests}
             for request_id, request in list(self._pending_request_cache.items()):
@@ -179,6 +190,7 @@ class GoogleSheetProjectStore:
                     self._pending_request_cache.pop(request_id, None)
                 elif not stored:
                     requests.insert(0, request)
+            self._base_request_snapshot = list(requests)
             return requests
 
     def list_pending_base_requests(self) -> list[dict[str, Any]]:
@@ -293,7 +305,9 @@ class GoogleSheetProjectStore:
                     })
             self._pending_request_cache.pop(request_id, None)
             self._pending_record_cache.pop(request_id, None)
-        return self._request_to_public(record)
+            public_record = self._request_to_public(record)
+            self._base_request_snapshot = [public_record, *[item for item in self._base_request_snapshot if item["id"] != request_id]]
+        return public_record
 
     def list_approved_base_rows(self) -> list[dict[str, Any]]:
         if not self.service_configured:
@@ -346,6 +360,9 @@ class GoogleSheetProjectStore:
         return number
 
     def _ensure_named_sheet(self, sheet_name: str, headers: list[str]) -> None:
+        cache_key = (sheet_name, tuple(headers))
+        if cache_key in self._checked_named_sheets:
+            return
         if not self.service_configured:
             raise ValueError("ยังไม่ได้ตั้งค่า Google Sheet สำหรับเก็บคำขอ BaseData")
         service = self._get_service()
@@ -372,6 +389,7 @@ class GoogleSheetProjectStore:
                 ).execute()
             else:
                 raise ValueError(f"หัวตารางในแท็บ {sheet_name} ไม่ตรงกับรูปแบบของระบบ")
+        self._checked_named_sheets.add(cache_key)
 
     def _read_named_rows(self, sheet_name: str, headers: list[str], key: str) -> list[dict[str, Any]]:
         self._ensure_named_sheet(sheet_name, headers)

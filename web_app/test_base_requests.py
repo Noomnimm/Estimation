@@ -10,6 +10,7 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
         self.rows = []
         self.approved = []
         self.hide_request_reads = False
+        self.fail_request_reads = False
 
     def _ensure_named_sheet(self, sheet_name, headers):
         return None
@@ -25,6 +26,8 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
         return None
 
     def _read_named_rows(self, sheet_name, headers, key):
+        if sheet_name == "BaseDataRequests" and self.fail_request_reads:
+            raise TimeoutError("Google Sheet timeout")
         if sheet_name == "BaseDataRequests" and self.hide_request_reads:
             return []
         return [dict(row) for row in self.rows]
@@ -229,6 +232,20 @@ class BaseRequestTests(unittest.TestCase):
 
         self.assertEqual([item["id"] for item in requests], [request["id"]])
         store.rows = saved_rows
+
+    def test_request_snapshot_is_used_when_google_sheet_times_out(self):
+        store = MemoryBaseRequestStore()
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "12", "head": "TIMEOUT TEST",
+            "rows": [{"material": "TEST", "code": "Set1", "quantity": 1}],
+        })
+        store.list_base_requests()
+        store.fail_request_reads = True
+
+        requests = store.list_base_requests()
+
+        self.assertEqual([item["id"] for item in requests], [request["id"]])
 
     def test_admin_can_edit_request_while_approving_and_original_is_audited(self):
         store = MemoryBaseRequestStore()

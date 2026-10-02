@@ -2456,16 +2456,23 @@ async function loadExistingBaseEntry() {
 async function adminFetch(url, options = {}) {
   const headers = { ...(options.headers || {}), Authorization: `Bearer ${state.adminToken}` };
   const response = await fetch(url, { ...options, headers });
-  return readJson(response, "ดำเนินการ Admin ไม่สำเร็จ");
+  try {
+    return await readJson(response, "ดำเนินการ Admin ไม่สำเร็จ");
+  } catch (error) {
+    error.httpStatus = response.status;
+    throw error;
+  }
 }
 
-function showAdminPanel() {
+async function showAdminPanel() {
   els.adminLoginPanel.hidden = Boolean(state.adminToken);
   els.adminRequestsPanel.hidden = !state.adminToken;
   if (state.adminToken) {
-    loadBaseRequests();
-    loadAdminCloudTrash();
-    loadDriveOAuthStatus();
+    await loadBaseRequests();
+    if (state.adminToken) {
+      loadAdminCloudTrash();
+      loadDriveOAuthStatus();
+    }
   }
 }
 
@@ -2554,9 +2561,11 @@ async function loadBaseRequests() {
     return true;
   } catch (error) {
     if (loadSequence !== adminRequestLoadSequence) return false;
-    state.adminToken = "";
-    sessionStorage.removeItem("material-calculator-admin-token");
-    showAdminPanel();
+    if (error.httpStatus === 401) {
+      state.adminToken = "";
+      sessionStorage.removeItem("material-calculator-admin-token");
+      showAdminPanel();
+    }
     setStatus(error.message, true);
     return false;
   }
