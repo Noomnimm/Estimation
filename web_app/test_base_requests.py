@@ -9,6 +9,7 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
         super().__init__()
         self.rows = []
         self.approved = []
+        self.hide_request_reads = False
 
     def _ensure_named_sheet(self, sheet_name, headers):
         return None
@@ -18,10 +19,14 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
         if sheet_name == "BaseDataRequests":
             saved["_row_number"] = len(self.rows) + 2
             self.rows.append(saved)
+            return saved["_row_number"]
         else:
             self.approved.append(saved)
+        return None
 
     def _read_named_rows(self, sheet_name, headers, key):
+        if sheet_name == "BaseDataRequests" and self.hide_request_reads:
+            return []
         return [dict(row) for row in self.rows]
 
     def _update_named_record(self, sheet_name, headers, record, row_number):
@@ -260,6 +265,25 @@ class BaseRequestTests(unittest.TestCase):
             })
         self.assertEqual(store.rows[0]["status"], "pending")
         self.assertEqual(store.approved, [])
+
+    def test_admin_can_approve_cached_request_when_sheet_read_temporarily_misses_it(self):
+        store = MemoryBaseRequestStore()
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "12", "head": "CACHE TEST",
+            "rows": [{"material": "เดิม", "code": "Set1", "quantity": 1}],
+        })
+        store.hide_request_reads = True
+
+        reviewed = store.review_base_request(request["id"], True, "admin", edits={
+            "size": "12", "head": "CACHE TEST EDITED", "insulator_upright": 2,
+            "insulator_horizontal": 3,
+            "rows": [{"material": "แก้แล้ว", "code": "Set2", "quantity": 4}],
+        })
+
+        self.assertEqual(reviewed["status"], "approved")
+        self.assertEqual(reviewed["head"], "CACHE TEST EDITED")
+        self.assertEqual(store.approved[0]["code"], "Set2")
 
     def test_copy_request_keeps_source_and_new_target(self):
         store = MemoryBaseRequestStore()

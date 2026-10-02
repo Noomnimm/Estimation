@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import uuid
 from io import BytesIO
@@ -59,6 +60,7 @@ class GoogleSheetProjectStore:
         self._drive_service = None
         self._lock = threading.RLock()
         self._pending_request_cache: dict[str, dict[str, Any]] = {}
+        self._pending_record_cache: dict[str, dict[str, Any]] = {}
 
     @property
     def configured(self) -> bool:
@@ -158,9 +160,12 @@ class GoogleSheetProjectStore:
         }
         with self._lock:
             self._ensure_named_sheet(REQUEST_SHEET, REQUEST_HEADERS)
-            self._append_named_record(REQUEST_SHEET, REQUEST_HEADERS, record)
+            row_number = self._append_named_record(REQUEST_SHEET, REQUEST_HEADERS, record)
+            if row_number:
+                record["_row_number"] = row_number
             public_record = self._request_to_public(record)
             self._pending_request_cache[public_record["id"]] = public_record
+            self._pending_record_cache[public_record["id"]] = dict(record)
         return public_record
 
     def list_base_requests(self) -> list[dict[str, Any]]:
@@ -213,6 +218,9 @@ class GoogleSheetProjectStore:
         with self._lock:
             rows = self._read_named_rows(REQUEST_SHEET, REQUEST_HEADERS, "request_id")
             record = next((row for row in rows if row["request_id"] == request_id), None)
+            if not record:
+                cached_record = self._pending_record_cache.get(request_id)
+                record = dict(cached_record) if cached_record and cached_record.get("_row_number") else None
             if not record:
                 raise ValueError("ไม่พบคำขอที่ต้องการตรวจ")
             if record.get("status") != "pending":
@@ -284,6 +292,7 @@ class GoogleSheetProjectStore:
                         "image_mime_type": stored_rows.get("image_mime_type", "") if isinstance(stored_rows, dict) else "",
                     })
             self._pending_request_cache.pop(request_id, None)
+            self._pending_record_cache.pop(request_id, None)
         return self._request_to_public(record)
 
     def list_approved_base_rows(self) -> list[dict[str, Any]]:
@@ -378,12 +387,15 @@ class GoogleSheetProjectStore:
                 result.append(row)
         return result
 
-    def _append_named_record(self, sheet_name: str, headers: list[str], record: dict[str, Any]) -> None:
-        self._get_service().spreadsheets().values().append(
+    def _append_named_record(self, sheet_name: str, headers: list[str], record: dict[str, Any]) -> int | None:
+        response = self._get_service().spreadsheets().values().append(
             spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A:{self._column_letter(len(headers))}",
             valueInputOption="RAW", insertDataOption="INSERT_ROWS",
             body={"values": [[record.get(header, "") for header in headers]]},
         ).execute()
+        updated_range = str(response.get("updates", {}).get("updatedRange", ""))
+        match = re.search(r"![A-Z]+(\d+)(?::|$)", updated_range)
+        return int(match.group(1)) if match else None
 
     def _update_named_record(self, sheet_name: str, headers: list[str], record: dict[str, Any], row_number: int) -> None:
         self._get_service().spreadsheets().values().update(
