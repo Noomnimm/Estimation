@@ -2217,6 +2217,13 @@ function rememberPublicPendingRequest(request) {
   writePublicPendingCache(requests);
 }
 
+function forgetPublicPendingRequest(requestId) {
+  const remaining = readPublicPendingCache().filter((request) => request.id !== requestId);
+  writePublicPendingCache(remaining);
+  state.publicPendingRequests = state.publicPendingRequests.filter((request) => request.id !== requestId);
+  renderPublicPendingRequests();
+}
+
 async function loadPublicPendingRequests() {
   const loadSequence = ++publicPendingLoadSequence;
   const initialCache = readPublicPendingCache();
@@ -2239,11 +2246,8 @@ async function loadPublicPendingRequests() {
     }
     if (!data) throw lastError;
     if (loadSequence !== publicPendingLoadSequence) return false;
-    const resolvedIds = new Set(data.resolvedRequestIds || []);
     const serverRequests = data.requests || [];
-    const serverIds = new Set(serverRequests.map((request) => request.id));
-    const cachedRequests = readPublicPendingCache().filter((request) => !resolvedIds.has(request.id) && !serverIds.has(request.id));
-    state.publicPendingRequests = [...serverRequests, ...cachedRequests];
+    state.publicPendingRequests = serverRequests;
     writePublicPendingCache(state.publicPendingRequests);
     renderPublicPendingRequests();
     return true;
@@ -2748,6 +2752,7 @@ async function reviewBaseRequest(requestId, approve, button, edits = null) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requestId, approve, note, ...(edits ? { edits } : {}) }),
     });
+    forgetPublicPendingRequest(requestId);
     if (approve) {
       sessionStorage.setItem(ADMIN_APPROVAL_REFRESH_KEY, "1");
       const refreshedUrl = new URL(window.location.href);
