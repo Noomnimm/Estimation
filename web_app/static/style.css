@@ -1117,6 +1117,49 @@ td select {
 :root[data-theme="dark"] .export-actions button,
 :root[data-theme="dark"] .export-actions #exportPageHardware { background: linear-gradient(135deg, #333b41 0%, #46545e 100%); border-color: #596a76; }
 :root[data-theme="dark"] .export-actions button:hover { background: linear-gradient(135deg, #3b454c 0%, #52636f 100%); }
+:root[data-theme="dark"] .project-action-cluster { background: #252a2e; border-color: #414a51; }
+:root[data-theme="dark"] button:not(.theme-toggle):not(.set-expand-button) {
+  border-color: #4d5860;
+  background: #2c3237;
+  color: #e8edf0;
+  box-shadow: none;
+}
+:root[data-theme="dark"] button:not(.theme-toggle):not(.set-expand-button):hover {
+  border-color: #71838f;
+  background: #374047;
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, .22);
+}
+:root[data-theme="dark"] button.primary,
+:root[data-theme="dark"] #saveCloudProject,
+:root[data-theme="dark"] .app-tab.active,
+:root[data-theme="dark"] .work-type-button.active,
+:root[data-theme="dark"] .page-number.active,
+:root[data-theme="dark"] .actions button:first-child,
+:root[data-theme="dark"] .export-actions button,
+:root[data-theme="dark"] .export-actions #exportPageHardware {
+  border-color: #687c8a;
+  background: linear-gradient(135deg, #42515c, #566a78);
+  color: #fff;
+}
+:root[data-theme="dark"] .set-expand-button { border-color: #60717d; background: #30383e; color: #dce5eb; }
+:root[data-theme="dark"] .set-expand-button:hover { border-color: #7f929f; background: #3b464d; color: #fff; }
+:root[data-theme="dark"] button.danger,
+:root[data-theme="dark"] .folder-delete,
+:root[data-theme="dark"] .remove-head-row,
+:root[data-theme="dark"] .remove-structure-row {
+  border-color: #79515a;
+  background: #422f34;
+  color: #f2b5c1;
+}
+:root[data-theme="dark"] button.danger:hover,
+:root[data-theme="dark"] .folder-delete:hover,
+:root[data-theme="dark"] .remove-head-row:hover,
+:root[data-theme="dark"] .remove-structure-row:hover {
+  border-color: #a46a77;
+  background: #50383e;
+  color: #ffd4dc;
+}
 :root[data-theme="dark"] #saveHint.saved { background: #1e422d; color: #9ce0b3; }
 :root[data-theme="dark"] #saveHint.dirty,
 :root[data-theme="dark"] #saveHint.new { background: #4c3a16; color: #ffe093; }
