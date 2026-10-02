@@ -923,10 +923,29 @@ function renderPageControls() {
   });
 }
 
+function detailItemSortGroup(item) {
+  const code = String(item?.["รหัสพัสดุ"] || "").trim();
+  const normalizedCode = code.toLowerCase();
+  const structure = STRUCTURE_CATALOG.find((entry) => entry.code.toLowerCase() === normalizedCode);
+  if (structure?.group === "เสาคอนกรีต") return 0;
+  if (structure) return 1;
+  if (WIRE_CATALOG.some((entry) => entry.code.toLowerCase() === normalizedCode)) return 2;
+  if (normalizedCode.startsWith("set")) return 3;
+  if (/^\d{10}$/.test(code)) return 4;
+  return 5;
+}
+
+function sortDetailItems(items) {
+  return items
+    .map((item, index) => ({ item, index, group: detailItemSortGroup(item) }))
+    .sort((left, right) => left.group - right.group || left.index - right.index)
+    .map(({ item }) => item);
+}
+
 function renderResults(items, meta) {
   state.results = items || [];
-  const installItems = state.results.filter((item) => Number(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0) !== 0);
-  const demolitionItems = state.results.filter((item) => Number(item["จำนวนรื้อถอน"] ?? 0) !== 0);
+  const installItems = sortDetailItems(state.results.filter((item) => Number(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0) !== 0));
+  const demolitionItems = sortDetailItems(state.results.filter((item) => Number(item["จำนวนรื้อถอน"] ?? 0) !== 0));
   const renderWorkRows = (container, rows, quantityKey, fallbackKey = null) => {
     container.innerHTML = rows.map((item) => `
       <tr>
@@ -938,7 +957,7 @@ function renderResults(items, meta) {
   };
   renderWorkRows(els.installResultRows, installItems, "จำนวนติดตั้ง", "จำนวนรวม");
   renderWorkRows(els.demolitionResultRows, demolitionItems, "จำนวนรื้อถอน");
-  const combinedItems = state.results.filter((item) => Number(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0) !== 0 || Number(item["จำนวนรื้อถอน"] ?? 0) !== 0);
+  const combinedItems = sortDetailItems(state.results.filter((item) => Number(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0) !== 0 || Number(item["จำนวนรื้อถอน"] ?? 0) !== 0));
   els.combinedResultRows.innerHTML = combinedItems.map((item) => `
     <tr>
       <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
