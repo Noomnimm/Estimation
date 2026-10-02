@@ -895,6 +895,7 @@ td select {
 .structure-row select, .structure-row input { width: 100%; padding: 10px; border: 1px solid #cbdce7; border-radius: 9px; background: #fff; font: inherit; }
 .remove-structure-row { width: 38px; height: 40px; padding: 0; border-color: #e2b5c7; background: #fbe7ef; color: #8a234e; font-size: 20px; }
 .head-entry-group .entry-group-heading { background: #f2eaf7; }
+.clear-head-rows { min-height: 34px; padding: 6px 11px; border-color: #c8add8; background: #fff; color: #6f3294; font-weight: 800; }
 .head-entry-group .input-table-wrap { border-width: 1px 0 0; border-radius: 0; }
 .head-entry-group .bottom-row-actions { padding: 0 12px 12px; }
 

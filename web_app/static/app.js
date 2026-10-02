@@ -99,6 +99,7 @@ const els = {
   pageLabel: document.getElementById("pageLabel"),
   pagePicker: document.getElementById("pagePicker"),
   addRow: document.getElementById("addRow"),
+  clearHeadRows: document.getElementById("clearHeadRows"),
   clearPage: document.getElementById("clearPage"),
   inputRows: document.getElementById("inputRows"),
   structureRows: document.getElementById("structureRows"),
@@ -1830,6 +1831,24 @@ els.addRow.addEventListener("click", () => {
   state.pages[state.currentPage].push(blankRow(state.department, state.activeWorkType));
   renderInputs();
   markProjectDirty();
+});
+
+els.clearHeadRows.addEventListener("click", () => {
+  saveCurrentPageFromDom();
+  const page = state.pages[state.currentPage] || [];
+  const specifiedCount = page.filter((row) => row.size || row.head || String(row.count || "").trim()).length;
+  if (!specifiedCount) {
+    setStatus("ยังไม่มีค่าหัวเสาให้ล้าง");
+    return;
+  }
+  if (!window.confirm(`ล้างค่าหัวเสาทั้งหมด ${specifiedCount} รายการในหน้านี้ใช่ไหม?\n\nรายการเสา สาย และค่าลูกถ้วยนับจริงจะยังอยู่`)) return;
+  const actualInsulators = page[0]?.actualInsulators;
+  const firstRow = blankRow(state.department, state.activeWorkType);
+  if (actualInsulators) firstRow.actualInsulators = { ...actualInsulators };
+  state.pages[state.currentPage] = [firstRow, blankRow(state.department, state.activeWorkType)];
+  renderInputs();
+  markProjectDirty();
+  setStatus("ล้างค่าหัวเสาทั้งหมดในหน้านี้แล้ว พร้อมกรอกใหม่");
 });
 
 els.addStructureRow.addEventListener("click", () => {
