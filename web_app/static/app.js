@@ -46,8 +46,11 @@ const state = {
   resultWorkType: "install",
   combinedView: false,
   sizes: [],
-  pages: [[blankRow(), blankRow()]],
-  structurePages: [[blankStructureRow()]],
+  pages: [
+    [blankRow(DEFAULT_DEPARTMENT, "install"), blankRow(DEFAULT_DEPARTMENT, "install")],
+    [blankRow(DEFAULT_DEPARTMENT, "demolition"), blankRow(DEFAULT_DEPARTMENT, "demolition")],
+  ],
+  structurePages: [[blankStructureRow("install")], [blankStructureRow("demolition")]],
   currentPage: 0,
   results: [],
   activeProjectId: "",
@@ -1045,7 +1048,17 @@ function cloneStructurePages(structurePages, pages) {
 }
 
 function emptyDepartmentWork(department) {
-  return { pages: [[blankRow(department, "install"), blankRow(department, "install")]], structurePages: [[blankStructureRow("install")]], currentPage: 0, activeWorkType: "install", results: [], resultMeta: "ยังไม่มีผลคำนวณ" };
+  return {
+    pages: [
+      [blankRow(department, "install"), blankRow(department, "install")],
+      [blankRow(department, "demolition"), blankRow(department, "demolition")],
+    ],
+    structurePages: [[blankStructureRow("install")], [blankStructureRow("demolition")]],
+    currentPage: 0,
+    activeWorkType: "install",
+    results: [],
+    resultMeta: "ยังไม่มีผลคำนวณ",
+  };
 }
 
 function stashCurrentDepartment() {
@@ -1351,8 +1364,9 @@ function resetProject() {
   state.resultWorkType = "install";
   state.combinedView = false;
   els.workspace.classList.remove("combined-view");
-  state.pages = [[blankRow(state.department, "install"), blankRow(state.department, "install")]];
-  state.structurePages = [[blankStructureRow("install")]];
+  const freshWork = emptyDepartmentWork(state.department);
+  state.pages = freshWork.pages;
+  state.structurePages = freshWork.structurePages;
   state.currentPage = 0;
   state.results = [];
   els.projectName.value = "";
