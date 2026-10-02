@@ -12,6 +12,8 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
         self.approved = []
         self.hide_request_reads = False
         self.fail_request_reads = False
+        self.fail_request_writes = False
+        self.fail_journal_writes = False
 
     def _ensure_named_sheet(self, sheet_name, headers):
         return None
@@ -19,10 +21,14 @@ class MemoryBaseRequestStore(GoogleSheetProjectStore):
     def _append_named_record(self, sheet_name, headers, record):
         saved = dict(record)
         if sheet_name == "BaseDataRequests":
+            if self.fail_request_writes:
+                raise TimeoutError("primary request write timeout")
             saved["_row_number"] = len(self.rows) + 2
             self.rows.append(saved)
             return saved["_row_number"]
         elif sheet_name == "BaseDataRequestJournal":
+            if self.fail_journal_writes:
+                raise TimeoutError("journal write timeout")
             saved["_row_number"] = len(self.journal) + 2
             self.journal.append(saved)
             return saved["_row_number"]
@@ -272,6 +278,33 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(reviewed["status"], "approved")
         self.assertEqual(restarted.list_pending_base_requests(), [])
         self.assertEqual(restarted.approved[0]["code"], "Set1")
+
+    def test_submit_survives_primary_write_failure_when_journal_is_durable(self):
+        store = MemoryBaseRequestStore()
+        store.fail_request_writes = True
+
+        request = store.submit_base_request({
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "size": "12", "head": "JOURNAL ONLY",
+            "rows": [{"material": "TEST", "code": "Set1", "quantity": 1}],
+        })
+
+        restarted = MemoryBaseRequestStore()
+        restarted.journal = [dict(event) for event in store.journal]
+        self.assertEqual([item["id"] for item in restarted.list_pending_base_requests()], [request["id"]])
+
+    def test_submit_fails_instead_of_showing_memory_only_request(self):
+        store = MemoryBaseRequestStore()
+        store.fail_journal_writes = True
+
+        with self.assertRaisesRegex(ValueError, "ยังบันทึกคำขอลง Google Sheet ไม่สำเร็จ"):
+            store.submit_base_request({
+                "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+                "size": "12", "head": "MUST BE DURABLE",
+                "rows": [{"material": "TEST", "code": "Set1", "quantity": 1}],
+            })
+
+        self.assertEqual(store.rows, [])
 
     def test_admin_can_edit_request_while_approving_and_original_is_audited(self):
         store = MemoryBaseRequestStore()

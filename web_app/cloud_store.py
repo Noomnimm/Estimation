@@ -164,14 +164,17 @@ class GoogleSheetProjectStore:
             "status": "pending", "reviewed_at": "", "reviewed_by": "", "review_note": "",
         }
         with self._lock:
-            self._ensure_named_sheet(REQUEST_SHEET, REQUEST_HEADERS)
-            row_number = self._append_named_record(REQUEST_SHEET, REQUEST_HEADERS, record)
-            if row_number:
-                record["_row_number"] = row_number
             try:
                 self._append_request_journal(record, "submitted", values["submitter_name"])
+            except Exception as exc:
+                raise ValueError(f"ยังบันทึกคำขอลง Google Sheet ไม่สำเร็จ: {exc}") from exc
+            try:
+                self._ensure_named_sheet(REQUEST_SHEET, REQUEST_HEADERS)
+                row_number = self._append_named_record(REQUEST_SHEET, REQUEST_HEADERS, record)
+                if row_number:
+                    record["_row_number"] = row_number
             except Exception:
-                # The primary request row is already durable; do not make the user submit twice.
+                # The append-only journal is the durable source of truth and can rebuild this row.
                 pass
             public_record = self._request_to_public(record)
             self._pending_request_cache[public_record["id"]] = public_record
