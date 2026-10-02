@@ -887,6 +887,9 @@ td select {
 .bottom-row-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 12px; }
 .bottom-row-actions button { min-width: 105px; font-weight: 800; }
 .bottom-row-actions #addRow { border-color: #8cbfdf; background: #e2f3ff; color: #155a84; }
+.entry-add-actions { margin-top: 0; padding: 0 12px 12px; }
+.structure-entry-group .entry-add-actions button { border-color: #8cbfdf; background: #e2f3ff; color: #155a84; }
+.wire-entry-group .entry-add-actions button { border-color: #7bcab8; background: #e5f7f1; color: #116451; }
 
 .actions button:first-child {
   background: linear-gradient(135deg, var(--accent-dark), var(--accent));
