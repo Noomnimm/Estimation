@@ -11,11 +11,15 @@ from web_app.material_logic import (
     HEAD_COL,
     MATERIAL_COL,
     QTY_COL,
+    SET_COL,
+    SET_DESC_COL,
+    SET_INSTALL_COL,
     SIZE_COL,
     TOTAL_COL,
     INSULATOR_UPRIGHT_COL,
     INSULATOR_HORIZONTAL_COL,
     MaterialWorkbook,
+    three_phase_config_head,
 )
 
 
@@ -95,6 +99,27 @@ class DepartmentTests(unittest.TestCase):
                  "surgeNgr": ngr, "surgeWithin3km": False, "surgeMounting": "tank"},
             ]])
             self.assertEqual({row[CODE_COL]: row[TOTAL_COL] for row in result["items"]}, {tank_code: 2.0})
+
+    def test_editable_three_phase_variant_injects_selected_surge_into_expanded_set(self):
+        head = three_phase_config_head(100, 1, 0)
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: "หม้อแปลง", HEAD_COL: head, MATERIAL_COL: "ชุดหม้อแปลง", CODE_COL: "Set40203", QTY_COL: 1, DEPARTMENT_COL: "แผนกหม้อแปลง"},
+        ])
+        workbook.set_df = pd.DataFrame([
+            {SET_COL: "Set40203", CODE_COL: "1040000007", SET_DESC_COL: "S.A. default", SET_INSTALL_COL: 3},
+            {SET_COL: "Set40203", CODE_COL: "1050010201", SET_DESC_COL: "Transformer", SET_INSTALL_COL: 1},
+        ])
+
+        workbook.calculate([[
+            {"department": "แผนกหม้อแปลง", "size": "หม้อแปลง", "head": head, "count": 1,
+             "surgeNgr": False, "surgeWithin3km": False, "surgeMounting": "crossarm"},
+        ]])
+        result = workbook.expand_set()
+        values = {row[CODE_COL]: row[TOTAL_COL] for row in result["items"]}
+
+        self.assertEqual(values["1040000000"], 3)
+        self.assertNotIn("1040000007", values)
 
 
 if __name__ == "__main__":

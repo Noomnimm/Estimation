@@ -116,6 +116,10 @@ def three_phase_config_head(kva: int, circuits: int, choice_index: int) -> str:
     return f"3P Sealed 22 kV · {kva} kVA · {circuits} LT · Fuse {fuse_label} A"
 
 
+def is_three_phase_config_head(head: str) -> bool:
+    return bool(re.fullmatch(r"3P Sealed 22 kV · \d+ kVA · [12] LT · Fuse [\d/-]+ A", head.strip()))
+
+
 def pages_have_work_types(pages: list[list[dict[str, Any]]]) -> bool:
     return any(str(item.get("workType", "")).strip() for page in pages for item in page)
 
@@ -362,6 +366,8 @@ class MaterialWorkbook:
                 selected_surge_code = ""
                 if department == "แผนกหม้อแปลง" and head == THREE_PHASE_TRANSFORMER_HEAD:
                     head, selected_surge_code = self._three_phase_config(item, page_number, row_number)
+                elif department == "แผนกหม้อแปลง" and is_three_phase_config_head(head):
+                    selected_surge_code = self._selected_transformer_surge_code(item)
                 high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
                 wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
@@ -464,17 +470,18 @@ class MaterialWorkbook:
         if not 0 <= choice_index < len(choices):
             raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกชุดฟิวส์ LT ที่ถูกต้อง")
 
+        return three_phase_config_head(kva, circuits, choice_index), self._selected_transformer_surge_code(item)
+
+    @staticmethod
+    def _selected_transformer_surge_code(item: dict[str, Any]) -> str:
         surge_ngr = bool(item.get("surgeNgr"))
         surge_within_3km = bool(item.get("surgeWithin3km"))
         surge_mounting = clean_text(item.get("surgeMounting")) or "crossarm"
         if surge_within_3km:
             surge_mounting = "crossarm"
         if surge_mounting == "tank":
-            selected_surge_material, selected_surge_code = SURGE_ARRESTER_TANK[surge_ngr]
-        else:
-            selected_surge_material, selected_surge_code = SURGE_ARRESTER_CROSSARM[(surge_ngr, surge_within_3km)]
-
-        return three_phase_config_head(kva, circuits, choice_index), selected_surge_code
+            return SURGE_ARRESTER_TANK[surge_ngr][1]
+        return SURGE_ARRESTER_CROSSARM[(surge_ngr, surge_within_3km)][1]
 
     def _department_mask(self, department: str) -> pd.Series:
         """Keep older in-memory/test BaseData compatible with the new department column."""
