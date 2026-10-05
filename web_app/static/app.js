@@ -113,10 +113,16 @@ const els = {
   clearPage: document.getElementById("clearPage"),
   inputRows: document.getElementById("inputRows"),
   structureRows: document.getElementById("structureRows"),
+  structureEntryGroup: document.querySelector(".structure-entry-group"),
   addStructureRow: document.getElementById("addStructureRow"),
   wireRows: document.getElementById("wireRows"),
+  wireEntryGroup: document.querySelector(".wire-entry-group"),
   addWireRow: document.getElementById("addWireRow"),
+  headEntryStep: document.getElementById("headEntryStep"),
+  headEntryTitle: document.getElementById("headEntryTitle"),
+  headEntryHint: document.getElementById("headEntryHint"),
   actualInsulatorEntry: document.getElementById("actualInsulatorEntry"),
+  actualInsulatorEntryStep: document.getElementById("actualInsulatorEntryStep"),
   actualInsulatorInputs: [...document.querySelectorAll("[data-actual-insulator]")],
   installInsulatorSummary: document.getElementById("installInsulatorSummary"),
   demolitionInsulatorSummary: document.getElementById("demolitionInsulatorSummary"),
@@ -486,6 +492,15 @@ function renderActualInsulatorInputs() {
 }
 
 function renderInputs() {
+  const isTransformerDepartment = state.department === "แผนกหม้อแปลง";
+  els.structureEntryGroup.hidden = isTransformerDepartment;
+  els.wireEntryGroup.hidden = isTransformerDepartment;
+  els.headEntryStep.textContent = isTransformerDepartment ? "1" : "3";
+  els.actualInsulatorEntryStep.textContent = isTransformerDepartment ? "2" : "4";
+  els.headEntryTitle.textContent = isTransformerDepartment ? "หม้อแปลง" : "หัวเสา";
+  els.headEntryHint.textContent = isTransformerDepartment ? "เลือกชนิดหม้อแปลงและจำนวนในหน้านี้" : "เลือกหัวเสาและจำนวนในหน้านี้";
+  els.addRow.textContent = isTransformerDepartment ? "＋ เพิ่มรายการหม้อแปลง" : "＋ เพิ่มรายการเสา";
+  els.clearHeadRows.textContent = isTransformerDepartment ? "ล้างค่าหม้อแปลง" : "ล้างค่าหัวเสา";
   renderStructureInputs();
   renderWireInputs();
   renderActualInsulatorInputs();
@@ -1875,19 +1890,21 @@ els.addRow.addEventListener("click", () => {
 els.clearHeadRows.addEventListener("click", () => {
   saveCurrentPageFromDom();
   const page = state.pages[state.currentPage] || [];
+  const itemLabel = state.department === "แผนกหม้อแปลง" ? "หม้อแปลง" : "หัวเสา";
   const specifiedCount = page.filter((row) => row.size || row.head || String(row.count || "").trim()).length;
   if (!specifiedCount) {
-    setStatus("ยังไม่มีค่าหัวเสาให้ล้าง");
+    setStatus(`ยังไม่มีค่า${itemLabel}ให้ล้าง`);
     return;
   }
-  if (!window.confirm(`ล้างค่าหัวเสาทั้งหมด ${specifiedCount} รายการในหน้านี้ใช่ไหม?\n\nรายการเสา สาย และค่าลูกถ้วยนับจริงจะยังอยู่`)) return;
+  const keepNote = itemLabel === "หัวเสา" ? "\n\nรายการเสา สาย และค่าลูกถ้วยนับจริงจะยังอยู่" : "";
+  if (!window.confirm(`ล้างค่า${itemLabel}ทั้งหมด ${specifiedCount} รายการในหน้านี้ใช่ไหม?${keepNote}`)) return;
   const actualInsulators = page[0]?.actualInsulators;
   const firstRow = blankRow(state.department, state.activeWorkType);
   if (actualInsulators) firstRow.actualInsulators = { ...actualInsulators };
   state.pages[state.currentPage] = [firstRow, blankRow(state.department, state.activeWorkType)];
   renderInputs();
   markProjectDirty();
-  setStatus("ล้างค่าหัวเสาทั้งหมดในหน้านี้แล้ว พร้อมกรอกใหม่");
+  setStatus(`ล้างค่า${itemLabel}ทั้งหมดในหน้านี้แล้ว พร้อมกรอกใหม่`);
 });
 
 els.addStructureRow.addEventListener("click", () => {
