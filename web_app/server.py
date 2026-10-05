@@ -169,6 +169,10 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/cloud-projects":
             self.cloud_projects()
             return
+        if parsed.path == "/api/cloud-projects/item":
+            query = parse_qs(parsed.query)
+            self.cloud_project(query.get("id", [""])[0])
+            return
         if parsed.path == "/api/base-admin/config":
             self.send_json({
                 "configured": bool(ADMIN_USERNAME and ADMIN_PASSWORD and CLOUD_STORE.service_configured),
@@ -538,6 +542,16 @@ class AppHandler(SimpleHTTPRequestHandler):
         try:
             user = CLOUD_STORE.verify_user(self.bearer_token())
             self.send_json({"projects": CLOUD_STORE.list_projects(user), "folders": CLOUD_STORE.list_project_folders(user), "user": user})
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
+        except Exception as exc:
+            traceback.print_exc()
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def cloud_project(self, project_id: str) -> None:
+        try:
+            user = CLOUD_STORE.verify_user(self.bearer_token())
+            self.send_json({"project": CLOUD_STORE.get_project(project_id, user)})
         except PermissionError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.UNAUTHORIZED)
         except Exception as exc:

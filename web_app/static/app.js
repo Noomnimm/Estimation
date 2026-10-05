@@ -1566,11 +1566,23 @@ function resetProject() {
 
 async function openSavedProject(projectId, source = "local") {
   const projects = source === "cloud" ? state.cloudProjects : getSavedProjects();
-  const project = projects.find((item) => item.id === projectId);
+  let project = projects.find((item) => item.id === projectId);
   if (!project) {
     setStatus("ไม่พบงานที่บันทึกไว้", true);
     renderSavedProjects();
     return;
+  }
+  if (source === "cloud") {
+    try {
+      setStatus("กำลังโหลดงานจาก Cloud...");
+      const data = await cloudRequest(`/api/cloud-projects/item?id=${encodeURIComponent(projectId)}`);
+      project = data.project;
+      const projectIndex = state.cloudProjects.findIndex((item) => item.id === projectId);
+      if (projectIndex >= 0) state.cloudProjects[projectIndex] = project;
+    } catch (error) {
+      setStatus(`เปิดงานจาก Cloud ไม่สำเร็จ: ${error.message}`, true);
+      return;
+    }
   }
   state.activeProjectId = project.id;
   state.combinedView = false;

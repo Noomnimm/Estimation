@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -57,6 +58,10 @@ class GoogleSheetProjectStore:
         }
         self._credentials_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
         self.drive_folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+        self.projects_drive_folder_id = (
+            os.environ.get("GOOGLE_PROJECTS_DRIVE_FOLDER_ID", "").strip()
+            or self.drive_folder_id
+        )
         self.oauth_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
         self.drive_refresh_token = os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN", "").strip()
         self._service = None
@@ -87,6 +92,12 @@ class GoogleSheetProjectStore:
         if self.drive_oauth_ready:
             return bool(self.drive_folder_id and self.drive_oauth_configured)
         return bool(self.drive_folder_id and self._credentials_json)
+
+    @property
+    def projects_drive_configured(self) -> bool:
+        if self.drive_oauth_ready:
+            return bool(self.projects_drive_folder_id and self.drive_oauth_configured)
+        return bool(self.projects_drive_folder_id and self._credentials_json)
 
     @property
     def drive_oauth_ready(self) -> bool:
@@ -582,23 +593,37 @@ class GoogleSheetProjectStore:
         with self._lock:
             rows = self._read_rows()
         projects = [
-            self._row_to_project(row) for row in rows
+            self._row_to_project(row, include_data=False) for row in rows
             if not row.get("deleted_at") and self._project_owner(row) == owner_email
         ]
         return sorted(projects, key=lambda project: project.get("updatedAt", ""), reverse=True)
+
+    def get_project(self, project_id: str, user: dict[str, str]) -> dict[str, Any]:
+        owner_email = str(user.get("email", "")).strip().lower()
+        with self._lock:
+            rows = self._read_rows()
+        existing = next((
+            row for row in rows
+            if row.get("project_id") == project_id
+            and not row.get("deleted_at")
+            and self._project_owner(row) == owner_email
+        ), None)
+        if not existing:
+            raise ValueError("ไม่พบงานที่ต้องการเปิด")
+        return self._row_to_project(existing, store=self)
 
     def list_deleted_projects(self, user: dict[str, str]) -> list[dict[str, Any]]:
         owner_email = str(user.get("email", "")).strip().lower()
         with self._lock:
             rows = self._read_rows()
-        projects = [self._row_to_project(row) for row in rows
+        projects = [self._row_to_project(row, include_data=False) for row in rows
                     if row.get("deleted_at") and self._project_owner(row) == owner_email]
         return sorted(projects, key=lambda project: project.get("deletedAt", ""), reverse=True)
 
     def list_all_deleted_projects(self) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._read_rows()
-        return sorted([self._row_to_project(row) for row in rows if row.get("deleted_at")],
+        return sorted([self._row_to_project(row, include_data=False) for row in rows if row.get("deleted_at")],
                       key=lambda project: project.get("deletedAt", ""), reverse=True)
 
     def restore_project_as_admin(self, project_id: str, owner_email: str) -> dict[str, Any]:
@@ -612,7 +637,7 @@ class GoogleSheetProjectStore:
             existing["deleted_at"] = ""
             existing["updated_at"] = datetime.now(timezone.utc).isoformat()
             self._write_record(existing, existing["_row_number"])
-        return self._row_to_project(existing)
+        return self._row_to_project(existing, include_data=False)
 
     def permanently_delete_project_as_admin(self, project_id: str, owner_email: str) -> None:
         owner_email = str(owner_email).strip().lower()
@@ -623,6 +648,10 @@ class GoogleSheetProjectStore:
             if not existing:
                 raise ValueError("ไม่พบงานในถังขยะ")
             self._write_record({}, existing["_row_number"])
+            pointer = self._json_object(existing.get("pages_json", ""))
+            self._delete_project_payload_file(
+                str(pointer.get("fileId", "")), project_id, owner_email,
+            )
 
     def list_project_folders(self, user: dict[str, str]) -> list[dict[str, Any]]:
         owner_email = str(user.get("email", "")).strip().lower()
@@ -669,14 +698,17 @@ class GoogleSheetProjectStore:
             if not existing:
                 raise ValueError("ไม่พบงานที่ต้องการย้าย")
             pages_data = json.loads(existing.get("pages_json") or "{}")
-            if not isinstance(pages_data, dict):
-                pages_data = {"version": 2, "activeDepartment": "แผนกแรงสูง", "departments": {}, "pages": pages_data}
-            pages_data["folderId"] = folder_id
+            if isinstance(pages_data, dict) and pages_data.get("storage") == "drive-json-v1":
+                pages_data["folderId"] = folder_id
+            else:
+                if not isinstance(pages_data, dict):
+                    pages_data = {"version": 2, "activeDepartment": "แผนกแรงสูง", "departments": {}, "pages": pages_data}
+                pages_data["folderId"] = folder_id
             existing["pages_json"] = json.dumps(pages_data, ensure_ascii=False, separators=(",", ":"))
             existing["updated_at"] = datetime.now(timezone.utc).isoformat()
             existing["updated_by"] = owner_email
             self._write_record(existing, existing["_row_number"])
-        return self._row_to_project(existing)
+        return self._row_to_project(existing, include_data=False)
 
     def delete_project_folder(self, folder_id: str, user: dict[str, str]) -> None:
         owner_email = str(user.get("email", "")).strip().lower()
@@ -707,28 +739,146 @@ class GoogleSheetProjectStore:
                 row for row in rows
                 if row.get("project_id") == project_id and self._project_owner(row) == owner_email
             ), None)
+            previous_pages = self._json_object((existing or {}).get("pages_json", ""))
+            previous_file_id = (
+                str(previous_pages.get("fileId", ""))
+                if previous_pages.get("storage") == "drive-json-v1" else ""
+            )
+            folder_id = str(project.get(
+                "folderId", previous_pages.get("folderId", "")
+            ) or "")
+            payload = {
+                "version": 3,
+                "folderId": folder_id,
+                "activeDepartment": project.get("department", "แผนกแรงสูง"),
+                "departments": project.get("departments", {}),
+                "pages": project.get("pages", []),
+                "structurePages": project.get("structurePages", []),
+                "results": project.get("results", []),
+                "resultMeta": str(project.get("resultMeta", "")),
+            }
+            payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            use_drive = self.projects_drive_configured
+            if not use_drive and len(payload_json) > 45000:
+                raise ValueError(
+                    "งานนี้มีข้อมูลเกินขนาดที่ Google Sheets เก็บในช่องเดียวได้ "
+                    "กรุณาตั้งค่าโฟลเดอร์ Drive สำหรับเก็บงาน Cloud แล้วลองใหม่"
+                )
+            new_file_id = ""
+            if use_drive:
+                new_file_id = self._upload_project_payload(payload_json, project_id, owner_email)
+                pages_json = json.dumps({
+                    "version": 3, "storage": "drive-json-v1", "fileId": new_file_id,
+                    "folderId": folder_id,
+                }, ensure_ascii=False, separators=(",", ":"))
+                results_json = ""
+                result_meta = ""
+            else:
+                pages_json = json.dumps({
+                    "version": 2,
+                    "folderId": folder_id,
+                    "activeDepartment": payload["activeDepartment"],
+                    "departments": payload["departments"],
+                    "pages": payload["pages"],
+                    "structurePages": payload["structurePages"],
+                }, ensure_ascii=False, separators=(",", ":"))
+                results_json = json.dumps(payload["results"], ensure_ascii=False, separators=(",", ":"))
+                result_meta = payload["resultMeta"]
             record = {
                 "project_id": project_id,
                 "project_name": name,
                 "plan_number": str(project.get("planNumber", "")).strip(),
-                "pages_json": json.dumps({
-                    "version": 2,
-                    "folderId": project.get("folderId", (self._row_to_project(existing).get("folderId", "") if existing else "")),
-                    "activeDepartment": project.get("department", "แผนกแรงสูง"),
-                    "departments": project.get("departments", {}),
-                    "pages": project.get("pages", []),
-                    "structurePages": project.get("structurePages", []),
-                }, ensure_ascii=False, separators=(",", ":")),
-                "results_json": json.dumps(project.get("results", []), ensure_ascii=False, separators=(",", ":")),
-                "result_meta": str(project.get("resultMeta", "")),
+                "pages_json": pages_json,
+                "results_json": results_json,
+                "result_meta": result_meta,
                 "created_at": (existing or {}).get("created_at") or str(project.get("createdAt", "")) or now,
                 "updated_at": now,
                 "created_by": (existing or {}).get("created_by") or owner_email,
                 "updated_by": owner_email,
                 "deleted_at": "",
             }
-            self._write_record(record, existing.get("_row_number") if existing else None)
-        return self._row_to_project(record)
+            try:
+                self._write_record(record, existing.get("_row_number") if existing else None)
+            except Exception:
+                if new_file_id:
+                    try:
+                        self._delete_project_payload_file(new_file_id, project_id, owner_email)
+                    except Exception:
+                        pass
+                raise
+            if previous_file_id and previous_file_id != new_file_id:
+                try:
+                    self._delete_project_payload_file(previous_file_id, project_id, owner_email)
+                except Exception:
+                    pass
+        return self._row_to_project(record, include_data=False)
+
+    @staticmethod
+    def _json_object(value: str) -> dict[str, Any]:
+        try:
+            parsed = json.loads(value) if value else {}
+        except (TypeError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _project_drive_filename(self, project_id: str, owner_email: str) -> str:
+        owner_key = hashlib.sha256(owner_email.encode("utf-8")).hexdigest()[:12]
+        project_key = re.sub(r"[^A-Za-z0-9_-]", "_", project_id)[:80] or "project"
+        return f"estimation-project-{owner_key}-{project_key}.json"
+
+    def _upload_project_payload(self, payload_json: str, project_id: str, owner_email: str) -> str:
+        if not self.projects_drive_configured:
+            raise ValueError("ยังไม่ได้ตั้งค่า Google Drive สำหรับเก็บงาน Cloud")
+        from googleapiclient.http import MediaIoBaseUpload
+        content = payload_json.encode("utf-8")
+        uploaded = self._get_drive_service().files().create(
+            body={
+                "name": self._project_drive_filename(project_id, owner_email),
+                "mimeType": "application/json",
+                "parents": [self.projects_drive_folder_id],
+            },
+            media_body=MediaIoBaseUpload(BytesIO(content), mimetype="application/json", resumable=False),
+            fields="id",
+            supportsAllDrives=True,
+        ).execute()
+        file_id = str(uploaded.get("id", "")).strip()
+        if not file_id:
+            raise ValueError("Google Drive ไม่ส่งรหัสไฟล์งานกลับมา")
+        return file_id
+
+    def _download_project_payload(self, file_id: str, project_id: str, owner_email: str) -> dict[str, Any]:
+        if not self.projects_drive_configured:
+            raise ValueError("ยังไม่ได้ตั้งค่า Google Drive สำหรับเปิดงาน Cloud")
+        service = self._get_drive_service()
+        metadata = service.files().get(
+            fileId=file_id, fields="id,name,parents", supportsAllDrives=True,
+        ).execute()
+        if (
+            self.projects_drive_folder_id not in metadata.get("parents", [])
+            or metadata.get("name") != self._project_drive_filename(project_id, owner_email)
+        ):
+            raise PermissionError("ไฟล์ข้อมูลงานไม่ตรงกับเจ้าของหรือโฟลเดอร์ที่กำหนด")
+        content = service.files().get_media(fileId=file_id, supportsAllDrives=True).execute()
+        try:
+            payload = json.loads(content.decode("utf-8") if isinstance(content, bytes) else content)
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
+            raise ValueError("ไฟล์ข้อมูลงานใน Google Drive เสียหายหรืออ่านไม่ได้") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("รูปแบบไฟล์ข้อมูลงานใน Google Drive ไม่ถูกต้อง")
+        return payload
+
+    def _delete_project_payload_file(self, file_id: str, project_id: str, owner_email: str) -> None:
+        if not file_id or not self.projects_drive_configured:
+            return
+        service = self._get_drive_service()
+        metadata = service.files().get(
+            fileId=file_id, fields="id,name,parents", supportsAllDrives=True,
+        ).execute()
+        if (
+            self.projects_drive_folder_id in metadata.get("parents", [])
+            and metadata.get("name") == self._project_drive_filename(project_id, owner_email)
+        ):
+            service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
 
     def delete_project(self, project_id: str, user: dict[str, str]) -> None:
         owner_email = str(user.get("email", "")).strip().lower()
@@ -758,7 +908,7 @@ class GoogleSheetProjectStore:
             existing["updated_at"] = datetime.now(timezone.utc).isoformat()
             existing["updated_by"] = owner_email
             self._write_record(existing, existing["_row_number"])
-        return self._row_to_project(existing)
+        return self._row_to_project(existing, include_data=False)
 
     def permanently_delete_project(self, project_id: str, user: dict[str, str]) -> None:
         owner_email = str(user.get("email", "")).strip().lower()
@@ -769,6 +919,10 @@ class GoogleSheetProjectStore:
             if not existing:
                 raise ValueError("ไม่พบงานในถังขยะ")
             self._write_record({}, existing["_row_number"])
+            pointer = self._json_object(existing.get("pages_json", ""))
+            self._delete_project_payload_file(
+                str(pointer.get("fileId", "")), project_id, owner_email,
+            )
 
     def _get_service(self):
         if self._service is None:
@@ -864,7 +1018,10 @@ class GoogleSheetProjectStore:
             ).execute()
 
     @staticmethod
-    def _row_to_project(row: dict[str, Any]) -> dict[str, Any]:
+    def _row_to_project(
+        row: dict[str, Any], include_data: bool = True,
+        store: "GoogleSheetProjectStore | None" = None,
+    ) -> dict[str, Any]:
         def parse_json(value: str, fallback):
             try:
                 return json.loads(value) if value else fallback
@@ -872,24 +1029,12 @@ class GoogleSheetProjectStore:
                 return fallback
 
         pages_data = parse_json(row.get("pages_json", ""), [])
-        if isinstance(pages_data, dict):
-            pages = pages_data.get("pages", [])
-            departments = pages_data.get("departments", {})
-            department = pages_data.get("activeDepartment", "แผนกแรงสูง")
-            folder_id = pages_data.get("folderId", "")
-            structure_pages = pages_data.get("structurePages", [])
-        else:
-            pages, departments, department, folder_id, structure_pages = pages_data, {}, "", "", []
-        return {
+        is_drive_payload = isinstance(pages_data, dict) and pages_data.get("storage") == "drive-json-v1"
+        folder_id = pages_data.get("folderId", "") if isinstance(pages_data, dict) else ""
+        result = {
             "id": row.get("project_id", ""),
             "name": row.get("project_name", ""),
             "planNumber": row.get("plan_number", ""),
-            "pages": pages,
-            "structurePages": structure_pages,
-            "departments": departments,
-            "department": department,
-            "results": parse_json(row.get("results_json", ""), []),
-            "resultMeta": row.get("result_meta", ""),
             "createdAt": row.get("created_at", ""),
             "updatedAt": row.get("updated_at", ""),
             "createdBy": row.get("created_by", ""),
@@ -897,3 +1042,34 @@ class GoogleSheetProjectStore:
             "folderId": folder_id,
             "deletedAt": row.get("deleted_at", ""),
         }
+        if not include_data:
+            return result
+        if is_drive_payload:
+            if store is None:
+                raise ValueError("ต้องระบุ Cloud Store เพื่ออ่านข้อมูลงานจาก Google Drive")
+            payload = store._download_project_payload(
+                str(pages_data.get("fileId", "")),
+                str(row.get("project_id", "")),
+                GoogleSheetProjectStore._project_owner(row),
+            )
+            result.update({
+                "pages": payload.get("pages", []),
+                "structurePages": payload.get("structurePages", []),
+                "departments": payload.get("departments", {}),
+                "department": payload.get("activeDepartment", "แผนกแรงสูง"),
+                "results": payload.get("results", []),
+                "resultMeta": payload.get("resultMeta", ""),
+            })
+            return result
+        if isinstance(pages_data, dict):
+            result.update({
+                "pages": pages_data.get("pages", []),
+                "structurePages": pages_data.get("structurePages", []),
+                "departments": pages_data.get("departments", {}),
+                "department": pages_data.get("activeDepartment", "แผนกแรงสูง"),
+            })
+        else:
+            result.update({"pages": pages_data, "structurePages": [], "departments": {}, "department": ""})
+        result["results"] = parse_json(row.get("results_json", ""), [])
+        result["resultMeta"] = row.get("result_meta", "")
+        return result

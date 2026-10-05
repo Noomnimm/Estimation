@@ -75,6 +75,7 @@ Render จะติดตั้ง dependencies จาก `requirements-web.txt`
 - `BASE_ADMIN_PASSWORD` — รหัสผ่าน Admin
 - `BASE_ADMIN_SESSION_SECRET` — ค่าสุ่มสำหรับลงนาม session; Blueprint สามารถสร้างให้อัตโนมัติ
 - `GOOGLE_DRIVE_FOLDER_ID` — ID โฟลเดอร์ Google Drive สำหรับเก็บรูปหัวเสา TAC โดยต้องเปิด Google Drive API และแชร์โฟลเดอร์ให้ Service Account เป็น Editor
+- `GOOGLE_PROJECTS_DRIVE_FOLDER_ID` — (ไม่บังคับ) ID โฟลเดอร์ Drive สำหรับเก็บไฟล์ข้อมูลงาน Cloud; หากเว้นว่าง ระบบใช้ `GOOGLE_DRIVE_FOLDER_ID` เดิม งานเก่าที่บันทึกในชีตยังเปิดได้ตามปกติ
 
 เมื่อ Admin อนุมัติ ระบบจะโหลด BaseData ที่อนุมัติเข้าสู่เว็บทันที และโหลดกลับมาใหม่จาก Google Sheet ทุกครั้งที่บริการเริ่มทำงาน
 

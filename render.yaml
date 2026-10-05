@@ -25,6 +25,8 @@ services:
         generateValue: true
       - key: GOOGLE_DRIVE_FOLDER_ID
         sync: false
+      - key: GOOGLE_PROJECTS_DRIVE_FOLDER_ID
+        sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GOOGLE_DRIVE_REFRESH_TOKEN
