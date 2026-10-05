@@ -74,6 +74,46 @@ class DepartmentTests(unittest.TestCase):
         self.assertEqual(row[CODE_COL], "1050000011")
         self.assertEqual(row[QTY_COL], -2)
 
+    def test_high_voltage_auxiliary_catalog_copies_tac_and_adds_ground_sets_idempotently(self):
+        source_rows = [
+            {SIZE_COL: "Surge & Fuse", HEAD_COL: "Drop-out Fuse", MATERIAL_COL: "CUT-OUT", CODE_COL: "1040010002", QTY_COL: 3, DEPARTMENT_COL: "แผนกแรงสูง"},
+            {SIZE_COL: "Surge & Fuse", HEAD_COL: "LA 20-21kV 5kA", MATERIAL_COL: "LIGHTNING ARRESTER", CODE_COL: "1040000000", QTY_COL: 3, DEPARTMENT_COL: "แผนกแรงสูง"},
+            {SIZE_COL: "Ground", HEAD_COL: "HV.GROUNDING GR-1", MATERIAL_COL: "HV.GROUNDING GR-1", CODE_COL: "Set20515", QTY_COL: 1, DEPARTMENT_COL: "แผนกแรงสูง"},
+        ]
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame(source_rows)
+
+        workbook.ensure_high_voltage_auxiliary_catalog()
+        workbook.ensure_high_voltage_auxiliary_catalog()
+
+        for department in ("แผนกแรงสูง", "แผนกแรงสูง TAC"):
+            ground = workbook.base_df[
+                (workbook.base_df[SIZE_COL] == "Ground")
+                & (workbook.base_df[DEPARTMENT_COL] == department)
+            ]
+            self.assertEqual(len(ground), 5)
+            self.assertEqual(
+                ground[CODE_COL].tolist(),
+                ["Set20515", "Set20516", "Set20517", "Set20518", "Set20519"],
+            )
+            self.assertEqual(
+                ground[HEAD_COL].tolist(),
+                [
+                    f"HV.GROUNDING GR-{number} (ASSEMBLY NO.9706, 9701B)"
+                    for number in range(1, 6)
+                ],
+            )
+
+        tac_surge = workbook.base_df[
+            (workbook.base_df[SIZE_COL] == "Surge & Fuse")
+            & (workbook.base_df[DEPARTMENT_COL] == "แผนกแรงสูง TAC")
+        ]
+        self.assertEqual(len(tac_surge), 2)
+        self.assertEqual(
+            set(tac_surge[CODE_COL]),
+            {"1040010002", "1040000000"},
+        )
+
     def test_three_phase_variants_keep_manual_surge_and_material_adjustment_rows(self):
         source = pd.DataFrame([
             {"รายการ": "30kVA 1P", MATERIAL_COL: "TR 1 เฟส", CODE_COL: "1050000002", QTY_COL: 1},

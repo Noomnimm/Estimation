@@ -46,6 +46,7 @@ if DEFAULT_TRANSMISSION.exists():
     WORKBOOK.load_keycode_catalog(DEFAULT_TRANSMISSION, "แผนกสายส่ง")
 if DEFAULT_SET.exists():
     WORKBOOK.load_set(DEFAULT_SET)
+WORKBOOK.ensure_high_voltage_auxiliary_catalog()
 
 
 def reload_approved_base() -> None:
@@ -62,9 +63,8 @@ def reload_approved_base() -> None:
         approved = CLOUD_STORE.list_approved_base_rows()
     except Exception:
         traceback.print_exc()
-        return
-    if not approved:
-        return
+        approved = []
+    suppressed_heads: set[tuple[str, str, str]] = set()
     grouped: dict[str, list[dict]] = {}
     for row in approved:
         grouped.setdefault(str(row.get("request_id", "")), []).append(row)
@@ -76,6 +76,7 @@ def reload_approved_base() -> None:
         if action in {"replace", "rename", "delete"}:
             remove_size = str(first.get("source_size", "")).strip() or size
             remove_head = str(first.get("source_head", "")).strip() or head
+            suppressed_heads.add((department, remove_size, remove_head))
             WORKBOOK.base_df = WORKBOOK.base_df[
                 ~((WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == remove_size)
                   & (WORKBOOK.base_df[HEAD_COL].astype(str).str.strip() == remove_head)
@@ -92,6 +93,7 @@ def reload_approved_base() -> None:
         } for row in request_rows if action != "delete"]
         if additions:
             WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
+            suppressed_heads.discard((department, size, head))
             HEAD_EDITORS[(department, size, head)] = str(first.get("last_modified_by", "")).strip() or "Admin"
         image_file_id = str(first.get("image_file_id", "")).strip()
         if image_file_id:
@@ -100,6 +102,7 @@ def reload_approved_base() -> None:
                 "name": str(first.get("image_name", "")).strip(),
                 "mimeType": str(first.get("image_mime_type", "")).strip(),
             }
+    WORKBOOK.ensure_high_voltage_auxiliary_catalog(suppressed_heads)
 
 
 def create_admin_token() -> str:
@@ -225,7 +228,11 @@ class AppHandler(SimpleHTTPRequestHandler):
         route()
 
     def load_base(self) -> None:
-        self.handle_json(lambda: WORKBOOK.load_base(save_upload(self, "base")))
+        def load():
+            result = WORKBOOK.load_base(save_upload(self, "base"))
+            WORKBOOK.ensure_high_voltage_auxiliary_catalog()
+            return result
+        self.handle_json(load)
 
     def load_set(self) -> None:
         self.handle_json(lambda: WORKBOOK.load_set(save_upload(self, "set")))

@@ -26,6 +26,11 @@ INSTALL_TOTAL_COL = "จำนวนติดตั้ง"
 DEMOLITION_TOTAL_COL = "จำนวนรื้อถอน"
 DEPARTMENT_COL = "แผนก"
 DEFAULT_DEPARTMENT = "แผนกแรงสูง"
+HIGH_VOLTAGE_TAC_DEPARTMENT = "แผนกแรงสูง TAC"
+SURGE_FUSE_SIZE = "Surge & Fuse"
+GROUND_SIZE = "Ground"
+GROUND_ASSEMBLY = "(ASSEMBLY NO.9706, 9701B)"
+GROUND_SET_CODES = {number: f"Set205{14 + number}" for number in range(1, 6)}
 INSULATOR_UPRIGHT_COL = "ลูกถ้วยตั้ง"
 INSULATOR_HORIZONTAL_COL = "ลูกถ้วยนอน"
 
@@ -299,6 +304,104 @@ class MaterialWorkbook:
     def get_departments(self) -> list[str]:
         configured = [DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC", "แผนกแรงต่ำ", "แผนกหม้อแปลง", "แผนกสายส่ง"]
         return configured
+
+    def ensure_high_voltage_auxiliary_catalog(
+        self,
+        suppressed_heads: set[tuple[str, str, str]] | None = None,
+    ) -> None:
+        """Copy the high-voltage Surge & Fuse catalog to TAC and ensure GR-1..GR-5."""
+        if self.base_df is None or DEPARTMENT_COL not in self.base_df.columns:
+            return
+        suppressed_heads = suppressed_heads or set()
+
+        def group_mask(department: str, size: str) -> pd.Series:
+            return (
+                self.base_df[DEPARTMENT_COL].astype(str).str.strip().eq(department)
+                & self.base_df[SIZE_COL].astype(str).str.strip().eq(size)
+            )
+
+        source_surge = self.base_df.loc[
+            group_mask(DEFAULT_DEPARTMENT, SURGE_FUSE_SIZE)
+        ].copy()
+        target_surge = self.base_df.loc[
+            group_mask(HIGH_VOLTAGE_TAC_DEPARTMENT, SURGE_FUSE_SIZE)
+        ]
+        target_keys = {
+            (str(row[HEAD_COL]).strip(), str(row[CODE_COL]).strip())
+            for _, row in target_surge.iterrows()
+        }
+        surge_additions = []
+        for _, source in source_surge.iterrows():
+            key = (str(source[HEAD_COL]).strip(), str(source[CODE_COL]).strip())
+            head = key[0]
+            if key in target_keys or (
+                HIGH_VOLTAGE_TAC_DEPARTMENT, SURGE_FUSE_SIZE, head
+            ) in suppressed_heads:
+                continue
+            copied = source.copy()
+            copied[DEPARTMENT_COL] = HIGH_VOLTAGE_TAC_DEPARTMENT
+            surge_additions.append(copied)
+            target_keys.add(key)
+        if surge_additions:
+            self.base_df = pd.concat(
+                [self.base_df, pd.DataFrame(surge_additions)], ignore_index=True
+            )
+
+        ground_additions = []
+        for department in (DEFAULT_DEPARTMENT, HIGH_VOLTAGE_TAC_DEPARTMENT):
+            for number, set_code in GROUND_SET_CODES.items():
+                short_name = f"HV.GROUNDING GR-{number}"
+                canonical_head = f"{short_name} {GROUND_ASSEMBLY}"
+                existing = self.base_df.loc[group_mask(department, GROUND_SIZE)]
+                heads = existing[HEAD_COL].fillna("").astype(str).str.strip()
+                aliases = heads.str.fullmatch(
+                    rf"{re.escape(short_name)}(?:\s+\(ASSEMBLY NO\..*\))?",
+                    case=False,
+                )
+                if (
+                    (department, GROUND_SIZE, canonical_head) in suppressed_heads
+                    or any(
+                        (department, GROUND_SIZE, str(alias).strip()) in suppressed_heads
+                        for alias in heads[aliases]
+                    )
+                ):
+                    continue
+                if canonical_head in set(heads):
+                    continue
+
+                if aliases.any():
+                    alias_index = existing.index[aliases]
+                    self.base_df.loc[alias_index, HEAD_COL] = canonical_head
+                    self.base_df.loc[alias_index, MATERIAL_COL] = self.base_df.loc[
+                        alias_index, MATERIAL_COL
+                    ].where(
+                        ~self.base_df.loc[alias_index, CODE_COL]
+                        .astype(str).str.strip().str.lower().str.startswith("set"),
+                        canonical_head,
+                    )
+                    self.base_df.loc[alias_index, CODE_COL] = self.base_df.loc[
+                        alias_index, CODE_COL
+                    ].where(
+                        ~self.base_df.loc[alias_index, CODE_COL]
+                        .astype(str).str.strip().str.lower().str.startswith("set"),
+                        set_code,
+                    )
+                    continue
+
+                ground_additions.append({
+                    SIZE_COL: GROUND_SIZE,
+                    HEAD_COL: canonical_head,
+                    MATERIAL_COL: canonical_head,
+                    CODE_COL: set_code,
+                    QTY_COL: 1.0,
+                    DEPARTMENT_COL: department,
+                    INSULATOR_UPRIGHT_COL: pd.NA,
+                    INSULATOR_HORIZONTAL_COL: pd.NA,
+                })
+        if ground_additions:
+            self.base_df = pd.concat(
+                [self.base_df, pd.DataFrame(ground_additions)], ignore_index=True
+            )
 
     def get_sizes(self, department: str = DEFAULT_DEPARTMENT) -> list[str]:
         if self.base_df is None:
