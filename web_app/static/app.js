@@ -764,17 +764,26 @@ function createTransformerDetailsRow(row) {
     <label><span>วิธีติดตั้ง</span><select class="transformer-mounting"><option value="single-pole-crossarm">บนคอนเดี่ยว · Set40203</option></select></label>
     <label><span>จำนวน LT</span><select class="transformer-lt"></select></label>
     <label><span>ชุดฟิวส์ LT</span><select class="transformer-lt-fuse"></select></label>
+    <label><span>ระบบ Surge</span><select class="transformer-surge-ngr"><option value="normal">ระบบปกติ</option><option value="ngr">ระบบ NGR</option></select></label>
+    <label><span>ระยะจากสถานี</span><select class="transformer-surge-distance"><option value="outside">นอกระยะ 3 กม.</option><option value="inside">ภายในระยะ 3 กม.</option></select></label>
+    <label><span>ตำแหน่ง Surge</span><select class="transformer-surge-mounting"><option value="crossarm">ติดตั้งบนคอน</option><option value="tank">ติดตั้งตัวถังหม้อแปลง</option></select></label>
   `;
   const kva = panel.querySelector(".transformer-kva");
   const type = panel.querySelector(".transformer-type");
   const mounting = panel.querySelector(".transformer-mounting");
   const circuits = panel.querySelector(".transformer-lt");
   const fuse = panel.querySelector(".transformer-lt-fuse");
+  const surgeNgr = panel.querySelector(".transformer-surge-ngr");
+  const surgeDistance = panel.querySelector(".transformer-surge-distance");
+  const surgeMounting = panel.querySelector(".transformer-surge-mounting");
   const preferredCircuits = Number(row.transformerLtCircuits) || 1;
   kva.value = String(row.transformerKva || 100);
   type.value = row.transformerType || "sealed";
   mounting.value = row.transformerMounting || "single-pole-crossarm";
   circuits.value = String(row.transformerLtCircuits || 1);
+  surgeNgr.value = row.surgeNgr ? "ngr" : "normal";
+  surgeDistance.value = row.surgeWithin3km ? "inside" : "outside";
+  surgeMounting.value = row.surgeMounting || "crossarm";
   const update = () => {
     row.transformerKva = Number(kva.value);
     row.transformerType = type.value;
@@ -790,6 +799,11 @@ function createTransformerDetailsRow(row) {
     }));
     circuits.value = String(selectedCircuits);
     row.transformerLtCircuits = Number(circuits.value);
+    row.surgeNgr = surgeNgr.value === "ngr";
+    row.surgeWithin3km = surgeDistance.value === "inside";
+    if (row.surgeWithin3km) surgeMounting.value = "crossarm";
+    surgeMounting.querySelector('option[value="tank"]').disabled = row.surgeWithin3km;
+    row.surgeMounting = surgeMounting.value;
     const choices = THREE_PHASE_LT_FUSE_OPTIONS[`${row.transformerKva}:${row.transformerLtCircuits}`] || [];
     fuse.replaceChildren(...choices.map((combo, choiceIndex) => {
       const option = document.createElement("option");
@@ -812,7 +826,7 @@ function createTransformerDetailsRow(row) {
     }
     markProjectDirty();
   };
-  [kva, type, mounting, circuits].forEach((select) => select.addEventListener("change", update));
+  [kva, type, mounting, circuits, surgeNgr, surgeDistance, surgeMounting].forEach((select) => select.addEventListener("change", update));
   fuse.addEventListener("change", () => {
     row.transformerLtFuseChoice = Number(fuse.value);
     markProjectDirty();
@@ -1012,9 +1026,7 @@ async function loadHeads(size, select, selected, department = state.department, 
     Object.entries(data.headImages || {}).forEach(([head, image]) => {
       state.headImages[headImageKey(department, size, head)] = image;
     });
-    select._allHeadOptions = department === "แผนกหม้อแปลง" && size === "หม้อแปลง"
-      ? [...data.heads, "หม้อแปลง 3 เฟส 22 kV (Sealed)"]
-      : data.heads;
+    select._allHeadOptions = data.heads;
     if (optionsList) {
       renderHeadOptions(select, optionsList);
     }

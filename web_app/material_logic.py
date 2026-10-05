@@ -161,6 +161,7 @@ class MaterialWorkbook:
         self.set_df: pd.DataFrame | None = None
         self.summary: list[dict[str, Any]] = []
         self.summary_by_work_type: dict[str, list[dict[str, Any]]] = {"install": [], "demolition": []}
+        self.transformer_surge_by_work_type: dict[str, dict[str, float]] = {"install": {}, "demolition": {}}
         self.separate_work_types = False
         self.base_path: Path | None = None
         self.set_path: Path | None = None
@@ -302,6 +303,7 @@ class MaterialWorkbook:
 
         self.separate_work_types = pages_have_work_types(pages)
         totals_by_work_type: dict[str, dict[str, dict[str, Any]]] = {"install": {}, "demolition": {}}
+        transformer_surge_by_work_type: dict[str, dict[str, float]] = {"install": {}, "demolition": {}}
         input_count = 0
         matched_rows = 0
 
@@ -318,7 +320,9 @@ class MaterialWorkbook:
 
                 input_count += 1
                 if department == "แผนกหม้อแปลง" and head == THREE_PHASE_TRANSFORMER_HEAD:
-                    self._add_three_phase_transformer(totals, item, page_number, row_number, count)
+                    surge_code = self._add_three_phase_transformer(totals, item, page_number, row_number, count)
+                    surge_counts = transformer_surge_by_work_type[work_type]
+                    surge_counts[surge_code] = surge_counts.get(surge_code, 0.0) + count
                     matched_rows += 1
                     continue
                 high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
@@ -380,6 +384,7 @@ class MaterialWorkbook:
             work_type: sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
             for work_type, totals in totals_by_work_type.items()
         }
+        self.transformer_surge_by_work_type = transformer_surge_by_work_type
         self.summary = combine_work_type_summaries(self.summary_by_work_type) if self.separate_work_types else self.summary_by_work_type["install"]
         return {
             "items": self.summary,
@@ -395,7 +400,7 @@ class MaterialWorkbook:
         page_number: int,
         row_number: int,
         count: float,
-    ) -> None:
+    ) -> str:
         try:
             kva = int(item.get("transformerKva", 0))
             circuits = int(item.get("transformerLtCircuits", 0))
@@ -428,11 +433,22 @@ class MaterialWorkbook:
         add_material(totals, switch_desc, switch_set, count)
         add_material(totals, "FUSE LINK 22 kV. %s A.EEI-NEMA TYPE K OR HIGH SURGE TYPE" % primary_amp, primary_fuse_code, 3 * count)
 
+        surge_ngr = bool(item.get("surgeNgr"))
+        surge_within_3km = bool(item.get("surgeWithin3km"))
+        surge_mounting = clean_text(item.get("surgeMounting")) or "crossarm"
+        if surge_within_3km:
+            surge_mounting = "crossarm"
+        if surge_mounting == "tank":
+            selected_surge_material, selected_surge_code = SURGE_ARRESTER_TANK[surge_ngr]
+        else:
+            selected_surge_material, selected_surge_code = SURGE_ARRESTER_CROSSARM[(surge_ngr, surge_within_3km)]
+
         for fuse_amp in choices[choice_index]:
             fuse_material, fuse_code = LT_FUSE_CODES[fuse_amp]
             add_material(totals, fuse_material, fuse_code, 3 * count)
 
         # Do not reuse the legacy 1-phase / 2-wire LT wiring set for this 3-phase / 4-wire model.
+        return selected_surge_code
 
     def _department_mask(self, department: str) -> pd.Series:
         """Keep older in-memory/test BaseData compatible with the new department column."""
@@ -468,15 +484,40 @@ class MaterialWorkbook:
                         set_missing.append(code)
                         continue
                     set_found += 1
+                    surge_choices = self.transformer_surge_by_work_type.get(work_type, {}) if key == "set40203" else {}
+                    default_surge_code = SURGE_ARRESTER_TANK[False][1]
+                    alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
                     for _, item in matches.iterrows():
-                        expanded.append(
-                            {
-                                MATERIAL_COL: clean_text(item[SET_DESC_COL]),
-                                CODE_COL: clean_text(item[CODE_COL]),
-                                TOTAL_COL: parse_number(item[SET_INSTALL_COL]) * qty,
-                            }
-                        )
-                        expanded_lines += 1
+                        child_code = clean_text(item[CODE_COL])
+                        child_quantity = parse_number(item[SET_INSTALL_COL]) * qty
+                        if key == "set40203" and child_code == default_surge_code:
+                            child_quantity = max(0.0, child_quantity - 3 * alternate_surge_count)
+                        if child_quantity:
+                            expanded.append(
+                                {
+                                    MATERIAL_COL: clean_text(item[SET_DESC_COL]),
+                                    CODE_COL: child_code,
+                                    TOTAL_COL: child_quantity,
+                                }
+                            )
+                            expanded_lines += 1
+
+                    if key == "set40203":
+                        surge_materials = {
+                            surge_code: material
+                            for material, surge_code in (*SURGE_ARRESTER_CROSSARM.values(), *SURGE_ARRESTER_TANK.values())
+                        }
+                        for surge_code, transformer_count in surge_choices.items():
+                            if surge_code == default_surge_code:
+                                continue
+                            expanded.append(
+                                {
+                                    MATERIAL_COL: surge_materials[surge_code],
+                                    CODE_COL: surge_code,
+                                    TOTAL_COL: 3 * transformer_count,
+                                }
+                            )
+                            expanded_lines += 1
                 else:
                     expanded.append(
                         {
@@ -510,16 +551,30 @@ class MaterialWorkbook:
         if matches.empty:
             raise ValueError(f"ไม่พบรายละเอียด {set_code}")
         totals: dict[str, dict[str, Any]] = {}
+        surge_choices = self.transformer_surge_by_work_type.get("install", {}) if set_code.lower() == "set40203" else {}
+        default_surge_code = SURGE_ARRESTER_TANK[False][1]
+        alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
         for _, item in matches.iterrows():
             material_code = clean_text(item[CODE_COL])
             if not re.fullmatch(r"\d{10}", material_code):
                 continue
+            quantity = parse_number(item[SET_INSTALL_COL]) * multiplier
+            if set_code.lower() == "set40203" and material_code == default_surge_code:
+                quantity = max(0.0, quantity - 3 * alternate_surge_count)
             add_material(
                 totals,
                 clean_text(item[SET_DESC_COL]),
                 material_code,
-                parse_number(item[SET_INSTALL_COL]) * multiplier,
+                quantity,
             )
+        if set_code.lower() == "set40203":
+            surge_materials = {
+                surge_code: material
+                for material, surge_code in (*SURGE_ARRESTER_CROSSARM.values(), *SURGE_ARRESTER_TANK.values())
+            }
+            for surge_code, transformer_count in surge_choices.items():
+                if surge_code != default_surge_code:
+                    add_material(totals, surge_materials[surge_code], surge_code, 3 * transformer_count)
         items = sorted(totals.values(), key=lambda row: (str(row[CODE_COL]), str(row[MATERIAL_COL])))
         return {
             "setCode": set_code,
