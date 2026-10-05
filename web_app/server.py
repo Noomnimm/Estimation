@@ -390,7 +390,9 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     @staticmethod
     def google_drive_redirect_uri() -> str:
-        base_url = os.environ.get("RENDER_EXTERNAL_URL", "http://localhost:8000").strip().rstrip("/")
+        base_url = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
+        if not base_url:
+            base_url = os.environ.get("RENDER_EXTERNAL_URL", "http://localhost:8000").strip().rstrip("/")
         return f"{base_url}/api/google-drive/oauth/callback"
 
     def google_drive_oauth_start(self) -> None:
