@@ -158,7 +158,16 @@ const els = {
   requestAddTarget: document.getElementById("requestAddTarget"),
   requestReplaceTarget: document.getElementById("requestReplaceTarget"),
   replaceSize: document.getElementById("replaceSize"),
+  replaceHeadField: document.getElementById("replaceHeadField"),
   replaceHead: document.getElementById("replaceHead"),
+  transformerEditSelector: document.getElementById("transformerEditSelector"),
+  transformerEditModel: document.getElementById("transformerEditModel"),
+  transformerEditKvaField: document.getElementById("transformerEditKvaField"),
+  transformerEditKva: document.getElementById("transformerEditKva"),
+  transformerEditLtField: document.getElementById("transformerEditLtField"),
+  transformerEditLt: document.getElementById("transformerEditLt"),
+  transformerEditFuseField: document.getElementById("transformerEditFuseField"),
+  transformerEditFuse: document.getElementById("transformerEditFuse"),
   existingDataHint: document.getElementById("existingDataHint"),
   requestMaterialRows: document.getElementById("requestMaterialRows"),
   addRequestMaterial: document.getElementById("addRequestMaterial"),
@@ -2523,6 +2532,7 @@ async function switchRequestAction() {
   els.addRequestMaterial.hidden = deleting;
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
+  populateTransformerEditSelector([]);
   state.baseRequestImage = null;
   els.requestImage.value = "";
   els.requestImagePanel.hidden = deleting || els.requestTargetDepartment.value !== "แผนกแรงสูง TAC";
@@ -2538,6 +2548,9 @@ async function switchRequestAction() {
 
 async function loadRequestDepartmentSizes() {
   try {
+    const transformerDepartment = els.requestTargetDepartment.value === "แผนกหม้อแปลง";
+    els.transformerEditSelector.hidden = !transformerDepartment;
+    els.replaceHeadField.hidden = transformerDepartment;
     const response = await fetch(`/api/sizes?department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
     setSelectOptions(els.replaceSize, data.sizes, data.sizes.length ? "เลือกขนาด/KeyCode" : "แผนกนี้ยังไม่มีข้อมูล");
@@ -2547,6 +2560,7 @@ async function loadRequestDepartmentSizes() {
 
 async function loadReplaceHeads() {
   setSelectOptions(els.replaceHead, [], "กำลังโหลด...");
+  if (els.requestTargetDepartment.value === "แผนกหม้อแปลง") populateTransformerEditSelector([]);
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
   if (!els.replaceSize.value) return;
@@ -2557,8 +2571,96 @@ async function loadReplaceHeads() {
       ? data.heads.filter((head) => head !== "หม้อแปลง 3 เฟส 22 kV (Sealed)")
       : data.heads;
     setSelectOptions(els.replaceHead, heads, "เลือกหัวเสา");
-    els.existingDataHint.textContent = "เลือกหัวเสาเพื่อดูรายการเดิม";
+    if (els.requestTargetDepartment.value === "แผนกหม้อแปลง") {
+      populateTransformerEditSelector(heads);
+    }
+    els.existingDataHint.textContent = els.requestTargetDepartment.value === "แผนกหม้อแปลง"
+      ? "เลือกรุ่นหม้อแปลง แล้วเลือกขนาด จำนวน LT และ Fuse เพื่อโหลดข้อมูลเดิม"
+      : "เลือกหัวเสาเพื่อดูรายการเดิม";
   } catch (error) { setStatus(error.message, true); }
+}
+
+function populateTransformerEditSelector(heads) {
+  const hasOnePhase = heads.includes("30kVA 1P");
+  const hasSealedThreePhase = heads.some((head) => /^3P Sealed 22 kV · \d+ kVA · \d+ LT · Fuse .+ A$/.test(head));
+  const models = [];
+  if (hasOnePhase) models.push("30kVA 1P");
+  if (hasSealedThreePhase) models.push("3 เฟส · Sealed · 22 kV");
+  setSelectOptions(els.transformerEditModel, models, "เลือกรุ่นหม้อแปลง");
+  setSelectOptions(els.transformerEditKva, [], "เลือกขนาด");
+  setSelectOptions(els.transformerEditLt, [], "เลือกจำนวน LT");
+  setSelectOptions(els.transformerEditFuse, [], "เลือก Fuse");
+  els.transformerEditKvaField.hidden = true;
+  els.transformerEditLtField.hidden = true;
+  els.transformerEditFuseField.hidden = true;
+}
+
+function transformerEditVariants() {
+  return [...els.replaceHead.options]
+    .map((option) => option.value)
+    .map((head) => {
+      const match = head.match(/^3P Sealed 22 kV · (\d+) kVA · (\d+) LT · Fuse (.+) A$/);
+      return match ? { head, kva: match[1], lt: match[2], fuse: match[3] } : null;
+    })
+    .filter(Boolean);
+}
+
+function onTransformerEditModelChange() {
+  const threePhase = els.transformerEditModel.value === "3 เฟส · Sealed · 22 kV";
+  els.requestMaterialRows.innerHTML = "";
+  state.baseRequestOriginalRows = [];
+  els.requestLastEditor.value = "";
+  els.existingDataHint.textContent = "เลือกตัวเลือกหม้อแปลงเพื่อโหลดรายการวัสดุเดิม";
+  els.transformerEditKvaField.hidden = !threePhase;
+  els.transformerEditLtField.hidden = true;
+  els.transformerEditFuseField.hidden = true;
+  if (!threePhase) {
+    setSelectOptions(els.transformerEditKva, [], "เลือกขนาด");
+    setSelectOptions(els.transformerEditLt, [], "เลือกจำนวน LT");
+    setSelectOptions(els.transformerEditFuse, [], "เลือก Fuse");
+    els.replaceHead.value = els.transformerEditModel.value === "30kVA 1P" ? "30kVA 1P" : "";
+    if (els.replaceHead.value) void loadExistingBaseEntry();
+    return;
+  }
+  const capacities = [...new Set(transformerEditVariants().map((item) => `${item.kva} kVA`))];
+  setSelectOptions(els.transformerEditKva, capacities, "เลือกขนาด");
+  setSelectOptions(els.transformerEditLt, [], "เลือกจำนวน LT");
+  setSelectOptions(els.transformerEditFuse, [], "เลือก Fuse");
+  els.replaceHead.value = "";
+}
+
+function onTransformerEditKvaChange() {
+  const kva = els.transformerEditKva.value.replace(/\s*kVA$/, "");
+  const variants = transformerEditVariants().filter((item) => item.kva === kva);
+  const circuits = [...new Set(variants.map((item) => `${item.lt} LT`))];
+  setSelectOptions(els.transformerEditLt, circuits, "เลือกจำนวน LT");
+  setSelectOptions(els.transformerEditFuse, [], "เลือก Fuse");
+  els.transformerEditLtField.hidden = !kva;
+  els.transformerEditFuseField.hidden = true;
+  els.replaceHead.value = "";
+  els.requestMaterialRows.innerHTML = "";
+  state.baseRequestOriginalRows = [];
+}
+
+function onTransformerEditLtChange() {
+  const kva = els.transformerEditKva.value.replace(/\s*kVA$/, "");
+  const lt = els.transformerEditLt.value.replace(/\s*LT$/, "");
+  const variants = transformerEditVariants().filter((item) => item.kva === kva && item.lt === lt);
+  const fuses = [...new Set(variants.map((item) => item.fuse))];
+  setSelectOptions(els.transformerEditFuse, fuses.map((fuse) => `${fuse} A`), "เลือก Fuse");
+  els.transformerEditFuseField.hidden = !lt;
+  els.replaceHead.value = "";
+  els.requestMaterialRows.innerHTML = "";
+  state.baseRequestOriginalRows = [];
+}
+
+function onTransformerEditFuseChange() {
+  const kva = els.transformerEditKva.value.replace(/\s*kVA$/, "");
+  const lt = els.transformerEditLt.value.replace(/\s*LT$/, "");
+  const fuse = els.transformerEditFuse.value.replace(/\s*A$/, "");
+  const variant = transformerEditVariants().find((item) => item.kva === kva && item.lt === lt && item.fuse === fuse);
+  els.replaceHead.value = variant?.head || "";
+  if (variant) void loadExistingBaseEntry();
 }
 
 async function loadExistingBaseEntry() {
@@ -3015,6 +3117,10 @@ els.departmentSelect.addEventListener("change", () => {
 });
 els.replaceSize.addEventListener("change", loadReplaceHeads);
 els.replaceHead.addEventListener("change", loadExistingBaseEntry);
+els.transformerEditModel.addEventListener("change", onTransformerEditModelChange);
+els.transformerEditKva.addEventListener("change", onTransformerEditKvaChange);
+els.transformerEditLt.addEventListener("change", onTransformerEditLtChange);
+els.transformerEditFuse.addEventListener("change", onTransformerEditFuseChange);
 els.adminLoginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {

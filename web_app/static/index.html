@@ -101,7 +101,13 @@
           <label><span>ประเภทคำขอ</span><select id="requestAction"><option value="add">เพิ่มข้อมูล</option><option value="replace">แก้ไขรายการวัสดุเดิม</option><option value="rename">แก้ไขหัวเสา</option><option value="copy">คัดลอกเป็นหัวเสาใหม่</option><option value="delete">ลบหัวเสา</option></select></label>
           <div id="requestReplaceTarget" class="target-fields" hidden>
             <label><span>เลือกขนาดเสาเดิม</span><select id="replaceSize"></select></label>
-            <label><span>เลือกหัวเสาเดิม</span><select id="replaceHead"></select></label>
+            <div id="transformerEditSelector" class="target-fields transformer-edit-selector" hidden>
+              <label><span>หม้อแปลง</span><select id="transformerEditModel"><option value="">เลือกรุ่นหม้อแปลง</option></select></label>
+              <label id="transformerEditKvaField" hidden><span>ขนาด (kVA)</span><select id="transformerEditKva"><option value="">เลือกขนาด</option></select></label>
+              <label id="transformerEditLtField" hidden><span>จำนวน LT</span><select id="transformerEditLt"><option value="">เลือกจำนวน LT</option></select></label>
+              <label id="transformerEditFuseField" hidden><span>Fuse LT</span><select id="transformerEditFuse"><option value="">เลือก Fuse</option></select></label>
+            </div>
+            <label id="replaceHeadField"><span>เลือกหัวเสาเดิม</span><select id="replaceHead"></select></label>
           </div>
           <div id="requestAddTarget" class="target-fields">
             <label id="requestSizeField"><span id="requestSizeLabel">ขนาดเสา / KeyCode</span><input id="requestSize" placeholder="เช่น 14.3 หรือ 99"></label>
