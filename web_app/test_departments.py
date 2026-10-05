@@ -74,6 +74,35 @@ class DepartmentTests(unittest.TestCase):
         self.assertEqual(row[CODE_COL], "1050000011")
         self.assertEqual(row[QTY_COL], -2)
 
+    def test_three_phase_variants_keep_manual_surge_and_material_adjustment_rows(self):
+        source = pd.DataFrame([
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "TR 1 เฟส", CODE_COL: "1050000002", QTY_COL: 1},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "ชุดแรงสูง", CODE_COL: "Set40201", QTY_COL: 1},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "สวิตช์", CODE_COL: "Set14141", QTY_COL: 1},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "SA เก่า", CODE_COL: "1040000007", QTY_COL: -2},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "SA ใหม่", CODE_COL: "1040000000", QTY_COL: 2},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "ฟิวส์ LT", CODE_COL: "Set14013", QTY_COL: 1},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "สาย LT 1 เฟส 2 สาย", CODE_COL: "Set40104", QTY_COL: 1},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "BAIL 35-70", CODE_COL: "1020330005", QTY_COL: -2},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "BAIL 70-185", CODE_COL: "1020330006", QTY_COL: 2},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "BUSHING COVERS", CODE_COL: "1090250038", QTY_COL: 2},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "DROPOUT COVERS", CODE_COL: "1090250040", QTY_COL: 2},
+            {"รายการ": "30kVA 1P", MATERIAL_COL: "FUSE LINK", CODE_COL: "1040030000", QTY_COL: 2},
+        ])
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame(columns=[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL])
+        with patch("web_app.material_logic.pd.read_excel", return_value=source):
+            workbook.load_department_base("unused.xlsx", "แผนกหม้อแปลง", "หม้อแปลง")
+
+        head = three_phase_config_head(100, 1, 0)
+        rows = workbook.base_df[(workbook.base_df[HEAD_COL] == head) & (workbook.base_df[DEPARTMENT_COL] == "แผนกหม้อแปลง")]
+        rows_by_code = {row[CODE_COL]: row[QTY_COL] for _, row in rows.iterrows()}
+        self.assertEqual(rows_by_code["1040000007"], -3)
+        self.assertEqual(rows_by_code["1040000000"], 3)
+        self.assertEqual(rows_by_code["1020330005"], -2)
+        self.assertEqual(rows_by_code["1090250040"], 2)
+        self.assertNotIn("Set40104", set(rows[CODE_COL]))
+
     def test_transformer_surge_arrester_follows_ngr_and_distance(self):
         workbook = MaterialWorkbook()
         workbook.base_df = pd.DataFrame([
@@ -100,11 +129,13 @@ class DepartmentTests(unittest.TestCase):
             ]])
             self.assertEqual({row[CODE_COL]: row[TOTAL_COL] for row in result["items"]}, {tank_code: 2.0})
 
-    def test_editable_three_phase_variant_injects_selected_surge_into_expanded_set(self):
+    def test_editable_three_phase_variant_keeps_selected_surge_and_set_adjustment_balanced(self):
         head = three_phase_config_head(100, 1, 0)
         workbook = MaterialWorkbook()
         workbook.base_df = pd.DataFrame([
             {SIZE_COL: "หม้อแปลง", HEAD_COL: head, MATERIAL_COL: "ชุดหม้อแปลง", CODE_COL: "Set40203", QTY_COL: 1, DEPARTMENT_COL: "แผนกหม้อแปลง"},
+            {SIZE_COL: "หม้อแปลง", HEAD_COL: head, MATERIAL_COL: "S.A. default remove", CODE_COL: "1040000007", QTY_COL: -3, DEPARTMENT_COL: "แผนกหม้อแปลง"},
+            {SIZE_COL: "หม้อแปลง", HEAD_COL: head, MATERIAL_COL: "S.A. selected", CODE_COL: "1040000000", QTY_COL: 3, DEPARTMENT_COL: "แผนกหม้อแปลง"},
         ])
         workbook.set_df = pd.DataFrame([
             {SET_COL: "Set40203", CODE_COL: "1040000007", SET_DESC_COL: "S.A. default", SET_INSTALL_COL: 3},
@@ -119,7 +150,7 @@ class DepartmentTests(unittest.TestCase):
         values = {row[CODE_COL]: row[TOTAL_COL] for row in result["items"]}
 
         self.assertEqual(values["1040000000"], 3)
-        self.assertNotIn("1040000007", values)
+        self.assertEqual(values["1040000007"], 0)
 
 
 if __name__ == "__main__":

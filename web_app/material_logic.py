@@ -274,7 +274,12 @@ class MaterialWorkbook:
                                     config_rows.append({**source, HEAD_COL: config_head, MATERIAL_COL: fuse_name, CODE_COL: fuse_set, QTY_COL: 1.0})
                             elif source_code == "1040030000":
                                 config_rows.append({**source, HEAD_COL: config_head, MATERIAL_COL: f"FUSE LINK 22 kV. {primary_amp} A.EEI-NEMA TYPE K OR HIGH SURGE TYPE", CODE_COL: primary_fuse_code, QTY_COL: 3.0})
-                            elif source_code in {"1040000000", "1040000007", "Set40104", "1090250040", "1020330005"}:
+                            elif source_code in {"1040000000", "1040000007"}:
+                                source_quantity = parse_number(source[QTY_COL])
+                                arrester_quantity = -3.0 if source_quantity < 0 else 3.0 if source_quantity > 0 else 0.0
+                                config_rows.append({**source, HEAD_COL: config_head, QTY_COL: arrester_quantity})
+                            elif source_code == "Set40104":
+                                # This legacy wiring SET is explicitly single-phase, two-wire.
                                 continue
                             else:
                                 config_rows.append({**source, HEAD_COL: config_head})
@@ -364,10 +369,9 @@ class MaterialWorkbook:
 
                 input_count += 1
                 selected_surge_code = ""
+                editable_three_phase_variant = department == "แผนกหม้อแปลง" and is_three_phase_config_head(head)
                 if department == "แผนกหม้อแปลง" and head == THREE_PHASE_TRANSFORMER_HEAD:
                     head, selected_surge_code = self._three_phase_config(item, page_number, row_number)
-                elif department == "แผนกหม้อแปลง" and is_three_phase_config_head(head):
-                    selected_surge_code = self._selected_transformer_surge_code(item)
                 high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
                 wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
@@ -384,6 +388,10 @@ class MaterialWorkbook:
                 ]
                 if department == "แผนกหม้อแปลง" and selected_surge_code and matches.empty:
                     raise ValueError(f"หน้า {page_number} แถว {row_number}: ไม่พบข้อมูลตั้งต้นของ {head} ใน BaseData")
+                has_explicit_surge_adjustments = (
+                    department == "แผนกหม้อแปลง"
+                    and matches[CODE_COL].astype(str).str.strip().isin(SURGE_ARRESTER_CODES).any()
+                )
 
                 for _, row in matches.iterrows():
                     material = clean_text(row[MATERIAL_COL])
@@ -391,7 +399,7 @@ class MaterialWorkbook:
                     amount = parse_number(row[QTY_COL]) * count
                     if not code or amount == 0:
                         continue
-                    if department == "แผนกหม้อแปลง" and selected_surge_code and code.casefold() == "set40203":
+                    if department == "แผนกหม้อแปลง" and selected_surge_code and not has_explicit_surge_adjustments and code.casefold() == "set40203":
                         surge_counts = transformer_surge_by_work_type[work_type]
                         surge_counts[selected_surge_code] = surge_counts.get(selected_surge_code, 0.0) + count
                     if department == "แผนกหม้อแปลง" and code in SURGE_ARRESTER_CODES:
@@ -400,7 +408,10 @@ class MaterialWorkbook:
                         mounting = clean_text(item.get("surgeMounting")) or "crossarm"
                         if within_3km:
                             mounting = "crossarm"  # WITHOUT BRACKET is not available in 10 kA.
-                        if mounting == "tank":
+                        if editable_three_phase_variant and amount < 0:
+                            # The copied negative row offsets the three default arresters inside Set40203.
+                            material, code = SURGE_ARRESTER_TANK[False]
+                        elif mounting == "tank":
                             if amount < 0:
                                 continue
                             material, code = SURGE_ARRESTER_TANK[ngr]
