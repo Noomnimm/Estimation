@@ -272,7 +272,7 @@ class MaterialWorkbook:
             raise ValueError("ยังไม่ได้โหลดไฟล์ BaseData")
 
         self.separate_work_types = pages_have_work_types(pages)
-        totals_by_work_type: dict[str, dict[tuple[str, str], dict[str, Any]]] = {"install": {}, "demolition": {}}
+        totals_by_work_type: dict[str, dict[str, dict[str, Any]]] = {"install": {}, "demolition": {}}
         input_count = 0
         matched_rows = 0
 
@@ -430,7 +430,7 @@ class MaterialWorkbook:
         matches = self.set_df[set_keys == set_code.lower()]
         if matches.empty:
             raise ValueError(f"ไม่พบรายละเอียด {set_code}")
-        totals: dict[tuple[str, str], dict[str, Any]] = {}
+        totals: dict[str, dict[str, Any]] = {}
         for _, item in matches.iterrows():
             material_code = clean_text(item[CODE_COL])
             if not re.fullmatch(r"\d{10}", material_code):
@@ -633,7 +633,7 @@ class MaterialWorkbook:
                 wire2 = clean_text(item.get("wire2"))
                 wire3 = clean_text(item.get("wire3"))
                 validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head, wire3)
-                wire_totals: dict[tuple[str, str], dict[str, Any]] = {}
+                wire_totals: dict[str, dict[str, Any]] = {}
                 add_wire_materials(wire_totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head), wire3)
 
                 lat_wire = clean_text(item.get("latWire"))
@@ -1040,21 +1040,25 @@ def is_dde_sac_acsr_transition(wire1: str, wire2: str) -> bool:
 
 
 def add_material(
-    totals: dict[tuple[str, str], dict[str, Any]],
+    totals: dict[str, dict[str, Any]],
     material: str,
     code: str,
     amount: float,
 ) -> None:
     if not code or amount == 0:
         return
-    key = (material, code)
+    # Material descriptions may differ only by spacing or minor typing variations.
+    # The material code is the identity; keep the first non-empty description found.
+    key = code.casefold()
     if key not in totals:
         totals[key] = {MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: 0.0}
+    elif not totals[key][MATERIAL_COL] and material:
+        totals[key][MATERIAL_COL] = material
     totals[key][TOTAL_COL] += amount
 
 
 def add_wire_materials(
-    totals: dict[tuple[str, str], dict[str, Any]],
+    totals: dict[str, dict[str, Any]],
     wire_kind: str | None,
     wire1: str,
     wire2: str,
@@ -1151,32 +1155,36 @@ def require_columns(df: pd.DataFrame, columns: list[str], label: str) -> None:
 
 
 def group_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    totals: dict[tuple[str, str], dict[str, Any]] = {}
+    totals: dict[str, dict[str, Any]] = {}
     for row in rows:
         material = clean_text(row[MATERIAL_COL])
         code = clean_text(row[CODE_COL])
         amount = parse_number(row[TOTAL_COL])
         if not code or amount == 0:
             continue
-        key = (material, code)
+        key = code.casefold()
         if key not in totals:
             totals[key] = {MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: 0.0}
+        elif not totals[key][MATERIAL_COL] and material:
+            totals[key][MATERIAL_COL] = material
         totals[key][TOTAL_COL] += amount
     return sorted(totals.values(), key=lambda r: (str(r[CODE_COL]).lower(), str(r[MATERIAL_COL]).lower()))
 
 
 def combine_work_type_summaries(summary_by_work_type: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
-    combined: dict[tuple[str, str], dict[str, Any]] = {}
+    combined: dict[str, dict[str, Any]] = {}
     for work_type, rows in summary_by_work_type.items():
         quantity_column = DEMOLITION_TOTAL_COL if work_type == "demolition" else INSTALL_TOTAL_COL
         for row in rows:
             material = clean_text(row[MATERIAL_COL])
             code = clean_text(row[CODE_COL])
-            key = (material, code)
+            key = code.casefold()
             target = combined.setdefault(key, {
                 MATERIAL_COL: material, CODE_COL: code,
                 INSTALL_TOTAL_COL: 0.0, DEMOLITION_TOTAL_COL: 0.0, TOTAL_COL: 0.0,
             })
+            if not target[MATERIAL_COL] and material:
+                target[MATERIAL_COL] = material
             amount = parse_number(row[TOTAL_COL])
             target[quantity_column] += amount
             target[TOTAL_COL] += amount  # Compatibility for older callers; UI/export use the separated columns.
