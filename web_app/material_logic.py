@@ -279,8 +279,16 @@ class MaterialWorkbook:
                                 arrester_quantity = -3.0 if source_quantity < 0 else 3.0 if source_quantity > 0 else 0.0
                                 config_rows.append({**source, HEAD_COL: config_head, QTY_COL: arrester_quantity})
                             elif source_code == "Set40104":
-                                # This legacy wiring SET is explicitly single-phase, two-wire.
-                                continue
+                                wiring_set, wire_size = (
+                                    ("Set40112", "50") if kva == 50 else ("Set40114", "95")
+                                )
+                                config_rows.append({
+                                    **source,
+                                    HEAD_COL: config_head,
+                                    MATERIAL_COL: f"LT WIRING, {wire_size} SQ.MM., 3-P, 4-WIRE, TO LT SWITCH",
+                                    CODE_COL: wiring_set,
+                                    QTY_COL: float(circuits),
+                                })
                             else:
                                 config_rows.append({**source, HEAD_COL: config_head})
                         editable_rows.extend(config_rows)

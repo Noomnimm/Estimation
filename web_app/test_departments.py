@@ -101,7 +101,16 @@ class DepartmentTests(unittest.TestCase):
         self.assertEqual(rows_by_code["1040000000"], 3)
         self.assertEqual(rows_by_code["1020330005"], -2)
         self.assertEqual(rows_by_code["1090250040"], 2)
+        self.assertEqual(rows_by_code["Set40114"], 1)
         self.assertNotIn("Set40104", set(rows[CODE_COL]))
+
+        two_lt_head = three_phase_config_head(100, 2, 0)
+        two_lt_rows = workbook.base_df[(workbook.base_df[HEAD_COL] == two_lt_head) & (workbook.base_df[DEPARTMENT_COL] == "แผนกหม้อแปลง")]
+        self.assertEqual(two_lt_rows.loc[two_lt_rows[CODE_COL] == "Set40114", QTY_COL].iloc[0], 2)
+
+        fifty_kva_head = three_phase_config_head(50, 1, 0)
+        fifty_kva_rows = workbook.base_df[(workbook.base_df[HEAD_COL] == fifty_kva_head) & (workbook.base_df[DEPARTMENT_COL] == "แผนกหม้อแปลง")]
+        self.assertEqual(fifty_kva_rows.loc[fifty_kva_rows[CODE_COL] == "Set40112", QTY_COL].iloc[0], 1)
 
     def test_transformer_surge_arrester_follows_ngr_and_distance(self):
         workbook = MaterialWorkbook()
