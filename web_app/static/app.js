@@ -1026,7 +1026,9 @@ async function loadHeads(size, select, selected, department = state.department, 
     Object.entries(data.headImages || {}).forEach(([head, image]) => {
       state.headImages[headImageKey(department, size, head)] = image;
     });
-    select._allHeadOptions = data.heads;
+    select._allHeadOptions = department === "แผนกหม้อแปลง" && size === "หม้อแปลง"
+      ? data.heads.filter((head) => head === "30kVA 1P" || head === "หม้อแปลง 3 เฟส 22 kV (Sealed)")
+      : data.heads;
     if (optionsList) {
       renderHeadOptions(select, optionsList);
     }
@@ -2551,7 +2553,10 @@ async function loadReplaceHeads() {
   try {
     const response = await fetch(`/api/heads?size=${encodeURIComponent(els.replaceSize.value)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
-    setSelectOptions(els.replaceHead, data.heads, "เลือกหัวเสา");
+    const heads = els.requestTargetDepartment.value === "แผนกหม้อแปลง"
+      ? data.heads.filter((head) => head !== "หม้อแปลง 3 เฟส 22 kV (Sealed)")
+      : data.heads;
+    setSelectOptions(els.replaceHead, heads, "เลือกหัวเสา");
     els.existingDataHint.textContent = "เลือกหัวเสาเพื่อดูรายการเดิม";
   } catch (error) { setStatus(error.message, true); }
 }

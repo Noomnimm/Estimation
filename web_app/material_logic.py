@@ -98,14 +98,22 @@ THREE_PHASE_LT_FUSE_CHOICES = {
     (250, 2): [("100", "200"), ("150-160", "200"), ("200", "200")],
     (315, 2): [("200", "200")],
 }
-LT_FUSE_CODES = {
-    "32-36": ("L.T. H.R.C. FUSE 32-36 A.DIN 43620 SIZE 0 OR 1 OR BS.88", "1040020000"),
-    "50": ("L.T. H.R.C. FUSE 50 A.DIN 43620 SIZE 0 OR 1 OR BS.88", "1040020001"),
-    "80": ("L.T. H.R.C. FUSE 80 A.DIN 43620 SIZE 1 OR BS.88", "1040020002"),
-    "100": ("L.T. H.R.C. FUSE 100 A.DIN 43620 SIZE 1 OR BS.88", "1040020003"),
-    "150-160": ("L.T. H.R.C. FUSE 150-160 A.DIN 43620 SIZE 1 OR BS.88", "1040020004"),
-    "200": ("L.T. H.R.C. FUSE 200 A.DIN 43620 SIZE 1 OR BS.88", "1040020005"),
+LT_FUSE_SETS = {
+    "32-36": ("LT. FUSE, 20 KVA. 3-P, 4-WIRE (32 AMP.)", "Set14019"),
+    "50": ("LT. FUSE, 30 KVA. 3-P, 4-WIRE (50 AMP.)", "Set14020"),
+    "80": ("LT. FUSE, 50 KVA. 3-P, 4-WIRE (80 AMP.)", "Set14021"),
+    "100": ("LT. FUSE, 70 KVA. 3-P, 4-WIRE (100 AMP.)", "Set14022"),
+    "150-160": ("LT. FUSE, 100 KVA. 3-P, 4-WIRE (160 AMP.)", "Set14023"),
+    "200": ("LT. FUSE, 140 KVA. 3-P, 4-WIRE (200 AMP.)", "Set14024"),
 }
+
+
+def three_phase_config_head(kva: int, circuits: int, choice_index: int) -> str:
+    choices = THREE_PHASE_LT_FUSE_CHOICES.get((kva, circuits), [])
+    if not 0 <= choice_index < len(choices):
+        raise ValueError("ยังไม่มีข้อมูลฟิวส์ที่รองรับสำหรับขนาดและจำนวน LT ที่เลือก")
+    fuse_label = "/".join(choices[choice_index])
+    return f"3P Sealed 22 kV · {kva} kVA · {circuits} LT · Fuse {fuse_label} A"
 
 
 def pages_have_work_types(pages: list[list[dict[str, Any]]]) -> bool:
@@ -237,6 +245,38 @@ class MaterialWorkbook:
             })
         if rows:
             self.base_df = pd.concat([self.base_df, pd.DataFrame(rows)], ignore_index=True)
+        if department == "แผนกหม้อแปลง":
+            transformer_rows = [row for row in rows if row[HEAD_COL].strip().casefold() == "30kva 1p"]
+            if transformer_rows:
+                editable_rows: list[dict[str, Any]] = []
+                for (kva, circuits), fuse_choices in THREE_PHASE_LT_FUSE_CHOICES.items():
+                    transformer_name, transformer_code, primary_amp, primary_fuse_code = THREE_PHASE_TRANSFORMERS[kva]
+                    for choice_index, fuse_amps in enumerate(fuse_choices):
+                        config_head = three_phase_config_head(kva, circuits, choice_index)
+                        switch_set = "Set14143" if circuits == 1 else "Set14144"
+                        switch_name = "X-ARM-C, INST. WITH 3-LT. SWITCH (3-P, 1-CCT) (12 M)" if circuits == 1 else "X-ARM-C, INST. WITH 6-LT. SWITCH (3-P, 2-CCT) (12 M)"
+                        config_rows: list[dict[str, Any]] = []
+                        for source in transformer_rows:
+                            source_code = clean_text(source[CODE_COL])
+                            if source_code == "1050000002":
+                                config_rows.append({**source, HEAD_COL: config_head, MATERIAL_COL: transformer_name, CODE_COL: transformer_code, QTY_COL: 1.0})
+                            elif source_code == "Set40201":
+                                config_rows.append({**source, HEAD_COL: config_head, MATERIAL_COL: "ชุดหม้อแปลง 3 เฟส 22 kV บนคอนเดี่ยว", CODE_COL: "Set40203", QTY_COL: 1.0})
+                            elif source_code == "Set14141":
+                                config_rows.append({**source, HEAD_COL: config_head, MATERIAL_COL: switch_name, CODE_COL: switch_set, QTY_COL: 1.0})
+                            elif source_code == "Set14013":
+                                for amp in fuse_amps:
+                                    fuse_name, fuse_set = LT_FUSE_SETS[amp]
+                                    config_rows.append({**source, HEAD_COL: config_head, MATERIAL_COL: fuse_name, CODE_COL: fuse_set, QTY_COL: 1.0})
+                            elif source_code == "1040030000":
+                                config_rows.append({**source, HEAD_COL: config_head, MATERIAL_COL: f"FUSE LINK 22 kV. {primary_amp} A.EEI-NEMA TYPE K OR HIGH SURGE TYPE", CODE_COL: primary_fuse_code, QTY_COL: 3.0})
+                            elif source_code in {"1040000000", "1040000007", "Set40104", "1090250040", "1020330005"}:
+                                continue
+                            else:
+                                config_rows.append({**source, HEAD_COL: config_head})
+                        editable_rows.extend(config_rows)
+                if editable_rows:
+                    self.base_df = pd.concat([self.base_df, pd.DataFrame(editable_rows)], ignore_index=True)
         return len(rows)
 
     def get_departments(self) -> list[str]:
@@ -319,12 +359,9 @@ class MaterialWorkbook:
                     continue
 
                 input_count += 1
+                selected_surge_code = ""
                 if department == "แผนกหม้อแปลง" and head == THREE_PHASE_TRANSFORMER_HEAD:
-                    surge_code = self._add_three_phase_transformer(totals, item, page_number, row_number, count)
-                    surge_counts = transformer_surge_by_work_type[work_type]
-                    surge_counts[surge_code] = surge_counts.get(surge_code, 0.0) + count
-                    matched_rows += 1
-                    continue
+                    head, selected_surge_code = self._three_phase_config(item, page_number, row_number)
                 high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
                 wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
@@ -339,6 +376,8 @@ class MaterialWorkbook:
                     & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
                     & self._department_mask(department)
                 ]
+                if department == "แผนกหม้อแปลง" and selected_surge_code and matches.empty:
+                    raise ValueError(f"หน้า {page_number} แถว {row_number}: ไม่พบข้อมูลตั้งต้นของ {head} ใน BaseData")
 
                 for _, row in matches.iterrows():
                     material = clean_text(row[MATERIAL_COL])
@@ -346,6 +385,9 @@ class MaterialWorkbook:
                     amount = parse_number(row[QTY_COL]) * count
                     if not code or amount == 0:
                         continue
+                    if department == "แผนกหม้อแปลง" and selected_surge_code and code.casefold() == "set40203":
+                        surge_counts = transformer_surge_by_work_type[work_type]
+                        surge_counts[selected_surge_code] = surge_counts.get(selected_surge_code, 0.0) + count
                     if department == "แผนกหม้อแปลง" and code in SURGE_ARRESTER_CODES:
                         ngr = bool(item.get("surgeNgr"))
                         within_3km = bool(item.get("surgeWithin3km"))
@@ -393,22 +435,19 @@ class MaterialWorkbook:
             "summaryRows": len(self.summary),
         }
 
-    def _add_three_phase_transformer(
+    def _three_phase_config(
         self,
-        totals: dict[str, dict[str, Any]],
         item: dict[str, Any],
         page_number: int,
         row_number: int,
-        count: float,
-    ) -> str:
+    ) -> tuple[str, str]:
         try:
             kva = int(item.get("transformerKva", 0))
             circuits = int(item.get("transformerLtCircuits", 0))
         except (TypeError, ValueError):
             raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกขนาดหม้อแปลงและจำนวน LT")
-        transformer = THREE_PHASE_TRANSFORMERS.get(kva)
         choices = THREE_PHASE_LT_FUSE_CHOICES.get((kva, circuits), [])
-        if transformer is None or not choices:
+        if kva not in THREE_PHASE_TRANSFORMERS or not choices:
             raise ValueError(f"หน้า {page_number} แถว {row_number}: ยังไม่มีข้อมูลฟิวส์ที่รองรับสำหรับ {kva} kVA / {circuits} LT")
         if clean_text(item.get("transformerType", "sealed")) != "sealed":
             raise ValueError(f"หน้า {page_number} แถว {row_number}: รุ่นนี้รองรับเฉพาะหม้อแปลง Sealed")
@@ -425,14 +464,6 @@ class MaterialWorkbook:
         if not 0 <= choice_index < len(choices):
             raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกชุดฟิวส์ LT ที่ถูกต้อง")
 
-        material, code, primary_amp, primary_fuse_code = transformer
-        add_material(totals, material, code, count)
-        add_material(totals, "ชุดหม้อแปลง 3 เฟส 22 kV บนคอนเดี่ยว", "Set40203", count)
-        switch_set = "Set14143" if circuits == 1 else "Set14144"
-        switch_desc = "X-ARM-C, INST. WITH 3-LT. SWITCH (3-P, 1-CCT) (12 M)" if circuits == 1 else "X-ARM-C, INST. WITH 6-LT. SWITCH (3-P, 2-CCT) (12 M)"
-        add_material(totals, switch_desc, switch_set, count)
-        add_material(totals, "FUSE LINK 22 kV. %s A.EEI-NEMA TYPE K OR HIGH SURGE TYPE" % primary_amp, primary_fuse_code, 3 * count)
-
         surge_ngr = bool(item.get("surgeNgr"))
         surge_within_3km = bool(item.get("surgeWithin3km"))
         surge_mounting = clean_text(item.get("surgeMounting")) or "crossarm"
@@ -443,12 +474,7 @@ class MaterialWorkbook:
         else:
             selected_surge_material, selected_surge_code = SURGE_ARRESTER_CROSSARM[(surge_ngr, surge_within_3km)]
 
-        for fuse_amp in choices[choice_index]:
-            fuse_material, fuse_code = LT_FUSE_CODES[fuse_amp]
-            add_material(totals, fuse_material, fuse_code, 3 * count)
-
-        # Do not reuse the legacy 1-phase / 2-wire LT wiring set for this 3-phase / 4-wire model.
-        return selected_surge_code
+        return three_phase_config_head(kva, circuits, choice_index), selected_surge_code
 
     def _department_mask(self, department: str) -> pd.Series:
         """Keep older in-memory/test BaseData compatible with the new department column."""
