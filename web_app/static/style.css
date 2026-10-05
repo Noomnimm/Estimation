@@ -952,6 +952,10 @@ td select {
 .result-work-section.demolition h3 { background: #f7dce7; color: #87234d; }
 .result-work-section.demolition h3 span { color: #a3486d; }
 .result-work-section.combined h3 { background: #e8edf1; color: #344653; }
+#installResultSection th:first-child,
+#installResultSection td:first-child,
+#demolitionResultSection th:first-child,
+#demolitionResultSection td:first-child { width: 60px; min-width: 60px; text-align: center; white-space: nowrap; }
 .combined-result-table { min-width: 720px; }
 .combined-result-table .combined-no-column { width: 6%; }
 .combined-result-table .combined-material-column { width: 40%; }
