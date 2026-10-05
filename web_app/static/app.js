@@ -247,8 +247,18 @@ els.themeToggle?.addEventListener("click", () => {
 });
 
 function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
-  return { department, workType, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", insulatorUpright: null, insulatorHorizontal: null };
+  return { department, workType, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, insulatorUpright: null, insulatorHorizontal: null };
 }
+
+const THREE_PHASE_LT_FUSE_OPTIONS = {
+  "50:1": [["80"]],
+  "100:1": [["150-160"]],
+  "100:2": [["50", "100"], ["80", "80"], ["80", "100"]],
+  "160:1": [["200"]],
+  "160:2": [["80", "150-160"], ["80", "200"], ["100", "150-160"]],
+  "250:2": [["100", "200"], ["150-160", "200"], ["200", "200"]],
+  "315:2": [["200", "200"]],
+};
 
 function blankStructureRow(workType = "install", category = "structure") {
   return { workType, category, code: "", material: "", count: "" };
@@ -636,7 +646,11 @@ function renderInputs() {
       els.inputRows.appendChild(createWireDetailsRow(row, index, wireKind));
     }
     if ((row.department || state.department) === "แผนกหม้อแปลง" && row.head) {
-      els.inputRows.appendChild(createSurgeDetailsRow(row, index));
+      if (row.head === "หม้อแปลง 3 เฟส 22 kV (Sealed)") {
+        els.inputRows.appendChild(createTransformerDetailsRow(row, index));
+      } else {
+        els.inputRows.appendChild(createSurgeDetailsRow(row, index));
+      }
     }
     if (row.size) {
       loadHeads(row.size, headSelect, row.head, row.department || state.department, headOptions).then((data) => {
@@ -730,6 +744,79 @@ function createSurgeDetailsRow(row, index) {
   ngrSelect.addEventListener("change", update);
   distanceSelect.addEventListener("change", update);
   mountingSelect.addEventListener("change", update);
+  update();
+  cell.appendChild(panel);
+  detailRow.appendChild(cell);
+  return detailRow;
+}
+
+function createTransformerDetailsRow(row) {
+  const detailRow = document.createElement("tr");
+  detailRow.className = "transformer-details-row";
+  const cell = document.createElement("td");
+  cell.colSpan = 4;
+  const panel = document.createElement("div");
+  panel.className = "transformer-details";
+  panel.innerHTML = `
+    <div class="transformer-title"><strong>ตั้งค่าหม้อแปลง 3 เฟส · 22 kV</strong><span class="transformer-preview">แบบ Sealed · ติดตั้งบนคอนเดี่ยว (Set40203)</span></div>
+    <label><span>ขนาด</span><select class="transformer-kva"><option value="50">50 kVA</option><option value="100">100 kVA</option><option value="160">160 kVA</option><option value="250">250 kVA</option><option value="315">315 kVA</option></select></label>
+    <label><span>ชนิด</span><select class="transformer-type"><option value="sealed">Sealed</option></select></label>
+    <label><span>วิธีติดตั้ง</span><select class="transformer-mounting"><option value="single-pole-crossarm">บนคอนเดี่ยว · Set40203</option></select></label>
+    <label><span>จำนวน LT</span><select class="transformer-lt"></select></label>
+    <label><span>ชุดฟิวส์ LT</span><select class="transformer-lt-fuse"></select></label>
+  `;
+  const kva = panel.querySelector(".transformer-kva");
+  const type = panel.querySelector(".transformer-type");
+  const mounting = panel.querySelector(".transformer-mounting");
+  const circuits = panel.querySelector(".transformer-lt");
+  const fuse = panel.querySelector(".transformer-lt-fuse");
+  const preferredCircuits = Number(row.transformerLtCircuits) || 1;
+  kva.value = String(row.transformerKva || 100);
+  type.value = row.transformerType || "sealed";
+  mounting.value = row.transformerMounting || "single-pole-crossarm";
+  circuits.value = String(row.transformerLtCircuits || 1);
+  const update = () => {
+    row.transformerKva = Number(kva.value);
+    row.transformerType = type.value;
+    row.transformerMounting = mounting.value;
+    const availableCircuits = [1, 2].filter((number) => THREE_PHASE_LT_FUSE_OPTIONS[`${row.transformerKva}:${number}`]);
+    const requestedCircuits = Number(circuits.value) || preferredCircuits;
+    const selectedCircuits = availableCircuits.includes(requestedCircuits) ? requestedCircuits : (availableCircuits[0] || 1);
+    circuits.replaceChildren(...availableCircuits.map((number) => {
+      const option = document.createElement("option");
+      option.value = String(number);
+      option.textContent = `${number} LT`;
+      return option;
+    }));
+    circuits.value = String(selectedCircuits);
+    row.transformerLtCircuits = Number(circuits.value);
+    const choices = THREE_PHASE_LT_FUSE_OPTIONS[`${row.transformerKva}:${row.transformerLtCircuits}`] || [];
+    fuse.replaceChildren(...choices.map((combo, choiceIndex) => {
+      const option = document.createElement("option");
+      option.value = String(choiceIndex);
+      option.textContent = combo.map((amp, i) => `LT${i + 1}: ${amp} A`).join(" / ");
+      return option;
+    }));
+    if (!choices.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "ไม่มีข้อมูลฟิวส์รองรับ";
+      fuse.appendChild(option);
+      fuse.disabled = true;
+      row.transformerLtFuseChoice = -1;
+    } else {
+      fuse.disabled = false;
+      const choice = Math.max(0, Math.min(choices.length - 1, Number(row.transformerLtFuseChoice) || 0));
+      fuse.value = String(choice);
+      row.transformerLtFuseChoice = choice;
+    }
+    markProjectDirty();
+  };
+  [kva, type, mounting, circuits].forEach((select) => select.addEventListener("change", update));
+  fuse.addEventListener("change", () => {
+    row.transformerLtFuseChoice = Number(fuse.value);
+    markProjectDirty();
+  });
   update();
   cell.appendChild(panel);
   detailRow.appendChild(cell);
@@ -925,7 +1012,9 @@ async function loadHeads(size, select, selected, department = state.department, 
     Object.entries(data.headImages || {}).forEach(([head, image]) => {
       state.headImages[headImageKey(department, size, head)] = image;
     });
-    select._allHeadOptions = data.heads;
+    select._allHeadOptions = department === "แผนกหม้อแปลง" && size === "หม้อแปลง"
+      ? [...data.heads, "หม้อแปลง 3 เฟส 22 kV (Sealed)"]
+      : data.heads;
     if (optionsList) {
       renderHeadOptions(select, optionsList);
     }

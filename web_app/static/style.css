@@ -851,6 +851,12 @@ td select {
 .surge-details select { min-height: 36px; border: 1px solid #cfb5df; border-radius: 9px; padding: 7px 9px; background: #fff; }
 .surge-title { display: grid; gap: 5px; color: var(--accent-dark); }
 .surge-preview { color: #74561c; font-size: 12px; font-weight: 700; }
+.transformer-details-row td { padding: 0 10px 12px; background: #fbf8fd; }
+.transformer-details { display: grid; grid-template-columns: minmax(210px, 1.2fr) repeat(5, minmax(130px, .7fr)); align-items: end; gap: 10px; padding: 13px; border-left: 4px solid var(--accent); border-radius: 10px; background: linear-gradient(135deg, #eaf4fb, #f4eafa); }
+.transformer-details label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; }
+.transformer-details select { min-height: 36px; border: 1px solid #b9cce0; border-radius: 9px; padding: 7px 9px; background: #fff; }
+.transformer-title { display: grid; gap: 5px; color: var(--accent-dark); }
+.transformer-preview { color: var(--muted); font-size: 12px; font-weight: 700; }
 
 .input-table #sizeColumnTitle,
 .input-table .size-cell {
@@ -1081,6 +1087,7 @@ td select {
 :root[data-theme="dark"] .admin-login input,
 :root[data-theme="dark"] .wire-details select,
 :root[data-theme="dark"] .surge-details select,
+:root[data-theme="dark"] .transformer-details select,
 :root[data-theme="dark"] .structure-row select,
 :root[data-theme="dark"] .structure-row input,
 :root[data-theme="dark"] .move-project-label select,
@@ -1121,6 +1128,9 @@ td select {
 :root[data-theme="dark"] .surge-details {
   background: linear-gradient(135deg, #2b3034, #303438);
 }
+:root[data-theme="dark"] .transformer-details {
+  background: linear-gradient(135deg, #24333e, #302a3a);
+}
 
 :root[data-theme="dark"] .head-options { background: #292d31; border-color: #71879a; }
 :root[data-theme="dark"] .head-option { background: #292d31; border-bottom-color: #3d4348; }
@@ -1128,6 +1138,7 @@ td select {
 :root[data-theme="dark"] .head-option:focus { background: #3a444c; color: #fff; }
 :root[data-theme="dark"] .wire-details-row td,
 :root[data-theme="dark"] .surge-details-row td,
+:root[data-theme="dark"] .transformer-details-row td,
 :root[data-theme="dark"] .set-component-row > td { background: #1b1e20; }
 :root[data-theme="dark"] .wire-details,
 :root[data-theme="dark"] .request-status-tabs,
@@ -1346,4 +1357,5 @@ td select {
 
 @media (max-width: 720px) {
   .surge-details { grid-template-columns: 1fr; }
+  .transformer-details { grid-template-columns: 1fr; }
 }

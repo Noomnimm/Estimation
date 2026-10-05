@@ -80,6 +80,33 @@ SURGE_ARRESTER_TANK = {
 }
 SURGE_ARRESTER_CODES = {code for _, code in (*SURGE_ARRESTER_CROSSARM.values(), *SURGE_ARRESTER_TANK.values())}
 
+THREE_PHASE_TRANSFORMER_HEAD = "หม้อแปลง 3 เฟส 22 kV (Sealed)"
+THREE_PHASE_TRANSFORMERS = {
+    50: ("หม้อแปลงขนาด 50 เควีเอ", "1050010200", 3, "1040030002"),
+    100: ("หม้อแปลงขนาด 100 เควีเอ", "1050010201", "5-6", "1040030003"),
+    160: ("หม้อแปลงขนาด 160 เควีเอ", "1050010202", 8, "1040030004"),
+    250: ("หม้อแปลงขนาด 250 เควีเอ", "1050010204", 15, "1040030006"),
+    315: ("หม้อแปลงขนาด 315 เควีเอ", "1050010010", 15, "1040030006"),
+    500: ("หม้อแปลงขนาด 500 เควีเอ", "1050010012", 20, "1040030007"),
+}
+THREE_PHASE_LT_FUSE_CHOICES = {
+    (50, 1): [("80",)],
+    (100, 1): [("150-160",)],
+    (100, 2): [("50", "100"), ("80", "80"), ("80", "100")],
+    (160, 1): [("200",)],
+    (160, 2): [("80", "150-160"), ("80", "200"), ("100", "150-160")],
+    (250, 2): [("100", "200"), ("150-160", "200"), ("200", "200")],
+    (315, 2): [("200", "200")],
+}
+LT_FUSE_CODES = {
+    "32-36": ("L.T. H.R.C. FUSE 32-36 A.DIN 43620 SIZE 0 OR 1 OR BS.88", "1040020000"),
+    "50": ("L.T. H.R.C. FUSE 50 A.DIN 43620 SIZE 0 OR 1 OR BS.88", "1040020001"),
+    "80": ("L.T. H.R.C. FUSE 80 A.DIN 43620 SIZE 1 OR BS.88", "1040020002"),
+    "100": ("L.T. H.R.C. FUSE 100 A.DIN 43620 SIZE 1 OR BS.88", "1040020003"),
+    "150-160": ("L.T. H.R.C. FUSE 150-160 A.DIN 43620 SIZE 1 OR BS.88", "1040020004"),
+    "200": ("L.T. H.R.C. FUSE 200 A.DIN 43620 SIZE 1 OR BS.88", "1040020005"),
+}
+
 
 def pages_have_work_types(pages: list[list[dict[str, Any]]]) -> bool:
     return any(str(item.get("workType", "")).strip() for page in pages for item in page)
@@ -231,6 +258,8 @@ class MaterialWorkbook:
             & self._department_mask(department)
         ]
         heads = matches[HEAD_COL].dropna().astype(str).str.strip().unique().tolist()
+        if department == "แผนกหม้อแปลง" and selected == "หม้อแปลง":
+            heads.append(THREE_PHASE_TRANSFORMER_HEAD)
         return sorted(heads, key=natural_key)
 
     def get_insulator_rate(self, size: str, head: str, department: str = DEFAULT_DEPARTMENT) -> tuple[float, float]:
@@ -288,6 +317,10 @@ class MaterialWorkbook:
                     continue
 
                 input_count += 1
+                if department == "แผนกหม้อแปลง" and head == THREE_PHASE_TRANSFORMER_HEAD:
+                    self._add_three_phase_transformer(totals, item, page_number, row_number, count)
+                    matched_rows += 1
+                    continue
                 high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
                 wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
@@ -354,6 +387,52 @@ class MaterialWorkbook:
             "matchedRows": matched_rows,
             "summaryRows": len(self.summary),
         }
+
+    def _add_three_phase_transformer(
+        self,
+        totals: dict[str, dict[str, Any]],
+        item: dict[str, Any],
+        page_number: int,
+        row_number: int,
+        count: float,
+    ) -> None:
+        try:
+            kva = int(item.get("transformerKva", 0))
+            circuits = int(item.get("transformerLtCircuits", 0))
+        except (TypeError, ValueError):
+            raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกขนาดหม้อแปลงและจำนวน LT")
+        transformer = THREE_PHASE_TRANSFORMERS.get(kva)
+        choices = THREE_PHASE_LT_FUSE_CHOICES.get((kva, circuits), [])
+        if transformer is None or not choices:
+            raise ValueError(f"หน้า {page_number} แถว {row_number}: ยังไม่มีข้อมูลฟิวส์ที่รองรับสำหรับ {kva} kVA / {circuits} LT")
+        if clean_text(item.get("transformerType", "sealed")) != "sealed":
+            raise ValueError(f"หน้า {page_number} แถว {row_number}: รุ่นนี้รองรับเฉพาะหม้อแปลง Sealed")
+        if clean_text(item.get("transformerMounting", "single-pole-crossarm")) != "single-pole-crossarm":
+            raise ValueError(f"หน้า {page_number} แถว {row_number}: รุ่นนี้รองรับเฉพาะติดตั้งบนคอนเดี่ยว")
+        choice = item.get("transformerLtFuseChoice")
+        if isinstance(choice, int):
+            choice_index = choice
+        else:
+            try:
+                choice_index = int(choice)
+            except (TypeError, ValueError):
+                choice_index = 0
+        if not 0 <= choice_index < len(choices):
+            raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกชุดฟิวส์ LT ที่ถูกต้อง")
+
+        material, code, primary_amp, primary_fuse_code = transformer
+        add_material(totals, material, code, count)
+        add_material(totals, "ชุดหม้อแปลง 3 เฟส 22 kV บนคอนเดี่ยว", "Set40203", count)
+        switch_set = "Set14143" if circuits == 1 else "Set14144"
+        switch_desc = "X-ARM-C, INST. WITH 3-LT. SWITCH (3-P, 1-CCT) (12 M)" if circuits == 1 else "X-ARM-C, INST. WITH 6-LT. SWITCH (3-P, 2-CCT) (12 M)"
+        add_material(totals, switch_desc, switch_set, count)
+        add_material(totals, "FUSE LINK 22 kV. %s A.EEI-NEMA TYPE K OR HIGH SURGE TYPE" % primary_amp, primary_fuse_code, 3 * count)
+
+        for fuse_amp in choices[choice_index]:
+            fuse_material, fuse_code = LT_FUSE_CODES[fuse_amp]
+            add_material(totals, fuse_material, fuse_code, 3 * count)
+
+        # Do not reuse the legacy 1-phase / 2-wire LT wiring set for this 3-phase / 4-wire model.
 
     def _department_mask(self, department: str) -> pd.Series:
         """Keep older in-memory/test BaseData compatible with the new department column."""
