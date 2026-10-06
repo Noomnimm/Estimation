@@ -305,6 +305,33 @@ class MaterialWorkbook:
         configured = [DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC", "แผนกแรงต่ำ", "แผนกหม้อแปลง", "แผนกสายส่ง"]
         return configured
 
+    def get_transmission_structures(self) -> list[dict[str, str]]:
+        """Return selectable SS/SD structure assemblies from the transmission catalog."""
+        if self.base_df is None:
+            return []
+        matches = self.base_df[
+            self._department_mask("แผนกสายส่ง")
+            & self.base_df[HEAD_COL].astype(str).str.strip().str.upper().str.match(r"^(SS|SD|DS|DD)-")
+        ]
+        structures: dict[str, dict[str, str]] = {}
+        for _, row in matches.iterrows():
+            keycode = clean_text(row[SIZE_COL])
+            head = clean_text(row[HEAD_COL])
+            if not keycode or not head:
+                continue
+            circuit, _, remainder = head.partition("-")
+            structure_type = remainder.split("-", 1)[0].split(" ", 1)[0].upper()
+            structures[keycode] = {
+                "keycode": keycode,
+                "circuit": circuit.upper(),
+                "type": structure_type,
+                "head": head,
+                "code": clean_text(row[CODE_COL]),
+            }
+        circuit_order = {"SS": 0, "SD": 1, "DS": 2, "DD": 3}
+        type_order = {"TG": 0, "AS": 1, "SA": 2, "LA": 3, "TL": 4, "LS": 5, "DD": 6, "DE": 7, "SW": 8, "IH": 9, "DH": 10, "UG": 11, "HF": 12, "HFTG": 13, "TR": 14, "MA": 15}
+        return sorted(structures.values(), key=lambda item: (circuit_order.get(item["circuit"], 99), type_order.get(item["type"], 99), natural_key(item["keycode"])))
+
     def ensure_high_voltage_auxiliary_catalog(
         self,
         suppressed_heads: set[tuple[str, str, str]] | None = None,

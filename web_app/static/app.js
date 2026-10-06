@@ -52,6 +52,7 @@ const state = {
   resultWorkType: "install",
   combinedView: false,
   sizes: [],
+  transmissionStructures: [],
   pages: [
     [blankRow(DEFAULT_DEPARTMENT, "install"), blankRow(DEFAULT_DEPARTMENT, "install")],
     [blankRow(DEFAULT_DEPARTMENT, "demolition"), blankRow(DEFAULT_DEPARTMENT, "demolition")],
@@ -256,7 +257,7 @@ els.themeToggle?.addEventListener("click", () => {
 });
 
 function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
-  return { department, workType, size: "", head: "", count: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, insulatorUpright: null, insulatorHorizontal: null };
+  return { department, workType, size: "", head: "", count: "", transmissionCircuit: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, insulatorUpright: null, insulatorHorizontal: null };
 }
 
 const THREE_PHASE_LT_FUSE_OPTIONS = {
@@ -359,6 +360,19 @@ async function readJson(response, fallbackMessage = "เกิดข้อผิ
 function saveCurrentPageFromDom() {
   const rows = [...els.inputRows.querySelectorAll("tr.input-row")];
   rows.forEach((tr, index) => {
+    if (state.department === "แผนกสายส่ง") {
+      const keycode = tr.querySelector(".transmission-structure").value;
+      const selected = state.transmissionStructures.find((item) => item.keycode === keycode);
+      Object.assign(state.pages[state.currentPage][index], {
+        department: state.department,
+        workType: state.activeWorkType,
+        size: selected?.keycode || "",
+        head: selected?.head || "",
+        transmissionCircuit: tr.querySelector(".size").value,
+        count: tr.querySelector(".count").value,
+      });
+      return;
+    }
     const headInput = tr.querySelector(".head");
     const typedHead = headInput.value.trim();
     const validHeads = headInput._allHeadOptions || [];
@@ -512,12 +526,13 @@ function renderActualInsulatorInputs() {
 
 function renderInputs() {
   const isTransformerDepartment = state.department === "แผนกหม้อแปลง";
+  const isTransmissionDepartment = state.department === "แผนกสายส่ง";
   els.structureEntryGroup.hidden = isTransformerDepartment;
   els.wireEntryGroup.hidden = isTransformerDepartment;
   els.headEntryStep.textContent = isTransformerDepartment ? "1" : "3";
   els.actualInsulatorEntryStep.textContent = isTransformerDepartment ? "2" : "4";
   els.headEntryTitle.textContent = isTransformerDepartment ? "หม้อแปลง" : "หัวเสา";
-  els.headEntryHint.textContent = isTransformerDepartment ? "เลือกชนิดหม้อแปลงและจำนวนในหน้านี้" : "เลือกหัวเสาและจำนวนในหน้านี้";
+  els.headEntryHint.textContent = isTransformerDepartment ? "เลือกชนิดหม้อแปลงและจำนวนในหน้านี้" : isTransmissionDepartment ? "เลือก SS/SD แล้วเลือกชุดประกอบหัวเสา" : "เลือกหัวเสาและจำนวนในหน้านี้";
   els.addRow.textContent = isTransformerDepartment ? "＋ เพิ่มรายการหม้อแปลง" : "＋ เพิ่มรายการเสา";
   els.clearHeadRows.textContent = isTransformerDepartment ? "ล้างค่าหม้อแปลง" : "ล้างค่าหัวเสา";
   renderStructureInputs();
@@ -532,7 +547,7 @@ function renderInputs() {
     tr.innerHTML = `
       ${state.department === "แผนกแรงสูง TAC" ? '<td class="head-image-cell"></td>' : ""}
       <td class="size-cell"><select class="size"></select></td>
-      <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div></td>
+      <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div><select class="transmission-structure" hidden></select></td>
       <td class="count-cell"><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
       <td class="head-remove-cell"><button class="remove-head-row" type="button" aria-label="ลบหัวเสาแถวนี้">×</button></td>
     `;
@@ -542,12 +557,40 @@ function renderInputs() {
     const headCombobox = tr.querySelector(".head-combobox");
     const headToggle = tr.querySelector(".head-toggle");
     const headOptions = tr.querySelector(".head-options");
+    const transmissionStructureSelect = tr.querySelector(".transmission-structure");
     const countInput = tr.querySelector(".count");
     updateHeadImageCell(tr, row);
 
-    fillSelect(sizeSelect, state.sizes, state.department === "แผนกหม้อแปลง" ? "เลือกแผนก" : "เลือกขนาดเสา");
-    sizeSelect.value = row.size || "";
+    const savedCircuit = row.transmissionCircuit || String(row.head || "").match(/^(SS|SD)-/i)?.[1] || state.transmissionStructures.find((item) => item.keycode === String(row.size))?.circuit || "";
+    const legacyCircuits = state.pages.flat().map((item) => String(item.head || "").match(/^(DS|DD)-/i)?.[1]?.toUpperCase()).filter(Boolean);
+    const circuitOptions = [...new Set(["SS", "SD", ...legacyCircuits])];
+    fillSelect(sizeSelect, isTransmissionDepartment ? circuitOptions : state.sizes, isTransmissionDepartment ? "เลือก SS/SD" : isTransformerDepartment ? "เลือกแผนก" : "เลือกขนาดเสา");
+    sizeSelect.value = isTransmissionDepartment ? savedCircuit : row.size || "";
     countInput.value = row.count || "";
+    headCombobox.hidden = isTransmissionDepartment;
+    transmissionStructureSelect.hidden = !isTransmissionDepartment;
+    if (isTransmissionDepartment) {
+      transmissionStructureSelect.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = savedCircuit ? "เลือกชุดประกอบหัวเสา" : "เลือก SS/SD ก่อน";
+      transmissionStructureSelect.appendChild(placeholder);
+      const available = state.transmissionStructures.filter((item) => item.circuit === savedCircuit);
+      const byType = new Map();
+      available.forEach((item) => {
+        if (!byType.has(item.type)) {
+          const group = document.createElement("optgroup");
+          group.label = transmissionStructureTypeLabel(item.type);
+          byType.set(item.type, group);
+          transmissionStructureSelect.appendChild(group);
+        }
+        const option = document.createElement("option");
+        option.value = item.keycode;
+        option.textContent = `${item.head}${item.code ? ` · ${item.code}` : ""}`;
+        byType.get(item.type).appendChild(option);
+      });
+      transmissionStructureSelect.value = row.size || "";
+    }
     headSelect.placeholder = state.department === "แผนกหม้อแปลง" ? "เลือกหรือพิมพ์ค้นหาชนิดหม้อแปลง" : "เลือกหรือพิมพ์ค้นหาหัวเสา";
     headSelect.value = row.head || "";
     const positionHeadOptions = () => {
@@ -582,6 +625,16 @@ function renderInputs() {
 
     sizeSelect.addEventListener("change", () => {
       page[index].department = state.department;
+      if (isTransmissionDepartment) {
+        page[index].transmissionCircuit = sizeSelect.value;
+        page[index].size = "";
+        page[index].head = "";
+        page[index].insulatorUpright = null;
+        page[index].insulatorHorizontal = null;
+        renderInputs();
+        markProjectDirty();
+        return;
+      }
       page[index].size = sizeSelect.value;
       page[index].head = "";
       page[index].wire1 = "";
@@ -589,6 +642,21 @@ function renderInputs() {
       page[index].wire3 = "";
       page[index].latWire = "";
       renderInputs();
+    });
+    transmissionStructureSelect.addEventListener("change", () => {
+      const selected = state.transmissionStructures.find((item) => item.keycode === transmissionStructureSelect.value);
+      page[index].department = state.department;
+      page[index].transmissionCircuit = sizeSelect.value;
+      page[index].size = selected?.keycode || "";
+      page[index].head = selected?.head || "";
+      page[index].wire1 = "";
+      page[index].wire2 = "";
+      page[index].wire3 = "";
+      page[index].latWire = "";
+      page[index].insulatorUpright = null;
+      page[index].insulatorHorizontal = null;
+      renderInputs();
+      markProjectDirty();
     });
     const applyHeadSelection = () => {
       if (headSelect.value && !(headSelect._allHeadOptions || []).includes(headSelect.value)) {
@@ -661,7 +729,7 @@ function renderInputs() {
         els.inputRows.appendChild(createSurgeDetailsRow(row, index));
       }
     }
-    if (row.size) {
+    if (row.size && !isTransmissionDepartment) {
       loadHeads(row.size, headSelect, row.head, row.department || state.department, headOptions).then((data) => {
         if (!data || !row.head) return;
         updateHeadImageCell(tr, row);
@@ -704,11 +772,12 @@ function updateHeadImageCell(rowElement, row) {
 
 function updateInputColumnTitles() {
   const transformer = state.department === "แผนกหม้อแปลง";
+  const transmission = state.department === "แผนกสายส่ง";
   const tac = state.department === "แผนกแรงสูง TAC";
   els.headImageColumnTitle.hidden = !tac;
   els.inputTable.classList.toggle("has-head-images", tac);
-  els.sizeColumnTitle.textContent = transformer ? "แผนก" : "ขนาดเสา (m)";
-  els.headColumnTitle.textContent = transformer ? "ชนิดหม้อแปลง" : "รหัสหัวเสา";
+  els.sizeColumnTitle.textContent = transformer ? "แผนก" : transmission ? "ระบบสายส่ง" : "ขนาดเสา (m)";
+  els.headColumnTitle.textContent = transformer ? "ชนิดหม้อแปลง" : transmission ? "ชุดประกอบหัวเสา" : "รหัสหัวเสา";
   els.countColumnTitle.textContent = "จำนวน";
 }
 
@@ -971,6 +1040,27 @@ function createWireDetailsRow(row, index, wireKind) {
   return detailRow;
 }
 
+function transmissionStructureTypeLabel(type) {
+  const labels = {
+    TG: "TG · ทางตรง",
+    AS: "AS · เข้าปลายสายก่อนช่วงโค้ง",
+    SA: "SA · ทางโค้ง",
+    LA: "LA · ทางโค้ง 90°",
+    TL: "TL · แยกสาย",
+    LS: "LS · ช่วง Span ยาว",
+    DD: "DD · ปลายสายสองข้าง",
+    DE: "DE · ปลายสาย",
+    SW: "SW · สวิตช์",
+    IH: "IH · เพิ่มความสูง",
+    DH: "DH · ลดความสูง",
+    UG: "UG · ใต้ดิน",
+    HF: "HF · โครง H-Frame",
+    TR: "TR · สลับเฟส",
+    MA: "MA · มุมปานกลาง",
+  };
+  return labels[type] || type;
+}
+
 function fillSelect(select, values, placeholder) {
   select.innerHTML = "";
   const empty = document.createElement("option");
@@ -1161,7 +1251,7 @@ async function toggleSetComponents(event) {
     const rows = data.items || [];
     detailRow.innerHTML = `<td colspan="${parentRow.children.length}"><div class="set-component-panel">
       <div class="set-component-title">อุปกรณ์ภายใน ${escapeHtml(data.setCode || button.dataset.setCode)} ต่อ 1 SET</div>
-      ${rows.length ? `<table><thead><tr><th>No.</th><th>รายการวัสดุ</th><th>รหัสพัสดุ 10 หลัก</th><th>จำนวน</th></tr></thead><tbody>${rows.map((item, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(item.material || "")}</td><td>${escapeHtml(item.code || "")}</td><td>${formatAmount(item.quantity)}</td></tr>`).join("")}</tbody></table>` : '<div class="set-component-empty">ไม่พบรายการรหัส 10 หลักใน SET นี้</div>'}
+      ${rows.length ? `<table class="set-component-table"><colgroup><col class="set-component-no-column"><col class="set-component-material-column"><col class="set-component-code-column"><col class="set-component-quantity-column"></colgroup><thead><tr><th>No.</th><th>รายการวัสดุ</th><th>รหัสพัสดุ 10 หลัก</th><th>จำนวน</th></tr></thead><tbody>${rows.map((item, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(item.material || "")}</td><td>${escapeHtml(item.code || "")}</td><td>${formatAmount(item.quantity)}</td></tr>`).join("")}</tbody></table>` : '<div class="set-component-empty">ไม่พบรายการรหัส 10 หลักใน SET นี้</div>'}
     </div></td>`;
     parentRow.after(detailRow);
     button.textContent = "−";
@@ -2507,6 +2597,12 @@ async function loadDepartmentSizes(department) {
   const response = await fetch(`/api/sizes?department=${encodeURIComponent(department)}`);
   const data = await readJson(response);
   state.sizes = data.sizes || [];
+  state.transmissionStructures = [];
+  if (department === "แผนกสายส่ง") {
+    const structuresResponse = await fetch("/api/transmission-structures");
+    const structuresData = await readJson(structuresResponse);
+    state.transmissionStructures = structuresData.structures || [];
+  }
 }
 
 async function changeDepartment(department) {

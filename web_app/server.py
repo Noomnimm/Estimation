@@ -152,6 +152,9 @@ class AppHandler(SimpleHTTPRequestHandler):
             department = query.get("department", [DEFAULT_DEPARTMENT])[0]
             self.handle_json(lambda: {"sizes": WORKBOOK.get_sizes(department)})
             return
+        if parsed.path == "/api/transmission-structures":
+            self.handle_json(lambda: {"structures": WORKBOOK.get_transmission_structures()})
+            return
         if parsed.path == "/api/base-entry":
             query = parse_qs(parsed.query)
             self.base_entry(query.get("size", [""])[0], query.get("head", [""])[0], query.get("department", [DEFAULT_DEPARTMENT])[0])

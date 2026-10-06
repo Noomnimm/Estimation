@@ -978,11 +978,19 @@ td select {
 .set-expand-button:hover { background: #e6d5f0; }
 .material-code { vertical-align: middle; }
 .set-component-row > td { padding: 0 !important; background: #faf7fc; }
-.set-component-panel { margin: 8px 14px 14px 42px; padding: 12px; border-left: 4px solid #7a3f98; border-radius: 8px; background: #fff; box-shadow: 0 3px 12px rgba(65, 31, 84, .08); }
+.set-component-panel { margin: 8px 6px 12px 18px; padding: 12px; border-left: 4px solid #7a3f98; border-radius: 8px; background: #fff; box-shadow: 0 3px 12px rgba(65, 31, 84, .08); }
 .set-component-title { margin-bottom: 8px; color: var(--accent-dark); font-weight: 800; }
 .set-component-panel table { width: 100%; border-collapse: collapse; }
 .set-component-panel th, .set-component-panel td { padding: 8px 10px !important; border-bottom: 1px solid #ece4f1; background: transparent; text-align: left; }
 .set-component-panel th:last-child, .set-component-panel td:last-child { text-align: right; }
+.set-component-table .set-component-no-column { width: 6%; }
+.set-component-table .set-component-material-column { width: 52%; }
+.set-component-table .set-component-code-column { width: 27%; }
+.set-component-table .set-component-quantity-column { width: 15%; }
+.set-component-table td:first-child { text-align: center; white-space: nowrap; }
+.set-component-table td:nth-child(2) { white-space: normal; overflow-wrap: anywhere; }
+.set-component-table td:nth-child(3) { white-space: nowrap; }
+.set-component-table td:last-child { white-space: nowrap; }
 .set-component-empty { padding: 10px; color: var(--muted); }
 
 .calculator-layout {

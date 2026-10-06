@@ -41,6 +41,21 @@ class DepartmentTests(unittest.TestCase):
         self.assertEqual(result["items"], [{MATERIAL_COL: "TX", CODE_COL: "200", TOTAL_COL: 3.0}])
         self.assertEqual(self.workbook.get_insulator_rate("1", "HEAD", "แผนกหม้อแปลง"), (7.0, 11.0))
 
+    def test_transmission_structure_selector_groups_ss_and_sd_by_catalog_code(self):
+        self.workbook.base_df = pd.DataFrame([
+            {SIZE_COL: "101", HEAD_COL: "SS-TG-2 ASSEMBLY NO. 5212A", MATERIAL_COL: "SS tangent", CODE_COL: "Set50202", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "205", HEAD_COL: "SD-TG-3 ASSEMBLY NO. 5264A", MATERIAL_COL: "SD tangent", CODE_COL: "Set50303", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "301", HEAD_COL: "DS-TG-1 ASSEMBLY NO. 5301", MATERIAL_COL: "DS tangent", CODE_COL: "Set53000", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "1", HEAD_COL: "OTHER STRUCTURE", MATERIAL_COL: "Other", CODE_COL: "Set10001", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "102", HEAD_COL: "SS-TG-3", MATERIAL_COL: "HV", CODE_COL: "Set50015", QTY_COL: 1, DEPARTMENT_COL: "แผนกแรงสูง"},
+        ])
+
+        self.assertEqual(self.workbook.get_transmission_structures(), [
+            {"keycode": "101", "circuit": "SS", "type": "TG", "head": "SS-TG-2 ASSEMBLY NO. 5212A", "code": "Set50202"},
+            {"keycode": "205", "circuit": "SD", "type": "TG", "head": "SD-TG-3 ASSEMBLY NO. 5264A", "code": "Set50303"},
+            {"keycode": "301", "circuit": "DS", "type": "TG", "head": "DS-TG-1 ASSEMBLY NO. 5301", "code": "Set53000"},
+        ])
+
     def test_combined_hardware_export_contains_insulator_sheets(self):
         data = self.workbook.export_page_hardware_combined([[
             {"department": "แผนกหม้อแปลง", "size": "1", "head": "HEAD", "count": "2"},
