@@ -70,6 +70,7 @@ const state = {
   adminToken: sessionStorage.getItem("material-calculator-admin-token") || "",
   baseRequestOriginalRows: [],
   baseRequestImage: null,
+  requestTransmissionStructures: [],
   baseRequests: [],
   publicPendingRequests: [],
   activeRequestStatus: "pending",
@@ -159,8 +160,12 @@ const els = {
   requestAddTarget: document.getElementById("requestAddTarget"),
   requestReplaceTarget: document.getElementById("requestReplaceTarget"),
   replaceSize: document.getElementById("replaceSize"),
+  replaceSizeField: document.getElementById("replaceSizeField"),
   replaceHeadField: document.getElementById("replaceHeadField"),
   replaceHead: document.getElementById("replaceHead"),
+  transmissionEditSelector: document.getElementById("transmissionEditSelector"),
+  transmissionEditCircuit: document.getElementById("transmissionEditCircuit"),
+  transmissionEditHead: document.getElementById("transmissionEditHead"),
   transformerEditSelector: document.getElementById("transformerEditSelector"),
   transformerEditModel: document.getElementById("transformerEditModel"),
   transformerEditKvaField: document.getElementById("transformerEditKvaField"),
@@ -2381,8 +2386,10 @@ async function submitBaseRequest(event) {
     setStatus("กำลังส่งคำขอให้ Admin ตรวจ...");
     const action = els.requestAction.value;
     const usesSource = action !== "add";
-    const size = action === "add" ? els.requestSize.value : els.replaceSize.value;
-    const head = ["replace", "delete"].includes(action) ? els.replaceHead.value : els.requestHead.value;
+    const source = usesSource ? requestSourceSelection() : { size: "", head: "" };
+    if (usesSource && (!source.size || !source.head)) throw new Error("กรุณาเลือกระบบและหัวเสาที่ต้องการแก้ไขก่อน");
+    const size = action === "add" ? els.requestSize.value : source.size;
+    const head = ["replace", "delete"].includes(action) ? source.head : els.requestHead.value;
     const requestImage = action !== "delete" && els.requestTargetDepartment.value === "แผนกแรงสูง TAC" ? await uploadSelectedRequestImage() : null;
     const response = await fetch("/api/base-requests", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -2393,7 +2400,7 @@ async function submitBaseRequest(event) {
         insulator_upright: els.requestInsulatorUpright.value,
         insulator_horizontal: els.requestInsulatorHorizontal.value,
         size, head, rows: action === "delete" ? [] : requestMaterialValues(), original_rows: usesSource ? state.baseRequestOriginalRows : [],
-        source_size: usesSource ? els.replaceSize.value : "", source_head: usesSource ? els.replaceHead.value : "",
+        source_size: usesSource ? source.size : "", source_head: usesSource ? source.head : "",
         image_file_id: requestImage?.id || "", image_name: requestImage?.name || "", image_mime_type: requestImage?.mimeType || "",
         note: els.requestNote.value,
       }),
@@ -2626,14 +2633,45 @@ async function changeDepartment(department) {
   }
 }
 
+function requestSourceSelection() {
+  if (els.requestTargetDepartment.value === "แผนกสายส่ง") {
+    const selected = state.requestTransmissionStructures.find((item) => item.keycode === els.transmissionEditHead.value);
+    return { size: selected?.keycode || "", head: selected?.head || "" };
+  }
+  return { size: els.replaceSize.value, head: els.replaceHead.value };
+}
+
+function fillTransmissionEditHeads(circuit) {
+  els.transmissionEditHead.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = circuit ? "เลือกหัวเสา" : "เลือกระบบสายส่งก่อน";
+  els.transmissionEditHead.appendChild(placeholder);
+  state.requestTransmissionStructures
+    .filter((item) => item.circuit === circuit)
+    .forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.keycode;
+      option.textContent = `${item.head} · ${item.keycode}`;
+      els.transmissionEditHead.appendChild(option);
+    });
+}
+
 async function switchRequestAction() {
   const action = els.requestAction.value;
   const usesSource = action !== "add";
   const deleting = action === "delete";
+  const transformerDepartment = els.requestTargetDepartment.value === "แผนกหม้อแปลง";
+  const transmissionDepartment = els.requestTargetDepartment.value === "แผนกสายส่ง";
   els.requestAddTarget.hidden = action === "replace" || deleting;
   els.requestReplaceTarget.hidden = !usesSource;
+  els.replaceSizeField.hidden = transformerDepartment || transmissionDepartment;
+  els.transmissionEditSelector.hidden = !usesSource || !transmissionDepartment;
+  els.replaceHeadField.hidden = transformerDepartment || transmissionDepartment;
   els.existingDataHint.hidden = !usesSource;
   els.requestSizeField.hidden = action !== "add";
+  els.requestSizeLabel.textContent = transmissionDepartment ? "KeyCode ใหม่" : "ขนาดเสา / KeyCode";
+  els.requestSize.placeholder = transmissionDepartment ? "เช่น 10500000002" : "เช่น 14.3 หรือ 99";
   els.requestHeadLabel.textContent = usesSource ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
   els.requestLastEditorField.hidden = !usesSource || deleting;
   els.requestLastEditor.value = "";
@@ -2641,6 +2679,9 @@ async function switchRequestAction() {
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
   populateTransformerEditSelector([]);
+  state.requestTransmissionStructures = [];
+  setSelectOptions(els.transmissionEditCircuit, [], "เลือกระบบสายส่ง");
+  fillTransmissionEditHeads("");
   state.baseRequestImage = null;
   els.requestImage.value = "";
   els.requestImagePanel.hidden = deleting || els.requestTargetDepartment.value !== "แผนกแรงสูง TAC";
@@ -2657,16 +2698,30 @@ async function switchRequestAction() {
 async function loadRequestDepartmentSizes() {
   try {
     const transformerDepartment = els.requestTargetDepartment.value === "แผนกหม้อแปลง";
+    const transmissionDepartment = els.requestTargetDepartment.value === "แผนกสายส่ง";
     els.transformerEditSelector.hidden = !transformerDepartment;
-    els.replaceHeadField.hidden = transformerDepartment;
+    els.transmissionEditSelector.hidden = !transmissionDepartment;
+    els.replaceSizeField.hidden = transformerDepartment || transmissionDepartment;
+    els.replaceHeadField.hidden = transformerDepartment || transmissionDepartment;
     const response = await fetch(`/api/sizes?department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
     setSelectOptions(els.replaceSize, data.sizes, data.sizes.length ? "เลือกขนาด/KeyCode" : "แผนกนี้ยังไม่มีข้อมูล");
     setSelectOptions(els.replaceHead, [], "เลือกหัวเสา/รายการ");
+    if (transmissionDepartment) {
+      const structuresResponse = await fetch("/api/transmission-structures");
+      const structuresData = await readJson(structuresResponse);
+      state.requestTransmissionStructures = structuresData.structures || [];
+      const circuitOrder = { SS: 0, SD: 1, DS: 2, DD: 3 };
+      const circuits = [...new Set(state.requestTransmissionStructures.map((item) => item.circuit))]
+        .sort((a, b) => (circuitOrder[a] ?? 99) - (circuitOrder[b] ?? 99) || a.localeCompare(b));
+      setSelectOptions(els.transmissionEditCircuit, circuits, circuits.length ? "เลือกระบบ SS/SD" : "ยังไม่มีหัวเสาสายส่ง");
+      fillTransmissionEditHeads("");
+    }
   } catch (error) { setStatus(error.message, true); }
 }
 
 async function loadReplaceHeads() {
+  if (els.requestTargetDepartment.value === "แผนกสายส่ง") return;
   setSelectOptions(els.replaceHead, [], "กำลังโหลด...");
   if (els.requestTargetDepartment.value === "แผนกหม้อแปลง") populateTransformerEditSelector([]);
   els.requestMaterialRows.innerHTML = "";
@@ -2775,9 +2830,10 @@ async function loadExistingBaseEntry() {
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
   els.requestLastEditor.value = "";
-  if (!els.replaceSize.value || !els.replaceHead.value) return;
+  const source = requestSourceSelection();
+  if (!source.size || !source.head) return;
   try {
-    const response = await fetch(`/api/base-entry?size=${encodeURIComponent(els.replaceSize.value)}&head=${encodeURIComponent(els.replaceHead.value)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
+    const response = await fetch(`/api/base-entry?size=${encodeURIComponent(source.size)}&head=${encodeURIComponent(source.head)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
     const data = await readJson(response);
     state.baseRequestOriginalRows = data.rows.map((row) => ({ ...row }));
     els.requestInsulatorUpright.value = String(data.insulatorUpright ?? 0);
@@ -2788,9 +2844,9 @@ async function loadExistingBaseEntry() {
     const action = els.requestAction.value;
     els.requestLastEditor.value = data.lastModifiedBy || "Admin";
     if (action === "rename") {
-      els.requestHead.value = els.replaceHead.value;
+      els.requestHead.value = source.head;
     } else if (action === "copy") {
-      els.requestHead.value = `${els.replaceHead.value} COPY`;
+      els.requestHead.value = `${source.head} COPY`;
     } else if (action === "delete") {
       els.requestMaterialRows.querySelectorAll("input, button").forEach((control) => { control.disabled = true; });
     }
@@ -3223,6 +3279,14 @@ els.departmentSelect.addEventListener("change", () => {
   changeDepartment(els.departmentSelect.value);
   markProjectDirty();
 });
+els.transmissionEditCircuit.addEventListener("change", () => {
+  fillTransmissionEditHeads(els.transmissionEditCircuit.value);
+  els.requestMaterialRows.innerHTML = "";
+  state.baseRequestOriginalRows = [];
+  els.requestLastEditor.value = "";
+  els.existingDataHint.textContent = "เลือกหัวเสาเพื่อโหลดรายการวัสดุเดิม";
+});
+els.transmissionEditHead.addEventListener("change", loadExistingBaseEntry);
 els.replaceSize.addEventListener("change", loadReplaceHeads);
 els.replaceHead.addEventListener("change", loadExistingBaseEntry);
 els.transformerEditModel.addEventListener("change", onTransformerEditModelChange);

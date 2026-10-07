@@ -100,7 +100,11 @@
           <label><span>BaseData ของแผนก</span><select id="requestTargetDepartment"></select></label>
           <label><span>ประเภทคำขอ</span><select id="requestAction"><option value="add">เพิ่มข้อมูล</option><option value="replace">แก้ไขรายการวัสดุเดิม</option><option value="rename">แก้ไขหัวเสา</option><option value="copy">คัดลอกเป็นหัวเสาใหม่</option><option value="delete">ลบหัวเสา</option></select></label>
           <div id="requestReplaceTarget" class="target-fields" hidden>
-            <label><span>เลือกขนาดเสาเดิม</span><select id="replaceSize"></select></label>
+            <label id="replaceSizeField"><span>เลือกขนาดเสาเดิม</span><select id="replaceSize"></select></label>
+            <div id="transmissionEditSelector" class="transmission-edit-selector" hidden>
+              <label><span>ระบบสายส่ง</span><select id="transmissionEditCircuit"></select></label>
+              <label><span>เลือกหัวเสาเดิม</span><select id="transmissionEditHead"></select></label>
+            </div>
             <div id="transformerEditSelector" class="target-fields transformer-edit-selector" hidden>
               <label><span>หม้อแปลง</span><select id="transformerEditModel"><option value="">เลือกรุ่นหม้อแปลง</option></select></label>
               <label id="transformerEditKvaField" hidden><span>ขนาด (kVA)</span><select id="transformerEditKva"><option value="">เลือกขนาด</option></select></label>
