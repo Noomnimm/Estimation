@@ -141,6 +141,12 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/":
             self.send_file(STATIC / "index.html", "text/html; charset=utf-8")
             return
+        if parsed.path == "/privacy":
+            self.send_file(STATIC / "privacy.html", "text/html; charset=utf-8")
+            return
+        if parsed.path == "/terms":
+            self.send_file(STATIC / "terms.html", "text/html; charset=utf-8")
+            return
         if parsed.path == "/api/heads":
             query = parse_qs(parsed.query)
             size = query.get("size", [""])[0]
