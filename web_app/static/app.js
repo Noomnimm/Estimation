@@ -165,6 +165,7 @@ const els = {
   replaceHead: document.getElementById("replaceHead"),
   transmissionEditSelector: document.getElementById("transmissionEditSelector"),
   transmissionEditCircuit: document.getElementById("transmissionEditCircuit"),
+  transmissionEditFamily: document.getElementById("transmissionEditFamily"),
   transmissionEditHead: document.getElementById("transmissionEditHead"),
   transformerEditSelector: document.getElementById("transformerEditSelector"),
   transformerEditModel: document.getElementById("transformerEditModel"),
@@ -262,7 +263,7 @@ els.themeToggle?.addEventListener("click", () => {
 });
 
 function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
-  return { department, workType, size: "", head: "", count: "", transmissionCircuit: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, insulatorUpright: null, insulatorHorizontal: null };
+  return { department, workType, size: "", head: "", count: "", transmissionCircuit: "", transmissionCategory: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, insulatorUpright: null, insulatorHorizontal: null };
 }
 
 const THREE_PHASE_LT_FUSE_OPTIONS = {
@@ -374,6 +375,7 @@ function saveCurrentPageFromDom() {
         size: selected?.keycode || "",
         head: selected?.head || "",
         transmissionCircuit: tr.querySelector(".size").value,
+        transmissionCategory: selected ? transmissionFamily(selected) : tr.querySelector(".transmission-family").value,
         count: tr.querySelector(".count").value,
       });
       return;
@@ -537,7 +539,7 @@ function renderInputs() {
   els.headEntryStep.textContent = isTransformerDepartment ? "1" : "3";
   els.actualInsulatorEntryStep.textContent = isTransformerDepartment ? "2" : "4";
   els.headEntryTitle.textContent = isTransformerDepartment ? "หม้อแปลง" : "หัวเสา";
-  els.headEntryHint.textContent = isTransformerDepartment ? "เลือกชนิดหม้อแปลงและจำนวนในหน้านี้" : isTransmissionDepartment ? "เลือก SS/SD แล้วเลือกชุดประกอบหัวเสา" : "เลือกหัวเสาและจำนวนในหน้านี้";
+  els.headEntryHint.textContent = isTransformerDepartment ? "เลือกชนิดหม้อแปลงและจำนวนในหน้านี้" : isTransmissionDepartment ? "เลือก SS/SD แล้วเลือก Structure หรือ Assembly ก่อนเลือกหัวเสา" : "เลือกหัวเสาและจำนวนในหน้านี้";
   els.addRow.textContent = isTransformerDepartment ? "＋ เพิ่มรายการหม้อแปลง" : "＋ เพิ่มรายการเสา";
   els.clearHeadRows.textContent = isTransformerDepartment ? "ล้างค่าหม้อแปลง" : "ล้างค่าหัวเสา";
   renderStructureInputs();
@@ -552,7 +554,7 @@ function renderInputs() {
     tr.innerHTML = `
       ${state.department === "แผนกแรงสูง TAC" ? '<td class="head-image-cell"></td>' : ""}
       <td class="size-cell"><select class="size"></select></td>
-      <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div><select class="transmission-structure" hidden></select></td>
+      <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div><div class="transmission-head-selectors" hidden><select class="transmission-family"></select><select class="transmission-structure"></select></div></td>
       <td class="count-cell"><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
       <td class="head-remove-cell"><button class="remove-head-row" type="button" aria-label="ลบหัวเสาแถวนี้">×</button></td>
     `;
@@ -562,6 +564,8 @@ function renderInputs() {
     const headCombobox = tr.querySelector(".head-combobox");
     const headToggle = tr.querySelector(".head-toggle");
     const headOptions = tr.querySelector(".head-options");
+    const transmissionHeadSelectors = tr.querySelector(".transmission-head-selectors");
+    const transmissionFamilySelect = tr.querySelector(".transmission-family");
     const transmissionStructureSelect = tr.querySelector(".transmission-structure");
     const countInput = tr.querySelector(".count");
     updateHeadImageCell(tr, row);
@@ -573,27 +577,14 @@ function renderInputs() {
     sizeSelect.value = isTransmissionDepartment ? savedCircuit : row.size || "";
     countInput.value = row.count || "";
     headCombobox.hidden = isTransmissionDepartment;
-    transmissionStructureSelect.hidden = !isTransmissionDepartment;
+    transmissionHeadSelectors.hidden = !isTransmissionDepartment;
     if (isTransmissionDepartment) {
-      transmissionStructureSelect.innerHTML = "";
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = savedCircuit ? "เลือกชุดประกอบหัวเสา" : "เลือก SS/SD ก่อน";
-      transmissionStructureSelect.appendChild(placeholder);
       const available = state.transmissionStructures.filter((item) => item.circuit === savedCircuit);
-      const byType = new Map();
-      available.forEach((item) => {
-        if (!byType.has(item.type)) {
-          const group = document.createElement("optgroup");
-          group.label = transmissionStructureTypeLabel(item.type);
-          byType.set(item.type, group);
-          transmissionStructureSelect.appendChild(group);
-        }
-        const option = document.createElement("option");
-        option.value = item.keycode;
-        option.textContent = `${item.head}${item.code ? ` · ${item.code}` : ""}`;
-        byType.get(item.type).appendChild(option);
-      });
+      const savedStructure = state.transmissionStructures.find((item) => item.keycode === String(row.size || ""));
+      const savedFamily = row.transmissionCategory || transmissionFamily(savedStructure || row.head);
+      fillSelect(transmissionFamilySelect, transmissionFamilies(available), savedCircuit ? "เลือกประเภท Structure / Assembly" : "เลือก SS/SD ก่อน");
+      transmissionFamilySelect.value = available.some((item) => transmissionFamily(item) === savedFamily) ? savedFamily : "";
+      fillTransmissionStructureOptions(transmissionStructureSelect, available, transmissionFamilySelect.value, savedCircuit, row.size || "");
       transmissionStructureSelect.value = row.size || "";
     }
     headSelect.placeholder = state.department === "แผนกหม้อแปลง" ? "เลือกหรือพิมพ์ค้นหาชนิดหม้อแปลง" : "เลือกหรือพิมพ์ค้นหาหัวเสา";
@@ -632,8 +623,13 @@ function renderInputs() {
       page[index].department = state.department;
       if (isTransmissionDepartment) {
         page[index].transmissionCircuit = sizeSelect.value;
+        page[index].transmissionCategory = "";
         page[index].size = "";
         page[index].head = "";
+        page[index].wire1 = "";
+        page[index].wire2 = "";
+        page[index].wire3 = "";
+        page[index].latWire = "";
         page[index].insulatorUpright = null;
         page[index].insulatorHorizontal = null;
         renderInputs();
@@ -648,10 +644,24 @@ function renderInputs() {
       page[index].latWire = "";
       renderInputs();
     });
+    transmissionFamilySelect.addEventListener("change", () => {
+      page[index].transmissionCategory = transmissionFamilySelect.value;
+      page[index].size = "";
+      page[index].head = "";
+      page[index].wire1 = "";
+      page[index].wire2 = "";
+      page[index].wire3 = "";
+      page[index].latWire = "";
+      page[index].insulatorUpright = null;
+      page[index].insulatorHorizontal = null;
+      renderInputs();
+      markProjectDirty();
+    });
     transmissionStructureSelect.addEventListener("change", () => {
       const selected = state.transmissionStructures.find((item) => item.keycode === transmissionStructureSelect.value);
       page[index].department = state.department;
       page[index].transmissionCircuit = sizeSelect.value;
+      page[index].transmissionCategory = transmissionFamily(selected);
       page[index].size = selected?.keycode || "";
       page[index].head = selected?.head || "";
       page[index].wire1 = "";
@@ -1064,6 +1074,45 @@ function transmissionStructureTypeLabel(type) {
     MA: "MA · มุมปานกลาง",
   };
   return labels[type] || type;
+}
+
+function transmissionFamily(item) {
+  const name = typeof item === "string" ? item : item?.head || "";
+  if (/\bASSEMBLY\b/i.test(name)) return "assembly";
+  if (/\bSTRUCTURE\b/i.test(name)) return "structure";
+  return "other";
+}
+
+function transmissionFamilyLabel(family) {
+  return ({ structure: "Structure", assembly: "Assembly", other: "Other" })[family] || family;
+}
+
+function transmissionFamilies(items) {
+  const available = new Set(items.map(transmissionFamily));
+  return ["structure", "assembly", "other"].filter((family) => available.has(family));
+}
+
+function fillTransmissionStructureOptions(select, items, family, circuit, selectedKeycode = "") {
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = !circuit ? "เลือก SS/SD ก่อน" : !family ? "เลือก Structure หรือ Assembly ก่อน" : `เลือก${transmissionFamilyLabel(family)}`;
+  select.appendChild(placeholder);
+  const filtered = items.filter((item) => item.circuit === circuit && transmissionFamily(item) === family);
+  const byType = new Map();
+  filtered.forEach((item) => {
+    if (!byType.has(item.type)) {
+      const group = document.createElement("optgroup");
+      group.label = transmissionStructureTypeLabel(item.type);
+      byType.set(item.type, group);
+      select.appendChild(group);
+    }
+    const option = document.createElement("option");
+    option.value = item.keycode;
+    option.textContent = `${item.head}${item.code ? ` · ${item.code}` : ""}`;
+    byType.get(item.type).appendChild(option);
+  });
+  select.value = filtered.some((item) => item.keycode === String(selectedKeycode)) ? String(selectedKeycode) : "";
 }
 
 function fillSelect(select, values, placeholder) {
@@ -2641,14 +2690,33 @@ function requestSourceSelection() {
   return { size: els.replaceSize.value, head: els.replaceHead.value };
 }
 
-function fillTransmissionEditHeads(circuit) {
+function fillTransmissionEditFamilies(circuit) {
+  const available = state.requestTransmissionStructures.filter((item) => item.circuit === circuit);
+  const families = transmissionFamilies(available).map((family) => ({
+    value: family,
+    label: transmissionFamilyLabel(family),
+  }));
+  els.transmissionEditFamily.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = circuit ? "เลือก Structure / Assembly" : "เลือกระบบสายส่งก่อน";
+  els.transmissionEditFamily.appendChild(placeholder);
+  families.forEach(({ value, label }) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    els.transmissionEditFamily.appendChild(option);
+  });
+}
+
+function fillTransmissionEditHeads(circuit, family) {
   els.transmissionEditHead.innerHTML = "";
   const placeholder = document.createElement("option");
   placeholder.value = "";
-  placeholder.textContent = circuit ? "เลือกหัวเสา" : "เลือกระบบสายส่งก่อน";
+  placeholder.textContent = !circuit ? "เลือกระบบสายส่งก่อน" : !family ? "เลือก Structure หรือ Assembly ก่อน" : "เลือกหัวเสา";
   els.transmissionEditHead.appendChild(placeholder);
   state.requestTransmissionStructures
-    .filter((item) => item.circuit === circuit)
+    .filter((item) => item.circuit === circuit && transmissionFamily(item) === family)
     .forEach((item) => {
       const option = document.createElement("option");
       option.value = item.keycode;
@@ -2681,7 +2749,8 @@ async function switchRequestAction() {
   populateTransformerEditSelector([]);
   state.requestTransmissionStructures = [];
   setSelectOptions(els.transmissionEditCircuit, [], "เลือกระบบสายส่ง");
-  fillTransmissionEditHeads("");
+  fillTransmissionEditFamilies("");
+  fillTransmissionEditHeads("", "");
   state.baseRequestImage = null;
   els.requestImage.value = "";
   els.requestImagePanel.hidden = deleting || els.requestTargetDepartment.value !== "แผนกแรงสูง TAC";
@@ -2715,7 +2784,8 @@ async function loadRequestDepartmentSizes() {
       const circuits = [...new Set(state.requestTransmissionStructures.map((item) => item.circuit))]
         .sort((a, b) => (circuitOrder[a] ?? 99) - (circuitOrder[b] ?? 99) || a.localeCompare(b));
       setSelectOptions(els.transmissionEditCircuit, circuits, circuits.length ? "เลือกระบบ SS/SD" : "ยังไม่มีหัวเสาสายส่ง");
-      fillTransmissionEditHeads("");
+      fillTransmissionEditFamilies("");
+      fillTransmissionEditHeads("", "");
     }
   } catch (error) { setStatus(error.message, true); }
 }
@@ -3280,7 +3350,15 @@ els.departmentSelect.addEventListener("change", () => {
   markProjectDirty();
 });
 els.transmissionEditCircuit.addEventListener("change", () => {
-  fillTransmissionEditHeads(els.transmissionEditCircuit.value);
+  fillTransmissionEditFamilies(els.transmissionEditCircuit.value);
+  fillTransmissionEditHeads(els.transmissionEditCircuit.value, "");
+  els.requestMaterialRows.innerHTML = "";
+  state.baseRequestOriginalRows = [];
+  els.requestLastEditor.value = "";
+  els.existingDataHint.textContent = "เลือกหัวเสาเพื่อโหลดรายการวัสดุเดิม";
+});
+els.transmissionEditFamily.addEventListener("change", () => {
+  fillTransmissionEditHeads(els.transmissionEditCircuit.value, els.transmissionEditFamily.value);
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
   els.requestLastEditor.value = "";
