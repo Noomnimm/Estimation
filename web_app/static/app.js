@@ -2851,7 +2851,7 @@ async function loadExistingBaseEntry() {
       els.requestMaterialRows.querySelectorAll("input, button").forEach((control) => { control.disabled = true; });
     }
     els.existingDataHint.textContent = action === "rename"
-      ? `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว · ใส่ชื่อหัวเสาใหม่ด้านบน`
+      ? `โหลดข้อมูลเดิม ${data.rows.length} รายการแล้ว · เปลี่ยนชื่อหัวเสาด้านบนได้ และแก้รายการวัสดุในตารางได้`
       : action === "copy"
         ? `คัดลอกข้อมูลเดิม ${data.rows.length} รายการแล้ว · เปลี่ยนชื่อและแก้ไส้ในได้ทันที`
         : action === "delete"
