@@ -22,6 +22,14 @@ from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, C
 from cloud_store import GoogleSheetProjectStore
 
 
+GOOGLE_DRIVE_OAUTH_SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/drive",
+]
+
+
 ROOT = Path(__file__).resolve().parent
 UPLOADS = ROOT / "uploads"
 OUTPUTS = ROOT / "outputs"
@@ -422,7 +430,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                 }
-            }, scopes=["https://www.googleapis.com/auth/drive"], state=self.admin_token(),
+            }, scopes=GOOGLE_DRIVE_OAUTH_SCOPES, state=self.admin_token(),
                 autogenerate_code_verifier=False)
             flow.redirect_uri = self.google_drive_redirect_uri()
             authorization_url, _ = flow.authorization_url(
@@ -449,7 +457,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                 }
-            }, scopes=["https://www.googleapis.com/auth/drive"], state=state,
+            }, scopes=GOOGLE_DRIVE_OAUTH_SCOPES, state=state,
                 autogenerate_code_verifier=False)
             flow.redirect_uri = self.google_drive_redirect_uri()
             flow.fetch_token(code=query.get("code", [""])[0])
