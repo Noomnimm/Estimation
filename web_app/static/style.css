@@ -347,6 +347,9 @@ h2 {
   background: #fff;
   color: var(--ink);
 }
+.department-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; }
+.department-picker button { min-height: 38px; padding: 6px 9px; white-space: nowrap; }
+.department-picker #deleteDepartment { min-width: 48px; }
 
 .project-fields input:focus,
 td input:focus,
@@ -398,6 +401,15 @@ td select:focus,
 .cloud-save-dialog select { width: 100%; padding: 12px; border: 1px solid #cdbddd; border-radius: 10px; background: #fff; font: inherit; }
 .cloud-save-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .cloud-save-dialog-actions button { padding: 10px 16px; }
+.department-dialog { width: min(92vw, 460px); padding: 0; border: 0; border-radius: 18px; box-shadow: 0 24px 70px rgba(24, 12, 32, .38); }
+.department-dialog::backdrop { background: rgba(30, 15, 40, .62); backdrop-filter: blur(2px); }
+.department-dialog form { display: grid; gap: 14px; padding: 24px; }
+.department-dialog h3 { margin: 0; color: var(--accent-dark); font-size: 21px; }
+.department-dialog p { margin: -8px 0 0; color: var(--muted); }
+.department-dialog label { display: grid; gap: 7px; font-weight: 700; }
+.department-dialog select, .department-dialog input { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); font: inherit; }
+.department-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.department-dialog-actions button { padding: 10px 16px; }
 
 #saveHint {
   flex: 1;
@@ -1148,6 +1160,9 @@ td select {
   background: #292d31;
   color: var(--ink);
 }
+:root[data-theme="dark"] .department-dialog,
+:root[data-theme="dark"] .department-dialog select,
+:root[data-theme="dark"] .department-dialog input { background: #24282b; color: var(--ink); border-color: #4a5157; }
 
 :root[data-theme="dark"] button:not(.primary):not(.app-tab.active):not(.work-type-button.active):not(.page-number.active):not(.theme-toggle):not(.set-expand-button) {
   border-color: #4a5157;

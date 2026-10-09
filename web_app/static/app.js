@@ -101,6 +101,8 @@ const els = {
   headColumnTitle: document.getElementById("headColumnTitle"),
   countColumnTitle: document.getElementById("countColumnTitle"),
   departmentSelect: document.getElementById("departmentSelect"),
+  addDepartment: document.getElementById("addDepartment"),
+  deleteDepartment: document.getElementById("deleteDepartment"),
   totalPages: document.getElementById("totalPages"),
   demolitionPages: document.getElementById("demolitionPages"),
   installPageCount: document.getElementById("installPageCount"),
@@ -217,6 +219,11 @@ const els = {
   projectFileInput: document.getElementById("projectFileInput"),
   saveCloudProject: document.getElementById("saveCloudProject"),
   cloudSaveDialog: document.getElementById("cloudSaveDialog"),
+  departmentDialog: document.getElementById("departmentDialog"),
+  departmentForm: document.getElementById("departmentForm"),
+  departmentBaseSelect: document.getElementById("departmentBaseSelect"),
+  departmentNameInput: document.getElementById("departmentNameInput"),
+  cancelDepartment: document.getElementById("cancelDepartment"),
   cloudSaveForm: document.getElementById("cloudSaveForm"),
   cloudSaveFolder: document.getElementById("cloudSaveFolder"),
   cancelCloudSave: document.getElementById("cancelCloudSave"),
@@ -366,11 +373,11 @@ async function readJson(response, fallbackMessage = "เกิดข้อผิ
 function saveCurrentPageFromDom() {
   const rows = [...els.inputRows.querySelectorAll("tr.input-row")];
   rows.forEach((tr, index) => {
-    if (state.department === "แผนกสายส่ง") {
+    if (baseDepartmentFor() === "แผนกสายส่ง") {
       const keycode = tr.querySelector(".transmission-structure").value;
       const selected = state.transmissionStructures.find((item) => item.keycode === keycode);
       Object.assign(state.pages[state.currentPage][index], {
-        department: state.department,
+        department: baseDepartmentFor(),
         workType: state.activeWorkType,
         size: selected?.keycode || "",
         head: selected?.head || "",
@@ -387,7 +394,7 @@ function saveCurrentPageFromDom() {
       ? typedHead
       : state.pages[state.currentPage][index].head;
     Object.assign(state.pages[state.currentPage][index], {
-      department: state.department,
+      department: baseDepartmentFor(),
       workType: state.activeWorkType,
       size: tr.querySelector(".size").value,
       head: savedHead,
@@ -471,7 +478,7 @@ function renderStructureInputs() {
   });
 }
 
-function structureCatalogForDepartment(department = state.department) {
+function structureCatalogForDepartment(department = baseDepartmentFor()) {
   const isLowVoltage = department === "แผนกแรงต่ำ";
   return STRUCTURE_CATALOG.filter((item) => isLowVoltage ? item.department === department : !item.department);
 }
@@ -487,7 +494,7 @@ function renderWireInputs() {
     line.innerHTML = `<label>${visibleIndex === 0 ? "<span>ชนิดสาย</span>" : ""}<select class="wire-item" aria-label="ชนิดสาย"><option value="">เลือกชนิดสาย</option></select></label><label>${visibleIndex === 0 ? "<span>จำนวน (เมตร)</span>" : ""}<input class="wire-count" type="text" inputmode="text" aria-label="จำนวนสาย (เมตร)" placeholder="เช่น 1200/3+100"></label><button class="remove-structure-row remove-wire-row" type="button" aria-label="ลบรายการสายนี้">×</button>`;
     const select = line.querySelector(".wire-item");
     WIRE_GROUP_ORDER.forEach((group) => {
-      const groupItems = WIRE_CATALOG.filter((item) => item.group === group && (!item.department || item.department === state.department));
+      const groupItems = WIRE_CATALOG.filter((item) => item.group === group && (!item.department || item.department === baseDepartmentFor()));
       if (!groupItems.length) return;
       const optgroup = document.createElement("optgroup");
       optgroup.label = group;
@@ -532,8 +539,8 @@ function renderActualInsulatorInputs() {
 }
 
 function renderInputs() {
-  const isTransformerDepartment = state.department === "แผนกหม้อแปลง";
-  const isTransmissionDepartment = state.department === "แผนกสายส่ง";
+  const isTransformerDepartment = baseDepartmentFor() === "แผนกหม้อแปลง";
+  const isTransmissionDepartment = baseDepartmentFor() === "แผนกสายส่ง";
   els.structureEntryGroup.hidden = isTransformerDepartment;
   els.wireEntryGroup.hidden = isTransformerDepartment;
   els.headEntryStep.textContent = isTransformerDepartment ? "1" : "3";
@@ -552,7 +559,7 @@ function renderInputs() {
     const tr = document.createElement("tr");
     tr.className = "input-row";
     tr.innerHTML = `
-      ${state.department === "แผนกแรงสูง TAC" ? '<td class="head-image-cell"></td>' : ""}
+      ${baseDepartmentFor() === "แผนกแรงสูง TAC" ? '<td class="head-image-cell"></td>' : ""}
       <td class="size-cell"><select class="size"></select></td>
       <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div><div class="transmission-head-selectors" hidden><select class="transmission-family"></select><select class="transmission-structure"></select></div></td>
       <td class="count-cell"><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
@@ -587,7 +594,7 @@ function renderInputs() {
       fillTransmissionStructureOptions(transmissionStructureSelect, available, transmissionFamilySelect.value, savedCircuit, row.size || "");
       transmissionStructureSelect.value = row.size || "";
     }
-    headSelect.placeholder = state.department === "แผนกหม้อแปลง" ? "เลือกหรือพิมพ์ค้นหาชนิดหม้อแปลง" : "เลือกหรือพิมพ์ค้นหาหัวเสา";
+    headSelect.placeholder = baseDepartmentFor() === "แผนกหม้อแปลง" ? "เลือกหรือพิมพ์ค้นหาชนิดหม้อแปลง" : "เลือกหรือพิมพ์ค้นหาหัวเสา";
     headSelect.value = row.head || "";
     const positionHeadOptions = () => {
       if (headOptions.hidden) return;
@@ -620,7 +627,7 @@ function renderInputs() {
     };
 
     sizeSelect.addEventListener("change", () => {
-      page[index].department = state.department;
+      page[index].department = baseDepartmentFor();
       if (isTransmissionDepartment) {
         page[index].transmissionCircuit = sizeSelect.value;
         page[index].transmissionCategory = "";
@@ -659,7 +666,7 @@ function renderInputs() {
     });
     transmissionStructureSelect.addEventListener("change", () => {
       const selected = state.transmissionStructures.find((item) => item.keycode === transmissionStructureSelect.value);
-      page[index].department = state.department;
+      page[index].department = baseDepartmentFor();
       page[index].transmissionCircuit = sizeSelect.value;
       page[index].transmissionCategory = transmissionFamily(selected);
       page[index].size = selected?.keycode || "";
@@ -681,7 +688,7 @@ function renderInputs() {
       }
       if (page[index].head === headSelect.value) return;
       page[index].head = headSelect.value;
-      const rate = state.insulatorRates[insulatorRateKey(state.department, page[index].size, headSelect.value)];
+      const rate = state.insulatorRates[insulatorRateKey(baseDepartmentFor(), page[index].size, headSelect.value)];
       page[index].insulatorUpright = rate ? Number(rate[0]) : null;
       page[index].insulatorHorizontal = rate ? Number(rate[1]) : null;
       page[index].wire1 = "";
@@ -726,7 +733,7 @@ function renderInputs() {
       if (!window.confirm("ลบหัวเสารายการนี้ใช่ไหม?")) return;
       saveCurrentPageFromDom();
       state.pages[state.currentPage].splice(index, 1);
-      if (!state.pages[state.currentPage].length) state.pages[state.currentPage].push(blankRow(state.department, state.activeWorkType));
+      if (!state.pages[state.currentPage].length) state.pages[state.currentPage].push(blankRow(baseDepartmentFor(), state.activeWorkType));
       renderInputs();
       markProjectDirty();
       setStatus("ลบหัวเสารายการนี้แล้ว");
@@ -737,7 +744,7 @@ function renderInputs() {
     if (wireKind) {
       els.inputRows.appendChild(createWireDetailsRow(row, index, wireKind));
     }
-    if ((row.department || state.department) === "แผนกหม้อแปลง" && row.head) {
+    if ((row.department || baseDepartmentFor()) === "แผนกหม้อแปลง" && row.head) {
       if (row.head === "หม้อแปลง 3 เฟส 22 kV (Sealed)") {
         els.inputRows.appendChild(createTransformerDetailsRow(row, index));
       } else {
@@ -745,7 +752,7 @@ function renderInputs() {
       }
     }
     if (row.size && !isTransmissionDepartment) {
-      loadHeads(row.size, headSelect, row.head, row.department || state.department, headOptions).then((data) => {
+      loadHeads(row.size, headSelect, row.head, row.department || baseDepartmentFor(), headOptions).then((data) => {
         if (!data || !row.head) return;
         updateHeadImageCell(tr, row);
         const rate = data.insulatorRates?.[row.head];
@@ -765,7 +772,7 @@ function updateHeadImageCell(rowElement, row) {
   const cell = rowElement.querySelector(".head-image-cell");
   if (!cell) return;
   cell.replaceChildren();
-  const image = state.headImages[headImageKey(row.department || state.department, row.size, row.head)];
+  const image = state.headImages[headImageKey(row.department || baseDepartmentFor(), row.size, row.head)];
   if (!image?.id) {
     const empty = document.createElement("span");
     empty.className = "head-image-empty";
@@ -786,9 +793,9 @@ function updateHeadImageCell(rowElement, row) {
 }
 
 function updateInputColumnTitles() {
-  const transformer = state.department === "แผนกหม้อแปลง";
-  const transmission = state.department === "แผนกสายส่ง";
-  const tac = state.department === "แผนกแรงสูง TAC";
+  const transformer = baseDepartmentFor() === "แผนกหม้อแปลง";
+  const transmission = baseDepartmentFor() === "แผนกสายส่ง";
+  const tac = baseDepartmentFor() === "แผนกแรงสูง TAC";
   els.headImageColumnTitle.hidden = !tac;
   els.inputTable.classList.toggle("has-head-images", tac);
   els.sizeColumnTitle.textContent = transformer ? "แผนก" : transmission ? "ระบบสายส่ง" : "ขนาดเสา (m)";
@@ -800,7 +807,7 @@ function createSurgeDetailsRow(row, index) {
   const detailRow = document.createElement("tr");
   detailRow.className = "surge-details-row";
   const cell = document.createElement("td");
-  cell.colSpan = state.department === "แผนกแรงสูง TAC" ? 5 : 4;
+  cell.colSpan = baseDepartmentFor() === "แผนกแรงสูง TAC" ? 5 : 4;
   const panel = document.createElement("div");
   panel.className = "surge-details";
   panel.innerHTML = `
@@ -1017,7 +1024,7 @@ function createWireDetailsRow(row, index, wireKind) {
   const detailRow = document.createElement("tr");
   detailRow.className = "wire-details-row";
   const cell = document.createElement("td");
-  cell.colSpan = state.department === "แผนกแรงสูง TAC" ? 5 : 4;
+  cell.colSpan = baseDepartmentFor() === "แผนกแรงสูง TAC" ? 5 : 4;
   const panel = document.createElement("div");
   panel.className = "wire-details";
 
@@ -1152,7 +1159,7 @@ function renderHeadOptions(input, optionsList) {
   }));
 }
 
-async function loadHeads(size, select, selected, department = state.department, optionsList = null) {
+async function loadHeads(size, select, selected, department = baseDepartmentFor(), optionsList = null) {
   if (!size) {
     select.value = "";
     select._allHeadOptions = [];
@@ -1359,7 +1366,7 @@ function clonePages(pages) {
   return pages.map((page) => {
     const workType = pageWorkType(page);
     return page.map((row) => ({
-      ...blankRow(state.department, workType),
+      ...blankRow(baseDepartmentFor(), workType),
       ...row,
       actualInsulators: row.actualInsulators ? { ...row.actualInsulators } : undefined,
       workType: row.workType === "demolition" ? "demolition" : workType,
@@ -1375,11 +1382,12 @@ function cloneStructurePages(structurePages, pages) {
   });
 }
 
-function emptyDepartmentWork(department) {
+function emptyDepartmentWork(department, baseDepartment = department) {
   return {
+    baseDepartment,
     pages: [
-      [blankRow(department, "install"), blankRow(department, "install")],
-      [blankRow(department, "demolition"), blankRow(department, "demolition")],
+      [blankRow(baseDepartment, "install"), blankRow(baseDepartment, "install")],
+      [blankRow(baseDepartment, "demolition"), blankRow(baseDepartment, "demolition")],
     ],
     structurePages: [[blankStructureRow("install")], [blankStructureRow("demolition")]],
     currentPage: 0,
@@ -1392,9 +1400,14 @@ function emptyDepartmentWork(department) {
 function stashCurrentDepartment() {
   saveCurrentPageFromDom();
   state.departmentWork[state.department] = {
+    ...(state.departmentWork[state.department] || {}),
     pages: clonePages(state.pages), structurePages: cloneStructurePages(state.structurePages, state.pages), currentPage: state.currentPage, activeWorkType: state.activeWorkType,
     results: structuredClone(state.results), resultMeta: els.resultMeta.textContent || "ยังไม่มีผลคำนวณ",
   };
+}
+
+function baseDepartmentFor(department = state.department) {
+  return state.departmentWork[department]?.baseDepartment || department;
 }
 
 function projectDepartmentCount(project) {
@@ -1689,12 +1702,14 @@ function renderCloudProjectFolders(projects) {
 
 function resetProject() {
   state.activeProjectId = "";
-  state.departmentWork = {};
+  state.department = DEFAULT_DEPARTMENT;
+  state.departmentWork = { [DEFAULT_DEPARTMENT]: emptyDepartmentWork(DEFAULT_DEPARTMENT) };
   state.activeWorkType = "install";
   state.resultWorkType = "install";
   state.combinedView = false;
   els.workspace.classList.remove("combined-view");
-  const freshWork = emptyDepartmentWork(state.department);
+  const freshWork = state.departmentWork[state.department];
+  populateWorkspaceDepartmentSelector();
   state.pages = freshWork.pages;
   state.structurePages = freshWork.structurePages;
   state.currentPage = 0;
@@ -1734,18 +1749,23 @@ async function openSavedProject(projectId, source = "local") {
   state.department = project.department || project.pages?.[0]?.[0]?.department || DEFAULT_DEPARTMENT;
   state.departmentWork = project.departments ? structuredClone(project.departments) : {
     [state.department]: {
+      baseDepartment: state.department,
       pages: project.pages?.length ? structuredClone(project.pages) : [[blankRow(state.department), blankRow(state.department)]],
       structurePages: structuredClone(project.structurePages || []),
       currentPage: Number(project.currentPage || 0), activeWorkType: project.activeWorkType || "install", results: structuredClone(project.results || []),
       resultMeta: project.resultMeta || "ยังไม่มีผลคำนวณ",
     },
   };
+  Object.entries(state.departmentWork).forEach(([name, work]) => {
+    if (!work.baseDepartment) work.baseDepartment = name;
+  });
+  populateWorkspaceDepartmentSelector();
   els.departmentSelect.value = state.department;
-  await loadDepartmentSizes(state.department);
+  await loadDepartmentSizes(baseDepartmentFor());
   const work = state.departmentWork[state.department] || emptyDepartmentWork(state.department);
   state.pages = clonePages(work.pages);
   state.structurePages = cloneStructurePages(work.structurePages, state.pages);
-  state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
+  state.pages.forEach((page) => page.forEach((row) => { row.department = baseDepartmentFor(); }));
   state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
   state.activeWorkType = work.activeWorkType || pageWorkType(state.pages[state.currentPage]);
   state.resultWorkType = state.activeWorkType;
@@ -2088,8 +2108,8 @@ els.applyPages.addEventListener("click", () => {
   const existing = state.pages.map((page, index) => ({ page, structures: state.structurePages[index] || [] }));
   const resizePages = (workType, total) => {
     const entries = existing.filter((entry) => pageWorkType(entry.page) === workType).slice(0, total);
-    while (entries.length < total) entries.push({ page: [blankRow(state.department, workType), blankRow(state.department, workType)], structures: [blankStructureRow(workType)] });
-    entries.forEach((entry) => entry.page.forEach((row) => { row.workType = workType; row.department = state.department; }));
+    while (entries.length < total) entries.push({ page: [blankRow(baseDepartmentFor(), workType), blankRow(baseDepartmentFor(), workType)], structures: [blankStructureRow(workType)] });
+    entries.forEach((entry) => entry.page.forEach((row) => { row.workType = workType; row.department = baseDepartmentFor(); }));
     return entries;
   };
   const resized = [...resizePages("install", installTotal), ...resizePages("demolition", demolitionTotal)];
@@ -2150,7 +2170,7 @@ els.nextPage.addEventListener("click", () => {
 
 els.addRow.addEventListener("click", () => {
   saveCurrentPageFromDom();
-  state.pages[state.currentPage].push(blankRow(state.department, state.activeWorkType));
+  state.pages[state.currentPage].push(blankRow(baseDepartmentFor(), state.activeWorkType));
   renderInputs();
   markProjectDirty();
 });
@@ -2158,7 +2178,7 @@ els.addRow.addEventListener("click", () => {
 els.clearHeadRows.addEventListener("click", () => {
   saveCurrentPageFromDom();
   const page = state.pages[state.currentPage] || [];
-  const itemLabel = state.department === "แผนกหม้อแปลง" ? "หม้อแปลง" : "หัวเสา";
+  const itemLabel = baseDepartmentFor() === "แผนกหม้อแปลง" ? "หม้อแปลง" : "หัวเสา";
   const specifiedCount = page.filter((row) => row.size || row.head || String(row.count || "").trim()).length;
   if (!specifiedCount) {
     setStatus(`ยังไม่มีค่า${itemLabel}ให้ล้าง`);
@@ -2167,9 +2187,9 @@ els.clearHeadRows.addEventListener("click", () => {
   const keepNote = itemLabel === "หัวเสา" ? "\n\nรายการเสา สาย และค่าลูกถ้วยนับจริงจะยังอยู่" : "";
   if (!window.confirm(`ล้างค่า${itemLabel}ทั้งหมด ${specifiedCount} รายการในหน้านี้ใช่ไหม?${keepNote}`)) return;
   const actualInsulators = page[0]?.actualInsulators;
-  const firstRow = blankRow(state.department, state.activeWorkType);
+  const firstRow = blankRow(baseDepartmentFor(), state.activeWorkType);
   if (actualInsulators) firstRow.actualInsulators = { ...actualInsulators };
-  state.pages[state.currentPage] = [firstRow, blankRow(state.department, state.activeWorkType)];
+  state.pages[state.currentPage] = [firstRow, blankRow(baseDepartmentFor(), state.activeWorkType)];
   renderInputs();
   markProjectDirty();
   setStatus(`ล้างค่า${itemLabel}ทั้งหมดในหน้านี้แล้ว พร้อมกรอกใหม่`);
@@ -2202,7 +2222,7 @@ els.actualInsulatorInputs.forEach((input) => {
 
 els.clearPage.addEventListener("click", () => {
   if (!window.confirm("ล้างข้อมูลทั้งหมดในหน้านี้ใช่ไหม?\n\nรายการที่กรอกในหน้านี้จะถูกนำออกทั้งหมด")) return;
-  state.pages[state.currentPage] = [blankRow(state.department, state.activeWorkType), blankRow(state.department, state.activeWorkType)];
+  state.pages[state.currentPage] = [blankRow(baseDepartmentFor(), state.activeWorkType), blankRow(baseDepartmentFor(), state.activeWorkType)];
   state.structurePages[state.currentPage] = [blankStructureRow(state.activeWorkType), blankStructureRow(state.activeWorkType, "wire")];
   renderInputs();
   markProjectDirty();
@@ -2637,16 +2657,55 @@ function setSelectOptions(select, values, placeholder) {
 
 function populateDepartmentSelectors(departments = DEPARTMENTS) {
   const values = departments.length ? departments : DEPARTMENTS;
-  for (const select of [els.departmentSelect, els.requestTargetDepartment]) {
-    select.innerHTML = "";
-    values.forEach((value) => {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = value;
-      select.appendChild(option);
-    });
-    select.value = DEFAULT_DEPARTMENT;
+  els.requestTargetDepartment.innerHTML = "";
+  values.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    els.requestTargetDepartment.appendChild(option);
+  });
+  els.requestTargetDepartment.value = DEFAULT_DEPARTMENT;
+  populateWorkspaceDepartmentSelector();
+}
+
+function populateWorkspaceDepartmentSelector() {
+  const names = Object.keys(state.departmentWork);
+  if (!names.length) {
+    state.departmentWork[DEFAULT_DEPARTMENT] = emptyDepartmentWork(DEFAULT_DEPARTMENT);
+    state.department = DEFAULT_DEPARTMENT;
+    names.push(DEFAULT_DEPARTMENT);
   }
+  els.departmentSelect.innerHTML = "";
+  names.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    els.departmentSelect.appendChild(option);
+  });
+  if (!state.departmentWork[state.department]) state.department = names[0];
+  els.departmentSelect.value = state.department;
+}
+
+function nextDepartmentName(baseDepartment) {
+  const existing = new Set(Object.keys(state.departmentWork));
+  if (!existing.has(baseDepartment)) return baseDepartment;
+  let suffix = 2;
+  while (existing.has(`${baseDepartment} ${suffix}`)) suffix += 1;
+  return `${baseDepartment} ${suffix}`;
+}
+
+function openDepartmentDialog() {
+  const currentSource = baseDepartmentFor();
+  els.departmentBaseSelect.innerHTML = "";
+  DEPARTMENTS.forEach((department) => {
+    const option = document.createElement("option");
+    option.value = department;
+    option.textContent = department;
+    els.departmentBaseSelect.appendChild(option);
+  });
+  els.departmentBaseSelect.value = DEPARTMENTS.includes(currentSource) ? currentSource : DEFAULT_DEPARTMENT;
+  els.departmentNameInput.value = nextDepartmentName(els.departmentBaseSelect.value);
+  els.departmentDialog.showModal();
 }
 
 async function loadDepartmentSizes(department) {
@@ -2661,19 +2720,22 @@ async function loadDepartmentSizes(department) {
   }
 }
 
-async function changeDepartment(department) {
-  stashCurrentDepartment();
+async function changeDepartment(department, savePrevious = true) {
+  if (savePrevious) stashCurrentDepartment();
   state.department = department || DEFAULT_DEPARTMENT;
+  els.departmentSelect.value = state.department;
   const work = state.departmentWork[state.department] || emptyDepartmentWork(state.department);
+  if (!work.baseDepartment) work.baseDepartment = state.department;
+  state.departmentWork[state.department] = work;
   state.pages = clonePages(work.pages);
   state.structurePages = cloneStructurePages(work.structurePages, state.pages);
-  state.pages.forEach((page) => page.forEach((row) => { row.department = state.department; }));
+  state.pages.forEach((page) => page.forEach((row) => { row.department = baseDepartmentFor(); }));
   state.currentPage = Math.min(Number(work.currentPage || 0), state.pages.length - 1);
   state.activeWorkType = work.activeWorkType || pageWorkType(state.pages[state.currentPage]);
   state.resultWorkType = state.activeWorkType;
   state.results = structuredClone(work.results || []);
   try {
-    await loadDepartmentSizes(state.department);
+    await loadDepartmentSizes(baseDepartmentFor());
     renderInputs();
     renderResults(state.results, work.resultMeta || "ยังไม่มีผลคำนวณ");
     setStatus(state.sizes.length ? `เปิดข้อมูล ${state.department} แล้ว` : `${state.department} ยังไม่มีข้อมูล เริ่มเพิ่มผ่านเมนูเพิ่มเติม/แก้ไขหัวเสาได้เลย`);
@@ -3106,8 +3168,26 @@ function renderBaseRequests() {
       const values = comparesOriginal
         ? [item.statusLabel, item.material, item.code, item.oldQuantity ?? "", item.newQuantity ?? ""]
         : [item.material, item.code, item.quantity];
+      const codeColumn = comparesOriginal ? 2 : 1;
       values.forEach((value, index) => {
-        const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell);
+        const cell = document.createElement("td");
+        if (index === codeColumn && String(item.code || "").trim().toLowerCase().startsWith("set")) {
+          const expandButton = document.createElement("button");
+          expandButton.type = "button";
+          expandButton.className = "set-expand-button";
+          expandButton.dataset.setCode = String(item.code).trim();
+          expandButton.textContent = "+";
+          expandButton.setAttribute("aria-expanded", "false");
+          expandButton.setAttribute("aria-label", `ดูไส้ใน ${item.code} ต่อ 1 SET`);
+          cell.appendChild(expandButton);
+          const codeText = document.createElement("span");
+          codeText.className = "material-code";
+          codeText.textContent = value;
+          cell.appendChild(codeText);
+        } else {
+          cell.textContent = value;
+        }
+        row.appendChild(cell);
         if (comparesOriginal && index === 0) cell.className = `diff-${item.status}`;
       });
       body.appendChild(row);
@@ -3166,6 +3246,8 @@ function renderBaseRequests() {
     els.baseRequestList.appendChild(card);
   });
 }
+
+els.baseRequestList.addEventListener("click", toggleSetComponents);
 
 function compareBaseRows(originalRows, newRows) {
   const keyOf = (row) => `${String(row.material).trim()}\u0000${String(row.code).trim()}`;
@@ -3273,7 +3355,7 @@ async function reviewBaseRequest(requestId, approve, button, edits = null) {
       window.location.replace(refreshedUrl.toString());
       return;
     }
-    await loadDepartmentSizes(state.department);
+    await loadDepartmentSizes(baseDepartmentFor());
     renderInputs();
     if (els.requestAction.value === "replace") await loadRequestDepartmentSizes();
     state.activeRequestStatus = approve ? "approved" : "rejected";
@@ -3349,6 +3431,45 @@ els.departmentSelect.addEventListener("change", () => {
   changeDepartment(els.departmentSelect.value);
   markProjectDirty();
 });
+els.addDepartment.addEventListener("click", openDepartmentDialog);
+els.deleteDepartment.addEventListener("click", async () => {
+  const names = Object.keys(state.departmentWork);
+  if (names.length <= 1) {
+    setStatus("ต้องเหลืออย่างน้อย 1 แผนกในงานนี้", true);
+    return;
+  }
+  const name = state.department;
+  if (!window.confirm(`ลบ “${name}” ออกจากงานนี้หรือไม่?\nหน้ากรอกและผลคำนวณของแผนกนี้จะถูกนำออก เมื่อบันทึกงาน การเปลี่ยนแปลงจะถูกบันทึกทับไฟล์งาน`)) return;
+  stashCurrentDepartment();
+  delete state.departmentWork[name];
+  const nextDepartment = Object.keys(state.departmentWork)[0];
+  populateWorkspaceDepartmentSelector();
+  await changeDepartment(nextDepartment, false);
+  setStatus(`ลบแผนก “${name}” ออกจากงานนี้แล้ว`);
+  markProjectDirty();
+});
+els.departmentBaseSelect.addEventListener("change", () => {
+  els.departmentNameInput.value = nextDepartmentName(els.departmentBaseSelect.value);
+});
+els.cancelDepartment.addEventListener("click", () => els.departmentDialog.close());
+els.departmentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const name = els.departmentNameInput.value.trim();
+  const baseDepartment = els.departmentBaseSelect.value;
+  if (!name || !baseDepartment) return;
+  if (Object.hasOwn(state.departmentWork, name)) {
+    setStatus(`มีแผนก “${name}” ในงานนี้แล้ว ลองเปลี่ยนชื่อ`, true);
+    els.departmentNameInput.focus();
+    return;
+  }
+  stashCurrentDepartment();
+  state.departmentWork[name] = emptyDepartmentWork(name, baseDepartment);
+  els.departmentDialog.close();
+  populateWorkspaceDepartmentSelector();
+  await changeDepartment(name);
+  setStatus(`สร้างแผนก “${name}” แล้ว โดยใช้ข้อมูลจาก ${baseDepartment}`);
+  markProjectDirty();
+});
 els.transmissionEditCircuit.addEventListener("change", () => {
   fillTransmissionEditFamilies(els.transmissionEditCircuit.value);
   fillTransmissionEditHeads(els.transmissionEditCircuit.value, "");
@@ -3408,7 +3529,7 @@ async function initialize() {
     const cloudConfig = await readJson(cloudResponse);
     if (data.base) {
       populateDepartmentSelectors(data.base.departments || DEPARTMENTS);
-      await loadDepartmentSizes(state.department);
+      await loadDepartmentSizes(baseDepartmentFor());
     }
     renderInputs();
     setStatus(data.base ? "โหลดฐานข้อมูลเริ่มต้นแล้ว" : "กรุณาโหลด BaseData");

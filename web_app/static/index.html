@@ -45,7 +45,11 @@
         </label>
         <label>
           <span>แผนกภายในงาน</span>
-          <select id="departmentSelect"></select>
+          <div class="department-picker">
+            <select id="departmentSelect"></select>
+            <button id="addDepartment" type="button" title="สร้างแผนกในงานนี้">＋ เพิ่มแผนก</button>
+            <button id="deleteDepartment" class="danger" type="button" title="ลบแผนกที่เลือก">ลบ</button>
+          </div>
         </label>
       </div>
       <div class="project-action-panel">
@@ -322,6 +326,15 @@
           <button id="cancelCloudSave" type="button">ยกเลิก</button>
           <button class="primary" type="submit">บันทึกขึ้น Cloud</button>
         </div>
+      </form>
+    </dialog>
+    <dialog id="departmentDialog" class="department-dialog">
+      <form id="departmentForm">
+        <h3>เพิ่มแผนกในงานนี้</h3>
+        <p>เลือกหมวดข้อมูลต้นทาง แล้วตั้งชื่อแผนกที่จะใช้แยกกรอกงาน</p>
+        <label><span>ใช้ข้อมูลจากหมวด</span><select id="departmentBaseSelect"></select></label>
+        <label><span>ชื่อแผนกที่แสดงในงาน</span><input id="departmentNameInput" type="text" maxlength="80" required></label>
+        <div class="department-dialog-actions"><button id="cancelDepartment" type="button">ยกเลิก</button><button class="primary" type="submit">สร้างแผนก</button></div>
       </form>
     </dialog>
     </div>
