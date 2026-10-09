@@ -1596,7 +1596,7 @@ async function downloadProjectFile(project, forceSaveAs = false) {
       await forgetProjectFileHandle(project.id);
     }
   }
-  const target = await prepareSaveAs(fileName, "ไฟล์งาน Material Calculator", "application/json", ".json");
+  const target = await prepareSaveAs(fileName, "ไฟล์งาน Estimation", "application/json", ".json");
   const saved = await writeBlobToSaveTarget(blob, target, fileName);
   if (saved && target?.handle) await rememberProjectFileHandle(project.id, target.handle);
   return saved;
@@ -1607,7 +1607,7 @@ async function importProjectFile(file, fileHandle = null) {
   const parsed = JSON.parse(content);
   const project = parsed?.format === "material-calculator-project" ? parsed.project : parsed;
   if (!project || typeof project !== "object" || !project.name || (!project.departments && !Array.isArray(project.pages))) {
-    throw new Error("ไฟล์นี้ไม่ใช่ไฟล์งานของ Material Calculator");
+    throw new Error("ไฟล์นี้ไม่ใช่ไฟล์งานของ Estimation");
   }
   const imported = structuredClone(project);
   imported.id = imported.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -1962,7 +1962,7 @@ els.openProjectFile.addEventListener("click", async () => {
       const pickerOptions = {
         multiple: false,
         types: [{
-          description: "ไฟล์งาน Material Calculator",
+          description: "ไฟล์งาน Estimation",
           accept: { "application/json": [".json", ".mcproject"] },
         }],
       };
