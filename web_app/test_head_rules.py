@@ -74,8 +74,13 @@ class HeadRuleTests(unittest.TestCase):
         self.assertNotIn("1010110206", by_code)
         self.assertNotIn("1010180003", by_code)
         self.assertEqual(by_code["1020440102"]["จำนวนรื้อถอน"], 1)
-        # It remains visible in demolition, but never contributes a reusable quantity.
-        self.assertEqual(by_code["1020440119"]["จำนวนรื้อถอน"], 3)
+        self.assertNotIn("1020440119", by_code)
+
+        install_result = workbook.calculate([[{
+            "workType": "install", "size": "99", "head": head, "count": 1,
+        }]])
+        install_by_code = {row[CODE_COL]: row for row in install_result["items"]}
+        self.assertEqual(install_by_code["1020440119"]["จำนวนติดตั้ง"], 3)
 
         details = workbook.get_set_components("Set20202", 1, "demolition")
         self.assertEqual(
@@ -319,7 +324,7 @@ class HeadRuleTests(unittest.TestCase):
     def test_confirmed_unmatched_codes_remain_visible_in_demolition(self):
         workbook = MaterialWorkbook()
         confirmed_codes = {
-            '1020440000', '1020440008', '1020440119', '1030010200', '1040000002',
+            '1020440000', '1020440008', '1030010200', '1040000002',
             '1040010015', '1040010016', '1040030002', '1060020050',
         }
         workbook.base_df = pd.DataFrame([
@@ -337,6 +342,7 @@ class HeadRuleTests(unittest.TestCase):
         by_code = {row[CODE_COL]: row for row in result['items']}
         for code in confirmed_codes:
             self.assertEqual(by_code[code]['จำนวนรื้อถอน'], 1)
+        self.assertNotIn('1020440119', by_code)
 
     def test_page_hardware_export_omits_wire_accessory_addons_for_demolition(self):
         workbook = MaterialWorkbook()
