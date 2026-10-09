@@ -3,6 +3,7 @@ __pycache__/
 *.xlsx
 *.xls
 *.docx
+!New folder (2)/Allset_เพิ่มจำนวนนำกลับมาใช้ใหม่.xlsx
 
 # Web runtime data
 web_app/uploads/

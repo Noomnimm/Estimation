@@ -50,6 +50,15 @@ class HeadRuleTests(unittest.TestCase):
         result = workbook.get_set_components("set20202", 3, "demolition")
         self.assertEqual(result["items"], [{"material": "BOLT", "code": "1010110202", "quantity": 6.0}])
 
+    def test_demolition_set_components_do_not_assume_install_quantity_is_reusable(self):
+        workbook = MaterialWorkbook()
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set21326", "รหัสพัสดุ": "1010180100", "คำอธิบาย": "SQUARE WASHER", "ติดตั้ง": 18},
+        ])
+
+        result = workbook.get_set_components("set21326", 1, "demolition")
+        self.assertEqual(result["items"], [])
+
     def test_combined_set_components_separate_install_and_reuse_quantities(self):
         workbook = MaterialWorkbook()
         workbook.set_df = pd.DataFrame([

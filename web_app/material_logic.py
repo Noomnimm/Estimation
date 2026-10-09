@@ -211,8 +211,8 @@ class MaterialWorkbook:
         df = read_set_sheet(path)
         require_columns(df, [SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL], "SET")
         if SET_REUSE_COL not in df.columns:
-            # Keep older SET workbooks usable until they are updated with reuse quantities.
-            df[SET_REUSE_COL] = df[SET_INSTALL_COL]
+            # Missing reuse data must not be mistaken for installed quantities.
+            df[SET_REUSE_COL] = 0
         df = df[[SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL, SET_REUSE_COL]].copy()
         df = df.dropna(subset=[SET_COL, CODE_COL])
         self.set_df = df
@@ -725,8 +725,10 @@ class MaterialWorkbook:
                     alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
                     for _, item in matches.iterrows():
                         child_code = clean_text(item[CODE_COL])
-                        quantity_column = SET_REUSE_COL if work_type == "demolition" and SET_REUSE_COL in item.index else SET_INSTALL_COL
-                        child_quantity = parse_number(clean_text(item[quantity_column])) * qty
+                        if work_type == "demolition":
+                            child_quantity = parse_number(clean_text(item.get(SET_REUSE_COL, 0))) * qty
+                        else:
+                            child_quantity = parse_number(clean_text(item[SET_INSTALL_COL])) * qty
                         if key == "set40203" and child_code == default_surge_code:
                             child_quantity = max(0.0, child_quantity - 3 * alternate_surge_count)
                         if child_quantity:
@@ -817,8 +819,10 @@ class MaterialWorkbook:
             material_code = clean_text(item[CODE_COL])
             if not re.fullmatch(r"\d{10}", material_code):
                 continue
-            quantity_column = SET_REUSE_COL if work_type == "demolition" and SET_REUSE_COL in item.index else SET_INSTALL_COL
-            quantity = parse_number(clean_text(item[quantity_column])) * multiplier
+            if work_type == "demolition":
+                quantity = parse_number(clean_text(item.get(SET_REUSE_COL, 0))) * multiplier
+            else:
+                quantity = parse_number(clean_text(item[SET_INSTALL_COL])) * multiplier
             if set_code.lower() == "set40203" and material_code == default_surge_code:
                 quantity = max(0.0, quantity - 3 * alternate_surge_count)
             add_material(
@@ -1019,8 +1023,10 @@ class MaterialWorkbook:
                             if code not in hardware_codes:
                                 continue
                             material = clean_text(set_row[SET_DESC_COL])
-                            quantity_column = SET_REUSE_COL if work_type == "demolition" and SET_REUSE_COL in set_row.index else SET_INSTALL_COL
-                            amount = parse_number(set_row[quantity_column]) * set_quantity
+                            if work_type == "demolition":
+                                amount = parse_number(clean_text(set_row.get(SET_REUSE_COL, 0))) * set_quantity
+                            else:
+                                amount = parse_number(clean_text(set_row[SET_INSTALL_COL])) * set_quantity
                             add_page_item("อุปกรณ์ยึดสาย", material, code, page_number, amount)
                             details.append({"หน้า": page_label, HEAD_COL: head, "ที่มา": set_code, MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: amount})
 
