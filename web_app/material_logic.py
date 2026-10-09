@@ -181,6 +181,11 @@ class MaterialWorkbook:
     def __init__(self) -> None:
         self.base_df: pd.DataFrame | None = None
         self.set_df: pd.DataFrame | None = None
+        self.set_reuse_by_set_and_code: dict[tuple[str, str], float] = {}
+        self.reuse_by_set: dict[str, dict[str, float]] = {}
+        self.reuse_sets_by_code: dict[str, set[str]] = {}
+        self.globally_non_reusable_codes: set[str] = set()
+        self._reuse_index_df_id: int | None = None
         self.summary: list[dict[str, Any]] = []
         self.summary_by_work_type: dict[str, list[dict[str, Any]]] = {"install": [], "demolition": []}
         self.transformer_surge_by_work_type: dict[str, dict[str, float]] = {"install": {}, "demolition": {}}
@@ -217,10 +222,41 @@ class MaterialWorkbook:
         df = df.dropna(subset=[SET_COL, CODE_COL])
         self.set_df = df
         self.set_path = Path(path)
+        self._build_set_reuse_index()
         return {
             "file": self.set_path.name,
             "rows": int(len(df)),
             "sets": int(df[SET_COL].astype(str).str.strip().str.lower().nunique()),
+        }
+
+    def _build_set_reuse_index(self) -> None:
+        """Prepare reuse lookups once when SET data is loaded, not per calculation."""
+        self.set_reuse_by_set_and_code = {}
+        self.reuse_by_set = {}
+        self.reuse_sets_by_code = {}
+        self.globally_non_reusable_codes = set()
+        self._reuse_index_df_id = id(self.set_df) if self.set_df is not None else None
+        if self.set_df is None or SET_REUSE_COL not in self.set_df.columns:
+            return
+
+        for set_value, code_value, reuse_value in self.set_df[
+            [SET_COL, CODE_COL, SET_REUSE_COL]
+        ].itertuples(index=False, name=None):
+            set_key = clean_text(set_value).casefold()
+            material_code = clean_text(code_value).replace("-", "")
+            if not set_key or not re.fullmatch(r"\d{10}", material_code):
+                continue
+
+            key = (set_key, material_code)
+            quantity = self.set_reuse_by_set_and_code.get(key, 0.0) + parse_number(clean_text(reuse_value))
+            self.set_reuse_by_set_and_code[key] = quantity
+            self.reuse_by_set.setdefault(set_key, {})[material_code] = quantity
+            self.reuse_sets_by_code.setdefault(material_code, set()).add(set_key)
+
+        self.globally_non_reusable_codes = {
+            material_code
+            for material_code, set_keys in self.reuse_sets_by_code.items()
+            if all(self.set_reuse_by_set_and_code[(set_key, material_code)] <= 0 for set_key in set_keys)
         }
 
     def load_keycode_catalog(self, path: str | Path, department: str, code_overrides: dict[str, str] | None = None) -> int:
@@ -502,27 +538,12 @@ class MaterialWorkbook:
         input_count = 0
         matched_rows = 0
 
-        set_reuse_by_set_and_code: dict[tuple[str, str], float] = {}
-        reuse_by_set: dict[str, dict[str, float]] = {}
-        reuse_sets_by_code: dict[str, set[str]] = {}
-        if self.set_df is not None and SET_REUSE_COL in self.set_df.columns:
-            for _, set_row in self.set_df.iterrows():
-                set_key = clean_text(set_row.get(SET_COL)).casefold()
-                material_code = clean_text(set_row.get(CODE_COL)).replace("-", "")
-                if not set_key or not re.fullmatch(r"\d{10}", material_code):
-                    continue
-                key = (set_key, material_code)
-                set_reuse_by_set_and_code[key] = (
-                    set_reuse_by_set_and_code.get(key, 0.0)
-                    + parse_number(clean_text(set_row.get(SET_REUSE_COL)))
-                )
-                reuse_by_set.setdefault(set_key, {})[material_code] = set_reuse_by_set_and_code[key]
-                reuse_sets_by_code.setdefault(material_code, set()).add(set_key)
-        globally_non_reusable_codes = {
-            material_code
-            for material_code, set_keys in reuse_sets_by_code.items()
-            if all(set_reuse_by_set_and_code[(set_key, material_code)] <= 0 for set_key in set_keys)
-        }
+        if self.set_df is not None and self._reuse_index_df_id != id(self.set_df):
+            # Supports callers/tests that assign a replacement DataFrame directly.
+            self._build_set_reuse_index()
+        set_reuse_by_set_and_code = self.set_reuse_by_set_and_code
+        reuse_by_set = self.reuse_by_set
+        globally_non_reusable_codes = self.globally_non_reusable_codes
 
         for page_number, page in enumerate(pages, start=1):
             work_type = "demolition" if any(item.get("workType") == "demolition" for item in page) else "install"
