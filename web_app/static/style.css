@@ -74,6 +74,13 @@ body {
   color: var(--accent-dark);
 }
 
+.site-attribution {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .legal-shell {
   width: min(900px, calc(100% - 32px));
   margin: 36px auto;
@@ -216,6 +223,20 @@ h2 {
 .topbar p {
   margin-top: 5px;
   color: rgba(255, 255, 255, 0.78);
+}
+
+.topbar .organization-attribution {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.topbar .organization-attribution span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .status {
