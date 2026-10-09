@@ -37,6 +37,11 @@ INSULATOR_HORIZONTAL_COL = "ลูกถ้วยนอน"
 SET_COL = "Set"
 SET_DESC_COL = "คำอธิบาย"
 SET_INSTALL_COL = "ติดตั้ง"
+SET_REUSE_COL = "จำนวนนำกลับมาใช้ใหม่"
+DEMOLITION_ALWAYS_KEEP_CODES = {
+    "1020440000", "1020440008", "1020440119", "1030010200", "1040000002",
+    "1040010015", "1040010016", "1040030002", "1060020050",
+}
 
 WIRE_MATERIALS = {
     "50 PIC": ("PREFORMED DEAD END,FOR AL PARTIALLY INSULATED CONDUCTOR 22 KV. 50 SQ.MM.", "1020250001", "50", True),
@@ -205,7 +210,10 @@ class MaterialWorkbook:
     def load_set(self, path: str | Path) -> dict[str, Any]:
         df = read_set_sheet(path)
         require_columns(df, [SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL], "SET")
-        df = df[[SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL]].copy()
+        if SET_REUSE_COL not in df.columns:
+            # Keep older SET workbooks usable until they are updated with reuse quantities.
+            df[SET_REUSE_COL] = df[SET_INSTALL_COL]
+        df = df[[SET_COL, CODE_COL, SET_DESC_COL, SET_INSTALL_COL, SET_REUSE_COL]].copy()
         df = df.dropna(subset=[SET_COL, CODE_COL])
         self.set_df = df
         self.set_path = Path(path)
@@ -494,6 +502,28 @@ class MaterialWorkbook:
         input_count = 0
         matched_rows = 0
 
+        set_reuse_by_set_and_code: dict[tuple[str, str], float] = {}
+        reuse_by_set: dict[str, dict[str, float]] = {}
+        reuse_sets_by_code: dict[str, set[str]] = {}
+        if self.set_df is not None and SET_REUSE_COL in self.set_df.columns:
+            for _, set_row in self.set_df.iterrows():
+                set_key = clean_text(set_row.get(SET_COL)).casefold()
+                material_code = clean_text(set_row.get(CODE_COL)).replace("-", "")
+                if not set_key or not re.fullmatch(r"\d{10}", material_code):
+                    continue
+                key = (set_key, material_code)
+                set_reuse_by_set_and_code[key] = (
+                    set_reuse_by_set_and_code.get(key, 0.0)
+                    + parse_number(clean_text(set_row.get(SET_REUSE_COL)))
+                )
+                reuse_by_set.setdefault(set_key, {})[material_code] = set_reuse_by_set_and_code[key]
+                reuse_sets_by_code.setdefault(material_code, set()).add(set_key)
+        globally_non_reusable_codes = {
+            material_code
+            for material_code, set_keys in reuse_sets_by_code.items()
+            if all(set_reuse_by_set_and_code[(set_key, material_code)] <= 0 for set_key in set_keys)
+        }
+
         for page_number, page in enumerate(pages, start=1):
             work_type = "demolition" if any(item.get("workType") == "demolition" for item in page) else "install"
             totals = totals_by_work_type[work_type]
@@ -511,19 +541,35 @@ class MaterialWorkbook:
                 if department == "แผนกหม้อแปลง" and head == THREE_PHASE_TRANSFORMER_HEAD:
                     head, selected_surge_code = self._three_phase_config(item, page_number, row_number)
                 high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
-                wire_kind = classify_wire_head(head) if high_voltage else None
+                add_wire_accessories = high_voltage and work_type == "install"
+                wire_kind = classify_wire_head(head) if add_wire_accessories else None
                 wire1 = clean_text(item.get("wire1"))
                 wire2 = clean_text(item.get("wire2"))
                 wire3 = clean_text(item.get("wire3"))
-                validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head, wire3)
+                if add_wire_accessories:
+                    validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head, wire3)
                 lat_wire = clean_text(item.get("latWire"))
-                if has_combined_lat(head):
+                if add_wire_accessories and has_combined_lat(head):
                     validate_wire_selection("de", lat_wire, "", page_number, row_number, f"{head} — LAT.SLK")
                 matches = self.base_df[
                     (self.base_df[SIZE_COL].astype(str).str.strip() == size)
                     & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
                     & self._department_mask(department)
                 ]
+                demolition_non_reusable_codes = set(globally_non_reusable_codes)
+                if work_type == "demolition" and set_reuse_by_set_and_code and not matches.empty:
+                    selected_sets = {
+                        clean_text(code).casefold()
+                        for code in matches[CODE_COL]
+                        if clean_text(code).casefold().startswith("set")
+                    }
+                    selected_reuse_by_code: dict[str, float] = {}
+                    for set_key in selected_sets:
+                        for material_code, quantity in reuse_by_set.get(set_key, {}).items():
+                            selected_reuse_by_code[material_code] = selected_reuse_by_code.get(material_code, 0.0) + quantity
+                    demolition_non_reusable_codes.update(
+                        material_code for material_code, quantity in selected_reuse_by_code.items() if quantity <= 0
+                    )
                 if department == "แผนกหม้อแปลง" and selected_surge_code and matches.empty:
                     raise ValueError(f"หน้า {page_number} แถว {row_number}: ไม่พบข้อมูลตั้งต้นของ {head} ใน BaseData")
                 has_explicit_surge_adjustments = (
@@ -536,6 +582,13 @@ class MaterialWorkbook:
                     code = clean_text(row[CODE_COL])
                     amount = parse_number(row[QTY_COL]) * count
                     if not code or amount == 0:
+                        continue
+                    normalized_code = code.replace("-", "")
+                    if (
+                        work_type == "demolition"
+                        and normalized_code in demolition_non_reusable_codes
+                        and normalized_code not in DEMOLITION_ALWAYS_KEEP_CODES
+                    ):
                         continue
                     if department == "แผนกหม้อแปลง" and selected_surge_code and not has_explicit_surge_adjustments and code.casefold() == "set40203":
                         surge_counts = transformer_surge_by_work_type[work_type]
@@ -558,8 +611,9 @@ class MaterialWorkbook:
                     add_material(totals, material, code, amount)
                     matched_rows += 1
 
-                matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head), wire3)
-                if high_voltage and has_combined_lat(head):
+                if add_wire_accessories:
+                    matched_rows += add_wire_materials(totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head), wire3)
+                if add_wire_accessories and has_combined_lat(head):
                     matched_rows += add_wire_materials(totals, "de", lat_wire, "", count)
 
         for page_number, rows in enumerate(structure_pages or [], start=1):
@@ -671,7 +725,8 @@ class MaterialWorkbook:
                     alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
                     for _, item in matches.iterrows():
                         child_code = clean_text(item[CODE_COL])
-                        child_quantity = parse_number(item[SET_INSTALL_COL]) * qty
+                        quantity_column = SET_REUSE_COL if work_type == "demolition" and SET_REUSE_COL in item.index else SET_INSTALL_COL
+                        child_quantity = parse_number(clean_text(item[quantity_column])) * qty
                         if key == "set40203" and child_code == default_surge_code:
                             child_quantity = max(0.0, child_quantity - 3 * alternate_surge_count)
                         if child_quantity:
@@ -684,7 +739,7 @@ class MaterialWorkbook:
                             )
                             expanded_lines += 1
 
-                    if key == "set40203":
+                    if key == "set40203" and work_type != "demolition":
                         surge_materials = {
                             surge_code: material
                             for material, surge_code in (*SURGE_ARRESTER_CROSSARM.values(), *SURGE_ARRESTER_TANK.values())
@@ -720,7 +775,7 @@ class MaterialWorkbook:
             "summaryRows": len(self.summary),
         }
 
-    def get_set_components(self, code: str, quantity: Any = 1) -> dict[str, Any]:
+    def get_set_components(self, code: str, quantity: Any = 1, work_type: str = "install") -> dict[str, Any]:
         """Return the ten-digit material rows inside one SET for inline preview."""
         if self.set_df is None:
             raise ValueError("ยังไม่ได้โหลดไฟล์ SET")
@@ -728,19 +783,42 @@ class MaterialWorkbook:
         multiplier = parse_number(quantity)
         if not set_code.lower().startswith("set"):
             raise ValueError("รหัสนี้ไม่ใช่ SET")
+        if work_type not in {"install", "demolition", "combined"}:
+            work_type = "install"
         set_keys = self.set_df[SET_COL].astype(str).str.strip().str.lower()
         matches = self.set_df[set_keys == set_code.lower()]
         if matches.empty:
             raise ValueError(f"ไม่พบรายละเอียด {set_code}")
+
+        if work_type == "combined":
+            install_items = self.get_set_components(set_code, multiplier, "install")["items"]
+            demolition_items = self.get_set_components(set_code, multiplier, "demolition")["items"]
+            combined: dict[str, dict[str, Any]] = {}
+            for quantity_key, items in (("installQuantity", install_items), ("demolitionQuantity", demolition_items)):
+                for component in items:
+                    component_code = component["code"]
+                    row = combined.setdefault(component_code, {
+                        "material": component["material"],
+                        "code": component_code,
+                        "installQuantity": 0.0,
+                        "demolitionQuantity": 0.0,
+                    })
+                    row[quantity_key] += component["quantity"]
+            items = sorted(combined.values(), key=lambda row: (str(row["code"]), str(row["material"])))
+            for row in items:
+                row["quantity"] = row["installQuantity"]
+            return {"setCode": set_code, "workType": work_type, "items": items}
+
         totals: dict[str, dict[str, Any]] = {}
-        surge_choices = self.transformer_surge_by_work_type.get("install", {}) if set_code.lower() == "set40203" else {}
+        surge_choices = self.transformer_surge_by_work_type.get(work_type, {}) if set_code.lower() == "set40203" else {}
         default_surge_code = SURGE_ARRESTER_TANK[False][1]
         alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
         for _, item in matches.iterrows():
             material_code = clean_text(item[CODE_COL])
             if not re.fullmatch(r"\d{10}", material_code):
                 continue
-            quantity = parse_number(item[SET_INSTALL_COL]) * multiplier
+            quantity_column = SET_REUSE_COL if work_type == "demolition" and SET_REUSE_COL in item.index else SET_INSTALL_COL
+            quantity = parse_number(clean_text(item[quantity_column])) * multiplier
             if set_code.lower() == "set40203" and material_code == default_surge_code:
                 quantity = max(0.0, quantity - 3 * alternate_surge_count)
             add_material(
@@ -749,7 +827,7 @@ class MaterialWorkbook:
                 material_code,
                 quantity,
             )
-        if set_code.lower() == "set40203":
+        if set_code.lower() == "set40203" and work_type != "demolition":
             surge_materials = {
                 surge_code: material
                 for material, surge_code in (*SURGE_ARRESTER_CROSSARM.values(), *SURGE_ARRESTER_TANK.values())
@@ -760,6 +838,7 @@ class MaterialWorkbook:
         items = sorted(totals.values(), key=lambda row: (str(row[CODE_COL]), str(row[MATERIAL_COL])))
         return {
             "setCode": set_code,
+            "workType": work_type,
             "items": [{"material": row[MATERIAL_COL], "code": row[CODE_COL], "quantity": row[TOTAL_COL]} for row in items],
         }
 
@@ -907,6 +986,7 @@ class MaterialWorkbook:
         typed_pages = pages_have_work_types(pages)
         for page_number, page in enumerate(pages, start=1):
             page_label: Any = labels[page_number - 1] if typed_pages else page_number
+            work_type = "demolition" if any(item.get("workType") == "demolition" for item in page) else "install"
             for row_number, item in enumerate(page, start=1):
                 size = clean_text(item.get("size"))
                 head = clean_text(item.get("head"))
@@ -939,18 +1019,20 @@ class MaterialWorkbook:
                             if code not in hardware_codes:
                                 continue
                             material = clean_text(set_row[SET_DESC_COL])
-                            amount = parse_number(set_row[SET_INSTALL_COL]) * set_quantity
+                            quantity_column = SET_REUSE_COL if work_type == "demolition" and SET_REUSE_COL in set_row.index else SET_INSTALL_COL
+                            amount = parse_number(set_row[quantity_column]) * set_quantity
                             add_page_item("อุปกรณ์ยึดสาย", material, code, page_number, amount)
                             details.append({"หน้า": page_label, HEAD_COL: head, "ที่มา": set_code, MATERIAL_COL: material, CODE_COL: code, TOTAL_COL: amount})
 
-                high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
+                high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"} and work_type == "install"
                 wire_kind = classify_wire_head(head) if high_voltage else None
                 wire1 = clean_text(item.get("wire1"))
                 wire2 = clean_text(item.get("wire2"))
                 wire3 = clean_text(item.get("wire3"))
-                validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head, wire3)
                 wire_totals: dict[str, dict[str, Any]] = {}
-                add_wire_materials(wire_totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head), wire3)
+                if high_voltage:
+                    validate_wire_selection(wire_kind, wire1, wire2, page_number, row_number, head, wire3)
+                    add_wire_materials(wire_totals, wire_kind, wire1, wire2, count * wire_head_multiplier(head), wire3)
 
                 lat_wire = clean_text(item.get("latWire"))
                 if high_voltage and has_combined_lat(head):
@@ -1460,6 +1542,7 @@ def normalize_report_set(df: pd.DataFrame) -> pd.DataFrame | None:
             CODE_COL: df.loc[item_rows, CODE_COL],
             SET_DESC_COL: df.loc[item_rows, SET_DESC_COL],
             SET_INSTALL_COL: df.loc[item_rows, SET_INSTALL_COL],
+            **({SET_REUSE_COL: df.loc[item_rows, SET_REUSE_COL]} if SET_REUSE_COL in df.columns else {}),
         }
     )
 

@@ -1260,24 +1260,24 @@ function renderResults(items, meta) {
   state.results = items || [];
   const installItems = sortDetailItems(state.results.filter((item) => Number(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0) !== 0));
   const demolitionItems = sortDetailItems(state.results.filter((item) => Number(item["จำนวนรื้อถอน"] ?? 0) !== 0));
-  const renderWorkRows = (container, rows, quantityKey, fallbackKey = null) => {
+  const renderWorkRows = (container, rows, quantityKey, fallbackKey = null, workType = "install") => {
     container.innerHTML = rows.map((item, index) => `
       <tr>
         <td>${index + 1}</td>
         <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
-        <td>${String(item["รหัสพัสดุ"] || "").trim().toLowerCase().startsWith("set") ? `<button type="button" class="set-expand-button" data-set-code="${escapeHtml(item["รหัสพัสดุ"] || "")}" aria-label="ดูไส้ใน ${escapeHtml(item["รหัสพัสดุ"] || "")} ต่อ 1 SET">+</button>` : ""}<span class="material-code">${escapeHtml(item["รหัสพัสดุ"] || "")}</span></td>
+        <td>${String(item["รหัสพัสดุ"] || "").trim().toLowerCase().startsWith("set") ? `<button type="button" class="set-expand-button" data-work-type="${workType}" data-set-code="${escapeHtml(item["รหัสพัสดุ"] || "")}" aria-label="ดูไส้ใน ${escapeHtml(item["รหัสพัสดุ"] || "")} ต่อ 1 SET">+</button>` : ""}<span class="material-code">${escapeHtml(item["รหัสพัสดุ"] || "")}</span></td>
         <td>${formatAmount(item[quantityKey] ?? (fallbackKey ? item[fallbackKey] : 0))}</td>
       </tr>
     `).join("");
   };
-  renderWorkRows(els.installResultRows, installItems, "จำนวนติดตั้ง", "จำนวนรวม");
-  renderWorkRows(els.demolitionResultRows, demolitionItems, "จำนวนรื้อถอน");
+  renderWorkRows(els.installResultRows, installItems, "จำนวนติดตั้ง", "จำนวนรวม", "install");
+  renderWorkRows(els.demolitionResultRows, demolitionItems, "จำนวนรื้อถอน", null, "demolition");
   const combinedItems = sortDetailItems(state.results.filter((item) => Number(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0) !== 0 || Number(item["จำนวนรื้อถอน"] ?? 0) !== 0));
   els.combinedResultRows.innerHTML = combinedItems.map((item, index) => `
     <tr>
       <td>${index + 1}</td>
       <td>${escapeHtml(item["รายการวัสดุ"] || "")}</td>
-      <td>${String(item["รหัสพัสดุ"] || "").trim().toLowerCase().startsWith("set") ? `<button type="button" class="set-expand-button" data-set-code="${escapeHtml(item["รหัสพัสดุ"] || "")}" aria-label="ดูไส้ใน ${escapeHtml(item["รหัสพัสดุ"] || "")} ต่อ 1 SET">+</button>` : ""}<span class="material-code">${escapeHtml(item["รหัสพัสดุ"] || "")}</span></td>
+      <td>${String(item["รหัสพัสดุ"] || "").trim().toLowerCase().startsWith("set") ? `<button type="button" class="set-expand-button" data-work-type="combined" data-set-code="${escapeHtml(item["รหัสพัสดุ"] || "")}" aria-label="ดูไส้ใน ${escapeHtml(item["รหัสพัสดุ"] || "")} ต่อ 1 SET">+</button>` : ""}<span class="material-code">${escapeHtml(item["รหัสพัสดุ"] || "")}</span></td>
       <td>${formatAmount(item["จำนวนติดตั้ง"] ?? item["จำนวนรวม"] ?? 0)}</td>
       <td>${formatAmount(item["จำนวนรื้อถอน"] ?? 0)}</td>
     </tr>
@@ -1306,13 +1306,20 @@ async function toggleSetComponents(event) {
     const data = await postJson("/api/set-components", {
       code: button.dataset.setCode,
       quantity: 1,
+      workType: button.dataset.workType || "install",
     });
     const detailRow = document.createElement("tr");
     detailRow.className = "set-component-row";
     const rows = data.items || [];
+    const quantityHeaders = data.workType === "combined"
+      ? "<th>จำนวนติดตั้ง</th><th>จำนวนนำกลับมาใช้ใหม่</th>"
+      : `<th>${data.workType === "demolition" ? "จำนวนนำกลับมาใช้ใหม่" : "จำนวน"}</th>`;
+    const quantityCells = (item) => data.workType === "combined"
+      ? `<td>${formatAmount(item.installQuantity)}</td><td>${formatAmount(item.demolitionQuantity)}</td>`
+      : `<td>${formatAmount(item.quantity)}</td>`;
     detailRow.innerHTML = `<td colspan="${parentRow.children.length}"><div class="set-component-panel">
       <div class="set-component-title">อุปกรณ์ภายใน ${escapeHtml(data.setCode || button.dataset.setCode)} ต่อ 1 SET</div>
-      ${rows.length ? `<table class="set-component-table"><colgroup><col class="set-component-no-column"><col class="set-component-material-column"><col class="set-component-code-column"><col class="set-component-quantity-column"></colgroup><thead><tr><th>No.</th><th>รายการวัสดุ</th><th>รหัสพัสดุ 10 หลัก</th><th>จำนวน</th></tr></thead><tbody>${rows.map((item, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(item.material || "")}</td><td>${escapeHtml(item.code || "")}</td><td>${formatAmount(item.quantity)}</td></tr>`).join("")}</tbody></table>` : '<div class="set-component-empty">ไม่พบรายการรหัส 10 หลักใน SET นี้</div>'}
+      ${rows.length ? `<table class="set-component-table"><colgroup><col class="set-component-no-column"><col class="set-component-material-column"><col class="set-component-code-column"><col class="set-component-quantity-column">${data.workType === "combined" ? '<col class="set-component-quantity-column">' : ""}</colgroup><thead><tr><th>No.</th><th>รายการวัสดุ</th><th>รหัสพัสดุ 10 หลัก</th>${quantityHeaders}</tr></thead><tbody>${rows.map((item, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(item.material || "")}</td><td>${escapeHtml(item.code || "")}</td>${quantityCells(item)}</tr>`).join("")}</tbody></table>` : '<div class="set-component-empty">ไม่พบรายการรหัส 10 หลักใน SET นี้</div>'}
     </div></td>`;
     parentRow.after(detailRow);
     button.textContent = "−";

@@ -35,7 +35,11 @@ UPLOADS = ROOT / "uploads"
 OUTPUTS = ROOT / "outputs"
 STATIC = ROOT / "static"
 DEFAULT_BASE = ROOT.parent / "Newdata.xlsx"
-DEFAULT_SET = ROOT.parent / "New folder (2)" / "Allset.xlsx"
+DEFAULT_SET_CANDIDATES = (
+    ROOT.parent / "New folder (2)" / "Allset_เพิ่มจำนวนนำกลับมาใช้ใหม่.xlsx",
+    ROOT.parent / "New folder (2)" / "Allset.xlsx",
+)
+DEFAULT_SET = next((path for path in DEFAULT_SET_CANDIDATES if path.exists()), DEFAULT_SET_CANDIDATES[-1])
 DEFAULT_TRANSFORMER_BASE = ROOT.parent / "แผนกหม้อแปลง.xlsx"
 DEFAULT_TRANSMISSION = ROOT.parent / "สายส่ง 115kV.xlsx"
 
@@ -292,7 +296,9 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def set_components(self) -> None:
         payload = self.read_json()
-        self.handle_json(lambda: WORKBOOK.get_set_components(payload.get("code", ""), payload.get("quantity", 1)))
+        self.handle_json(lambda: WORKBOOK.get_set_components(
+            payload.get("code", ""), payload.get("quantity", 1), payload.get("workType", "install")
+        ))
 
     def export_summary(self) -> None:
         try:

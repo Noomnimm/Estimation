@@ -40,6 +40,46 @@ class HeadRuleTests(unittest.TestCase):
         result = workbook.get_set_components("set20202", 3)
         self.assertEqual(result["items"], [{"material": "BOLT", "code": "1010110202", "quantity": 6.0}])
 
+    def test_demolition_set_components_use_reuse_quantity(self):
+        workbook = MaterialWorkbook()
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set20202", "รหัสพัสดุ": "1010110202", "คำอธิบาย": "BOLT", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
+            {"Set": "Set20202", "รหัสพัสดุ": "1010110203", "คำอธิบาย": "OTHER BOLT", "ติดตั้ง": 3, "จำนวนนำกลับมาใช้ใหม่": 0},
+        ])
+
+        result = workbook.get_set_components("set20202", 3, "demolition")
+        self.assertEqual(result["items"], [{"material": "BOLT", "code": "1010110202", "quantity": 6.0}])
+
+    def test_combined_set_components_separate_install_and_reuse_quantities(self):
+        workbook = MaterialWorkbook()
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set20202", "รหัสพัสดุ": "1010110202", "คำอธิบาย": "BOLT", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
+        ])
+
+        result = workbook.get_set_components("set20202", 2, "combined")
+        self.assertEqual(result["items"], [{
+            "material": "BOLT", "code": "1010110202", "installQuantity": 10.0,
+            "demolitionQuantity": 4.0, "quantity": 10.0,
+        }])
+
+    def test_expand_set_uses_reuse_quantity_for_demolition(self):
+        workbook = MaterialWorkbook()
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set20202", "รหัสพัสดุ": "1010110202", "คำอธิบาย": "BOLT", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
+            {"Set": "Set20202", "รหัสพัสดุ": "1010110203", "คำอธิบาย": "OTHER BOLT", "ติดตั้ง": 3, "จำนวนนำกลับมาใช้ใหม่": 0},
+        ])
+        workbook.summary = [{"ก่อนแตก Set": True}]
+        workbook.separate_work_types = True
+        workbook.summary_by_work_type = {
+            "install": [],
+            "demolition": [{MATERIAL_COL: "BOLT SET", CODE_COL: "Set20202", TOTAL_COL: 3}],
+        }
+
+        result = workbook.expand_set()
+        by_code = {item[CODE_COL]: item for item in result["items"]}
+        self.assertEqual(by_code["1010110202"]["จำนวนรื้อถอน"], 6.0)
+        self.assertNotIn("1010110203", by_code)
+
     def test_page_labels_separate_installation_and_demolition(self):
         pages = [
             [{"workType": "install"}],
@@ -149,6 +189,92 @@ class HeadRuleTests(unittest.TestCase):
         item = next(row for row in result['items'] if row[CODE_COL] == '1000000001')
         self.assertEqual(item['จำนวนติดตั้ง'], 6)
         self.assertEqual(item['จำนวนรื้อถอน'], 8)
+
+    def test_wire_accessory_addons_are_not_added_to_demolition(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: '99', HEAD_COL: 'DDE', MATERIAL_COL: 'BASE HEAD MATERIAL', CODE_COL: '1000000001', QTY_COL: 1},
+        ])
+        result = workbook.calculate([[
+            {'workType': 'demolition', 'size': '99', 'head': 'DDE', 'count': 1},
+        ]])
+        by_code = {row[CODE_COL]: row for row in result['items']}
+        self.assertEqual(by_code['1000000001']['จำนวนรื้อถอน'], 1)
+        for code in ('1020260205', '1030140011', '1020410027', '1020180001', '1020180008'):
+            self.assertNotIn(code, by_code)
+
+    def test_demolition_filters_non_reusable_base_rows_using_allset(self):
+        workbook = MaterialWorkbook()
+        head = 'X-ARM-C, 3-P, DEAD END CONNECTION'
+        codes = [
+            ('SET20211', '1010180001', 'EYE NUT', 6),
+            ('SET21326', '1010180100', 'SQUARE WASHER', 12),
+            ('SET99901', '1010110202', 'MACHINE BOLT', 4),
+            ('SET99902', '1010130001', 'DOUBLE ARMING', -2),
+            ('SET99903', '1010180301', 'LOCK WASHER', 1),
+            ('SET99904', '1000000001', 'REUSABLE MATERIAL', 3),
+        ]
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: '99', HEAD_COL: head, MATERIAL_COL: 'SET 20211', CODE_COL: 'Set20211', QTY_COL: 2},
+            {SIZE_COL: '99', HEAD_COL: head, MATERIAL_COL: 'SET 21326', CODE_COL: 'Set21326', QTY_COL: 1},
+            *[
+                {SIZE_COL: '99', HEAD_COL: head, MATERIAL_COL: material, CODE_COL: code, QTY_COL: quantity}
+                for _, code, material, quantity in codes
+            ],
+        ])
+        workbook.set_df = pd.DataFrame([
+            {'Set': set_code, CODE_COL: code, 'คำอธิบาย': material, 'ติดตั้ง': abs(quantity), 'จำนวนนำกลับมาใช้ใหม่': 0}
+            for set_code, code, material, quantity in codes
+        ] + [
+            {'Set': 'Set12000', CODE_COL: '1010180100', 'คำอธิบาย': 'SQUARE WASHER', 'ติดตั้ง': 4, 'จำนวนนำกลับมาใช้ใหม่': 4},
+            {'Set': 'Set99905', CODE_COL: '1000000001', 'คำอธิบาย': 'REUSABLE MATERIAL', 'ติดตั้ง': 3, 'จำนวนนำกลับมาใช้ใหม่': 3},
+        ])
+
+        result = workbook.calculate([
+            [{'workType': 'install', 'size': '99', 'head': head, 'count': 1}],
+            [{'workType': 'demolition', 'size': '99', 'head': head, 'count': 1}],
+        ])
+        by_code = {row[CODE_COL]: row for row in result['items']}
+        for _, code, _, _ in codes[:5]:
+            self.assertNotEqual(by_code[code]['จำนวนติดตั้ง'], 0)
+            self.assertEqual(by_code[code]['จำนวนรื้อถอน'], 0)
+        self.assertEqual(by_code['1000000001']['จำนวนรื้อถอน'], 3)
+
+    def test_confirmed_unmatched_codes_remain_visible_in_demolition(self):
+        workbook = MaterialWorkbook()
+        confirmed_codes = {
+            '1020440000', '1020440008', '1020440119', '1030010200', '1040000002',
+            '1040010015', '1040010016', '1040030002', '1060020050',
+        }
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: '99', HEAD_COL: 'SP', MATERIAL_COL: f'MATERIAL {code}', CODE_COL: code, QTY_COL: 1}
+            for code in confirmed_codes
+        ])
+        workbook.set_df = pd.DataFrame([
+            {'Set': 'Set99999', CODE_COL: code, 'คำอธิบาย': f'MATERIAL {code}', 'ติดตั้ง': 1, 'จำนวนนำกลับมาใช้ใหม่': 0}
+            for code in confirmed_codes
+        ])
+
+        result = workbook.calculate([[
+            {'workType': 'demolition', 'size': '99', 'head': 'SP', 'count': 1},
+        ]])
+        by_code = {row[CODE_COL]: row for row in result['items']}
+        for code in confirmed_codes:
+            self.assertEqual(by_code[code]['จำนวนรื้อถอน'], 1)
+
+    def test_page_hardware_export_omits_wire_accessory_addons_for_demolition(self):
+        workbook = MaterialWorkbook()
+        pages = [[{
+            'workType': 'demolition', 'size': '99', 'head': 'DDE', 'count': 1,
+            # Removal should not need wire-selection data just to calculate accessories.
+        }]]
+        exported = load_workbook(BytesIO(workbook.export_page_hardware(pages)), data_only=True)
+        sheet = exported['ลูกถ้วยและอุปกรณ์']
+        accessory_codes = {
+            str(row[2]) for row in sheet.iter_rows(min_row=4, values_only=True)
+            if row[0] == 'อุปกรณ์ยึดสาย' and row[2]
+        }
+        self.assertEqual(accessory_codes, set())
 
     def test_lat_as_de(self):
         for head in ['LAT.SLK บน', 'LAT.SLK ล่าง']:
