@@ -38,6 +38,7 @@ SET_COL = "Set"
 SET_DESC_COL = "คำอธิบาย"
 SET_INSTALL_COL = "ติดตั้ง"
 SET_REUSE_COL = "จำนวนนำกลับมาใช้ใหม่"
+SET_REUSE_ZERO_CODES = {"1020440119"}
 DEMOLITION_ALWAYS_KEEP_CODES = {
     "1020440000", "1020440008", "1020440119", "1030010200", "1040000002",
     "1040010015", "1040010016", "1040030002", "1060020050",
@@ -186,6 +187,7 @@ class MaterialWorkbook:
         self.reuse_sets_by_code: dict[str, set[str]] = {}
         self.globally_non_reusable_codes: set[str] = set()
         self._reuse_index_df_id: int | None = None
+        self._reuse_index_base_set_codes: frozenset[str] | None = None
         self.summary: list[dict[str, Any]] = []
         self.summary_by_work_type: dict[str, list[dict[str, Any]]] = {"install": [], "demolition": []}
         self.transformer_surge_by_work_type: dict[str, dict[str, float]] = {"install": {}, "demolition": {}}
@@ -230,17 +232,20 @@ class MaterialWorkbook:
         }
 
     def _build_set_reuse_index(self) -> None:
-        """Prepare reuse lookups once when SET data is loaded, not per calculation."""
+        """Prepare lookups for BaseData sets once, without retaining unrelated SET rows."""
         self.set_reuse_by_set_and_code = {}
         self.reuse_by_set = {}
         self.reuse_sets_by_code = {}
         self.globally_non_reusable_codes = set()
         self._reuse_index_df_id = id(self.set_df) if self.set_df is not None else None
+        active_set_codes = self._base_set_codes()
+        self._reuse_index_base_set_codes = active_set_codes
         if self.set_df is None or SET_REUSE_COL not in self.set_df.columns:
             return
 
-        for set_value, code_value, reuse_value in self.set_df[
-            [SET_COL, CODE_COL, SET_REUSE_COL]
+        all_set_reuse_by_code: dict[tuple[str, str], float] = {}
+        for set_value, code_value, description_value, reuse_value in self.set_df[
+            [SET_COL, CODE_COL, SET_DESC_COL, SET_REUSE_COL]
         ].itertuples(index=False, name=None):
             set_key = clean_text(set_value).casefold()
             material_code = clean_text(code_value).replace("-", "")
@@ -248,16 +253,37 @@ class MaterialWorkbook:
                 continue
 
             key = (set_key, material_code)
-            quantity = self.set_reuse_by_set_and_code.get(key, 0.0) + parse_number(clean_text(reuse_value))
-            self.set_reuse_by_set_and_code[key] = quantity
+            quantity = all_set_reuse_by_code.get(key, 0.0) + set_reuse_quantity(
+                description_value, reuse_value, material_code
+            )
+            all_set_reuse_by_code[key] = quantity
+            if active_set_codes is None or set_key in active_set_codes:
+                self.set_reuse_by_set_and_code[key] = quantity
+
+        # Keep this global rule correct even though the reusable lookup below is filtered:
+        # a code is globally non-reusable only when every SET containing it has zero reuse.
+        codes_with_any_reuse = {
+            material_code
+            for (_, material_code), quantity in all_set_reuse_by_code.items()
+            if quantity > 0
+        }
+        all_material_codes = {material_code for _, material_code in all_set_reuse_by_code}
+        self.globally_non_reusable_codes = all_material_codes - codes_with_any_reuse
+
+        for (set_key, material_code), quantity in self.set_reuse_by_set_and_code.items():
             self.reuse_by_set.setdefault(set_key, {})[material_code] = quantity
             self.reuse_sets_by_code.setdefault(material_code, set()).add(set_key)
 
-        self.globally_non_reusable_codes = {
-            material_code
-            for material_code, set_keys in self.reuse_sets_by_code.items()
-            if all(self.set_reuse_by_set_and_code[(set_key, material_code)] <= 0 for set_key in set_keys)
-        }
+        self.globally_non_reusable_codes.update(SET_REUSE_ZERO_CODES)
+
+    def _base_set_codes(self) -> frozenset[str] | None:
+        if self.base_df is None or CODE_COL not in self.base_df.columns:
+            return None
+        return frozenset(
+            code
+            for value in self.base_df[CODE_COL]
+            if (code := clean_text(value).casefold()).startswith("set")
+        )
 
     def load_keycode_catalog(self, path: str | Path, department: str, code_overrides: dict[str, str] | None = None) -> int:
         raw = pd.read_excel(path, header=None)
@@ -538,7 +564,14 @@ class MaterialWorkbook:
         input_count = 0
         matched_rows = 0
 
-        if self.set_df is not None and self._reuse_index_df_id != id(self.set_df):
+        base_set_codes = self._base_set_codes()
+        if (
+            self.set_df is not None
+            and (
+                self._reuse_index_df_id != id(self.set_df)
+                or self._reuse_index_base_set_codes != base_set_codes
+            )
+        ):
             # Supports callers/tests that assign a replacement DataFrame directly.
             self._build_set_reuse_index()
         set_reuse_by_set_and_code = self.set_reuse_by_set_and_code
@@ -747,7 +780,9 @@ class MaterialWorkbook:
                     for _, item in matches.iterrows():
                         child_code = clean_text(item[CODE_COL])
                         if work_type == "demolition":
-                            child_quantity = parse_number(clean_text(item.get(SET_REUSE_COL, 0))) * qty
+                            child_quantity = set_reuse_quantity(
+                                item.get(SET_DESC_COL), item.get(SET_REUSE_COL, 0), child_code
+                            ) * qty
                         else:
                             child_quantity = parse_number(clean_text(item[SET_INSTALL_COL])) * qty
                         if key == "set40203" and child_code == default_surge_code:
@@ -841,7 +876,9 @@ class MaterialWorkbook:
             if not re.fullmatch(r"\d{10}", material_code):
                 continue
             if work_type == "demolition":
-                quantity = parse_number(clean_text(item.get(SET_REUSE_COL, 0))) * multiplier
+                quantity = set_reuse_quantity(
+                    item.get(SET_DESC_COL), item.get(SET_REUSE_COL, 0), material_code
+                ) * multiplier
             else:
                 quantity = parse_number(clean_text(item[SET_INSTALL_COL])) * multiplier
             if set_code.lower() == "set40203" and material_code == default_surge_code:
@@ -1045,7 +1082,9 @@ class MaterialWorkbook:
                                 continue
                             material = clean_text(set_row[SET_DESC_COL])
                             if work_type == "demolition":
-                                amount = parse_number(clean_text(set_row.get(SET_REUSE_COL, 0))) * set_quantity
+                                amount = set_reuse_quantity(
+                                    set_row.get(SET_DESC_COL), set_row.get(SET_REUSE_COL, 0), code
+                                ) * set_quantity
                             else:
                                 amount = parse_number(clean_text(set_row[SET_INSTALL_COL])) * set_quantity
                             add_page_item("อุปกรณ์ยึดสาย", material, code, page_number, amount)
@@ -1680,6 +1719,17 @@ def parse_number(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def set_reuse_quantity(description: Any, reuse_value: Any, material_code: Any = "") -> float:
+    """Bolts and nuts are not reusable; do not treat bolt-containing assemblies as bolts."""
+    normalized_code = clean_text(material_code).replace("-", "")
+    if normalized_code in SET_REUSE_ZERO_CODES:
+        return 0.0
+    normalized_description = clean_text(description).upper()
+    if re.match(r"^(?:BOLT|NUT|BOLE)\b", normalized_description):
+        return 0.0
+    return parse_number(clean_text(reuse_value))
 
 
 def evaluate_add_sub(node: ast.AST) -> float:

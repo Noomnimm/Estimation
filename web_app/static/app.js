@@ -944,8 +944,10 @@ function renderInsulators() {
   els.demolitionInsulatorSummary.hidden = !showDemolition || state.combinedView;
   els.actualInsulatorSummary.hidden = !showDemolition && !state.combinedView;
   els.reusableInsulatorSummary.hidden = !showDemolition && !state.combinedView;
+  document.getElementById("netInstallInsulatorSummary").hidden = !state.combinedView;
+  document.getElementById("installInsulatorSummaryTitle").textContent = state.combinedView ? "ลูกถ้วยรวม" : "งานติดตั้ง";
   els.insulatorViewHint.textContent = state.combinedView
-    ? "รวมงาน · ยอดติดตั้ง ยอดรื้อถอนนับจริง และ Reuse"
+    ? "รวมงาน · ลูกถ้วยรวม ยอดรื้อถอนนับจริง Reuse และติดตั้ง"
     : showDemolition
       ? "งานรื้อถอน · เปรียบเทียบยอดคำนวณกับยอดนับจริง"
       : "งานติดตั้ง · อัปเดตตามจำนวนที่กรอก";
@@ -973,6 +975,12 @@ function renderInsulators() {
   document.getElementById("reusablePinPostCount").textContent = formatAmount(reusableTotals.pinPost);
   document.getElementById("reusableSuspensionCount").textContent = formatAmount(reusableTotals.suspension);
   document.getElementById("reusablePinTypeCount").textContent = formatAmount(reusableTotals.pinType);
+  document.getElementById("netInstallUprightCount").textContent = formatAmount(
+    totals.install.upright - actualTotals.linePost - actualTotals.pinPost - actualTotals.pinType,
+  );
+  document.getElementById("netInstallHorizontalCount").textContent = formatAmount(
+    totals.install.horizontal - actualTotals.suspension,
+  );
   const warnings = document.getElementById("insulatorWarnings");
   warnings.hidden = totals.warnings.length === 0;
   warnings.querySelector("summary").textContent = `รายการที่ยังไม่รวมในยอด (${totals.warnings.length} แถว)`;

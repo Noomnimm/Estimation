@@ -43,12 +43,79 @@ class HeadRuleTests(unittest.TestCase):
     def test_demolition_set_components_use_reuse_quantity(self):
         workbook = MaterialWorkbook()
         workbook.set_df = pd.DataFrame([
-            {"Set": "Set20202", "รหัสพัสดุ": "1010110202", "คำอธิบาย": "BOLT", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
+            {"Set": "Set20202", "รหัสพัสดุ": "1000000002", "คำอธิบาย": "REUSABLE MATERIAL", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
             {"Set": "Set20202", "รหัสพัสดุ": "1010110203", "คำอธิบาย": "OTHER BOLT", "ติดตั้ง": 3, "จำนวนนำกลับมาใช้ใหม่": 0},
         ])
 
         result = workbook.get_set_components("set20202", 3, "demolition")
-        self.assertEqual(result["items"], [{"material": "BOLT", "code": "1010110202", "quantity": 6.0}])
+        self.assertEqual(result["items"], [{"material": "REUSABLE MATERIAL", "code": "1000000002", "quantity": 6.0}])
+
+    def test_bolts_and_nuts_are_non_reusable_but_bolt_named_clamps_are_not(self):
+        workbook = MaterialWorkbook()
+        head = "TEST HEAD"
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: "99", HEAD_COL: head, MATERIAL_COL: "SET 20202", CODE_COL: "Set20202", QTY_COL: 1},
+            {SIZE_COL: "99", HEAD_COL: head, MATERIAL_COL: "BOLT,MACHINE M.16x400 mm.", CODE_COL: "1010110206", QTY_COL: 1},
+            {SIZE_COL: "99", HEAD_COL: head, MATERIAL_COL: "NUT,EYE,THIMBLE M.16", CODE_COL: "1010180003", QTY_COL: 1},
+            {SIZE_COL: "99", HEAD_COL: head, MATERIAL_COL: "CLAMP,GUY,TRIPLE BOLT", CODE_COL: "1020440102", QTY_COL: 1},
+            {SIZE_COL: "99", HEAD_COL: head, MATERIAL_COL: "FLEXIBLE CABLE TIE", CODE_COL: "1020440119", QTY_COL: 3},
+        ])
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set20202", CODE_COL: "1010110206", "คำอธิบาย": "BOLT,MACHINE M.16x400 mm.", "ติดตั้ง": 1, "จำนวนนำกลับมาใช้ใหม่": 1},
+            {"Set": "Set20202", CODE_COL: "1010180003", "คำอธิบาย": "NUT,EYE,THIMBLE M.16", "ติดตั้ง": 1, "จำนวนนำกลับมาใช้ใหม่": 1},
+            {"Set": "Set20202", CODE_COL: "1020440102", "คำอธิบาย": "CLAMP,GUY,TRIPLE BOLT", "ติดตั้ง": 1, "จำนวนนำกลับมาใช้ใหม่": 1},
+            {"Set": "Set20202", CODE_COL: "1020440119", "คำอธิบาย": "FLEXIBLE CABLE TIE", "ติดตั้ง": 3, "จำนวนนำกลับมาใช้ใหม่": 3},
+        ])
+
+        result = workbook.calculate([[{
+            "workType": "demolition", "size": "99", "head": head, "count": 1,
+        }]])
+        by_code = {row[CODE_COL]: row for row in result["items"]}
+        self.assertNotIn("1010110206", by_code)
+        self.assertNotIn("1010180003", by_code)
+        self.assertEqual(by_code["1020440102"]["จำนวนรื้อถอน"], 1)
+        # It remains visible in demolition, but never contributes a reusable quantity.
+        self.assertEqual(by_code["1020440119"]["จำนวนรื้อถอน"], 3)
+
+        details = workbook.get_set_components("Set20202", 1, "demolition")
+        self.assertEqual(
+            details["items"],
+            [{"material": "CLAMP,GUY,TRIPLE BOLT", "code": "1020440102", "quantity": 1.0}],
+        )
+
+        workbook.summary = [{"ก่อนแตก Set": True}]
+        workbook.separate_work_types = True
+        workbook.summary_by_work_type = {
+            "install": [],
+            "demolition": [{MATERIAL_COL: "SET 20202", CODE_COL: "Set20202", TOTAL_COL: 1}],
+        }
+        expanded = workbook.expand_set()
+        expanded_by_code = {row[CODE_COL]: row for row in expanded["items"]}
+        self.assertNotIn("1020440119", expanded_by_code)
+
+    def test_reuse_index_keeps_only_base_sets_but_checks_global_reuse_across_all_sets(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: "99", HEAD_COL: "ACTIVE SET HEAD", MATERIAL_COL: "ACTIVE SET", CODE_COL: "Set20202", QTY_COL: 1},
+            {SIZE_COL: "99", HEAD_COL: "DIRECT HEAD", MATERIAL_COL: "REUSABLE DIRECT MATERIAL", CODE_COL: "1000000003", QTY_COL: 1},
+        ])
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set20202", CODE_COL: "1000000001", "คำอธิบาย": "ACTIVE REUSABLE", "ติดตั้ง": 1, "จำนวนนำกลับมาใช้ใหม่": 1},
+            {"Set": "Set99999", CODE_COL: "1000000002", "คำอธิบาย": "ZERO REUSE", "ติดตั้ง": 1, "จำนวนนำกลับมาใช้ใหม่": 0},
+            {"Set": "Set99999", CODE_COL: "1000000003", "คำอธิบาย": "REUSED IN ANOTHER SET", "ติดตั้ง": 1, "จำนวนนำกลับมาใช้ใหม่": 1},
+        ])
+
+        result = workbook.calculate([[
+            {"workType": "demolition", "size": "99", "head": "ACTIVE SET HEAD", "count": 1},
+            {"workType": "demolition", "size": "99", "head": "DIRECT HEAD", "count": 1},
+        ]])
+        by_code = {row[CODE_COL]: row for row in result["items"]}
+
+        self.assertEqual(set(workbook.set_reuse_by_set_and_code), {("set20202", "1000000001")})
+        self.assertIn("1000000002", workbook.globally_non_reusable_codes)
+        self.assertNotIn("1000000003", workbook.globally_non_reusable_codes)
+        self.assertEqual(workbook.reuse_by_set["set20202"]["1000000001"], 1)
+        self.assertEqual(by_code["1000000003"]["จำนวนรื้อถอน"], 1)
 
     def test_demolition_set_components_do_not_assume_install_quantity_is_reusable(self):
         workbook = MaterialWorkbook()
@@ -62,19 +129,19 @@ class HeadRuleTests(unittest.TestCase):
     def test_combined_set_components_separate_install_and_reuse_quantities(self):
         workbook = MaterialWorkbook()
         workbook.set_df = pd.DataFrame([
-            {"Set": "Set20202", "รหัสพัสดุ": "1010110202", "คำอธิบาย": "BOLT", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
+            {"Set": "Set20202", "รหัสพัสดุ": "1000000002", "คำอธิบาย": "REUSABLE MATERIAL", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
         ])
 
         result = workbook.get_set_components("set20202", 2, "combined")
         self.assertEqual(result["items"], [{
-            "material": "BOLT", "code": "1010110202", "installQuantity": 10.0,
+            "material": "REUSABLE MATERIAL", "code": "1000000002", "installQuantity": 10.0,
             "demolitionQuantity": 4.0, "quantity": 10.0,
         }])
 
     def test_expand_set_uses_reuse_quantity_for_demolition(self):
         workbook = MaterialWorkbook()
         workbook.set_df = pd.DataFrame([
-            {"Set": "Set20202", "รหัสพัสดุ": "1010110202", "คำอธิบาย": "BOLT", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
+            {"Set": "Set20202", "รหัสพัสดุ": "1000000002", "คำอธิบาย": "REUSABLE MATERIAL", "ติดตั้ง": 5, "จำนวนนำกลับมาใช้ใหม่": 2},
             {"Set": "Set20202", "รหัสพัสดุ": "1010110203", "คำอธิบาย": "OTHER BOLT", "ติดตั้ง": 3, "จำนวนนำกลับมาใช้ใหม่": 0},
         ])
         workbook.summary = [{"ก่อนแตก Set": True}]
@@ -86,7 +153,7 @@ class HeadRuleTests(unittest.TestCase):
 
         result = workbook.expand_set()
         by_code = {item[CODE_COL]: item for item in result["items"]}
-        self.assertEqual(by_code["1010110202"]["จำนวนรื้อถอน"], 6.0)
+        self.assertEqual(by_code["1000000002"]["จำนวนรื้อถอน"], 6.0)
         self.assertNotIn("1010110203", by_code)
 
     def test_page_labels_separate_installation_and_demolition(self):

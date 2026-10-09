@@ -37,11 +37,13 @@
 
 .insulator-counts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .insulator-counts > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; padding: 16px; border-radius: 12px; background: #dff1ff; color: #124f78; border: 1px solid #b8ddf5; }
-.insulator-counts > div:last-child { background: #f7dce7; color: #87234d; border-color: #e9b9cc; }
 .insulator-counts strong { font-size: clamp(24px, 4vw, 36px); margin-left: auto; overflow-wrap: anywhere; }
 .insulator-counts .insulator-work-group { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; }
 .insulator-work-group h3 { grid-column: 1 / -1; margin: 0 0 5px; font-size: 15px; }
 .insulator-work-group.demolition { background: #f7dce7; color: #87234d; }
+.insulator-counts > div.net-install-summary.insulator-work-group { display: block; background: #fff2d6; color: #76500a; border-color: #e9ce8d; }
+.net-install-summary h3 { margin-bottom: 9px; }
+.net-install-summary small { display: block; margin-top: 10px; color: #806a3e; line-height: 1.35; }
 .insulator-panel p { color: var(--muted); font-size: 13px; }
 .insulator-panel details { color: var(--danger); font-size: 13px; }
 .insulator-panel summary { cursor: pointer; }
@@ -1218,6 +1220,8 @@ td select {
 :root[data-theme="dark"] .actual-insulator-entry .entry-group-heading { background: #462b37; }
 :root[data-theme="dark"] .insulator-counts > div.reusable-summary.insulator-work-group { background: #203a2b; color: #a9dfbb; border-color: #3f684d; }
 :root[data-theme="dark"] .reusable-summary small { color: #91b99f; }
+:root[data-theme="dark"] .insulator-counts > div.net-install-summary.insulator-work-group { background: #40371f; color: #f2d58f; border-color: #75633a; }
+:root[data-theme="dark"] .net-install-summary small { color: #cfb979; }
 :root[data-theme="dark"] .request-image-panel,
 :root[data-theme="dark"] .request-admin-image,
 :root[data-theme="dark"] .drive-connect-panel { background: #292e32; color: var(--ink); }
@@ -1227,7 +1231,6 @@ td select {
 :root[data-theme="dark"] .insulator-counts > div { background: #193649; color: #a9dcff; border-color: #315f79; }
 :root[data-theme="dark"] .result-work-section.combined h3 { background: #30383e; color: #dce5eb; }
 :root[data-theme="dark"] .result-work-section.demolition h3,
-:root[data-theme="dark"] .insulator-counts > div:last-child,
 :root[data-theme="dark"] .insulator-work-group.demolition { background: #4d2638; color: #ffc1d8; border-color: #75405a; }
 :root[data-theme="dark"] .result-work-section.demolition h3 span { color: #efa3c0; }
 :root[data-theme="dark"] .status.error { background: #482826; color: #ffb1ab; border-color: #9d5b55; }
