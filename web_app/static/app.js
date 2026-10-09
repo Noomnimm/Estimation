@@ -976,10 +976,10 @@ function renderInsulators() {
   document.getElementById("reusableSuspensionCount").textContent = formatAmount(reusableTotals.suspension);
   document.getElementById("reusablePinTypeCount").textContent = formatAmount(reusableTotals.pinType);
   document.getElementById("netInstallUprightCount").textContent = formatAmount(
-    totals.install.upright - actualTotals.linePost - actualTotals.pinPost - actualTotals.pinType,
+    totals.install.upright - reusableTotals.linePost - reusableTotals.pinPost - reusableTotals.pinType,
   );
   document.getElementById("netInstallHorizontalCount").textContent = formatAmount(
-    totals.install.horizontal - actualTotals.suspension,
+    totals.install.horizontal - reusableTotals.suspension,
   );
   const warnings = document.getElementById("insulatorWarnings");
   warnings.hidden = totals.warnings.length === 0;
