@@ -3088,7 +3088,25 @@ async function loadRequestDepartmentSizes() {
     const data = await readJson(response);
     setSelectOptions(els.replaceSize, data.sizes, data.sizes.length ? "เลือกขนาด/KeyCode" : "แผนกนี้ยังไม่มีข้อมูล");
     setSelectOptions(els.replaceHead, [], "เลือกหัวเสา/รายการ");
-    if (transmissionDepartment) {
+    if (transformerDepartment) {
+      // Transformer editing uses model/KVA/LT/Fuse selectors instead of the
+      // ordinary size/head controls. Load the hidden source size directly so
+      // those selectors are populated as soon as the department is selected.
+      const transformerSize = data.sizes.includes("หม้อแปลง") ? "หม้อแปลง" : "";
+      els.replaceSize.value = transformerSize;
+      if (transformerSize) {
+        const headsResponse = await fetch(`/api/heads?size=${encodeURIComponent(transformerSize)}&department=${encodeURIComponent(els.requestTargetDepartment.value)}`);
+        const headsData = await readJson(headsResponse);
+        const heads = headsData.heads.filter((head) => head !== "หม้อแปลง 3 เฟส 22 kV (Sealed)");
+        setSelectOptions(els.replaceHead, heads, heads.length ? "เลือกหัวเสา" : "แผนกนี้ยังไม่มีข้อมูลหัวหม้อแปลง");
+        populateTransformerEditSelector(heads);
+      } else {
+        populateTransformerEditSelector([]);
+      }
+      els.existingDataHint.textContent = transformerSize
+        ? "เลือกรุ่นหม้อแปลง แล้วเลือกขนาด จำนวน LT และ Fuse เพื่อโหลดข้อมูลเดิม"
+        : "ไม่พบข้อมูลขนาด ‘หม้อแปลง’ ใน BaseData ของแผนกนี้";
+    } else if (transmissionDepartment) {
       const structuresResponse = await fetch("/api/transmission-structures");
       const structuresData = await readJson(structuresResponse);
       state.requestTransmissionStructures = structuresData.structures || [];
