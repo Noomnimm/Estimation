@@ -270,7 +270,7 @@ els.themeToggle?.addEventListener("click", () => {
 });
 
 function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
-  return { department, workType, size: "", head: "", count: "", transmissionCircuit: "", transmissionCategory: "", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, insulatorUpright: null, insulatorHorizontal: null };
+  return { department, workType, size: "", head: "", count: "", transmissionCircuit: "", transmissionCategory: "", insulatorType: "porcelain", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, insulatorUpright: null, insulatorHorizontal: null };
 }
 
 const THREE_PHASE_LT_FUSE_OPTIONS = {
@@ -383,6 +383,7 @@ function saveCurrentPageFromDom() {
         head: selected?.head || "",
         transmissionCircuit: tr.querySelector(".size").value,
         transmissionCategory: selected ? transmissionFamily(selected) : tr.querySelector(".transmission-family").value,
+        insulatorType: tr.querySelector(".transmission-insulator-type").value === "composite" ? "composite" : "porcelain",
         count: tr.querySelector(".count").value,
       });
       return;
@@ -546,7 +547,7 @@ function renderInputs() {
   els.headEntryStep.textContent = isTransformerDepartment ? "1" : "3";
   els.actualInsulatorEntryStep.textContent = isTransformerDepartment ? "2" : "4";
   els.headEntryTitle.textContent = isTransformerDepartment ? "หม้อแปลง" : "หัวเสา";
-  els.headEntryHint.textContent = isTransformerDepartment ? "เลือกชนิดหม้อแปลงและจำนวนในหน้านี้" : isTransmissionDepartment ? "เลือก SS/SD แล้วเลือก Structure หรือ Assembly ก่อนเลือกหัวเสา" : "เลือกหัวเสาและจำนวนในหน้านี้";
+  els.headEntryHint.textContent = isTransformerDepartment ? "เลือกชนิดหม้อแปลงและจำนวนในหน้านี้" : isTransmissionDepartment ? "เลือก SS/SD แล้วเลือก Structure หรือ Assembly ก่อนเลือกหัวเสา · ชุด D-series เลือก Porcelain/Composite ได้" : "เลือกหัวเสาและจำนวนในหน้านี้";
   els.addRow.textContent = isTransformerDepartment ? "＋ เพิ่มรายการหม้อแปลง" : "＋ เพิ่มรายการเสา";
   els.clearHeadRows.textContent = isTransformerDepartment ? "ล้างค่าหม้อแปลง" : "ล้างค่าหัวเสา";
   renderStructureInputs();
@@ -561,8 +562,8 @@ function renderInputs() {
     tr.innerHTML = `
       ${baseDepartmentFor() === "แผนกแรงสูง TAC" ? '<td class="head-image-cell"></td>' : ""}
       <td class="size-cell"><select class="size"></select></td>
-      <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div><div class="transmission-head-selectors" hidden><select class="transmission-family"></select><select class="transmission-structure"></select></div></td>
-      <td class="count-cell"><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4+5+6"></td>
+      <td class="head-cell"><div class="head-combobox"><div class="head-combobox-control"><input class="head searchable-dropdown" type="text" autocomplete="off" role="combobox" aria-expanded="false"><button class="head-toggle" type="button" aria-label="เปิดรายการหัวเสา">⌄</button></div><div class="head-options" role="listbox" hidden></div></div><div class="transmission-head-selectors" hidden><select class="transmission-family"></select><select class="transmission-structure"></select></div><label class="transmission-insulator-choice" hidden><span>ชนิดลูกถ้วย</span><select class="transmission-insulator-type"><option value="porcelain">Porcelain</option><option value="composite">Composite</option></select></label></td>
+      <td class="count-cell"><input class="count" type="text" inputmode="text" placeholder="เช่น 4+4-2 หรือ -1"></td>
       <td class="head-remove-cell"><button class="remove-head-row" type="button" aria-label="ลบหัวเสาแถวนี้">×</button></td>
     `;
 
@@ -574,10 +575,13 @@ function renderInputs() {
     const transmissionHeadSelectors = tr.querySelector(".transmission-head-selectors");
     const transmissionFamilySelect = tr.querySelector(".transmission-family");
     const transmissionStructureSelect = tr.querySelector(".transmission-structure");
+    const transmissionInsulatorChoice = tr.querySelector(".transmission-insulator-choice");
+    const transmissionInsulatorType = tr.querySelector(".transmission-insulator-type");
     const countInput = tr.querySelector(".count");
     updateHeadImageCell(tr, row);
 
     const savedCircuit = row.transmissionCircuit || String(row.head || "").match(/^(SS|SD)-/i)?.[1] || state.transmissionStructures.find((item) => item.keycode === String(row.size))?.circuit || "";
+    const selectedTransmissionStructure = state.transmissionStructures.find((item) => item.keycode === String(row.size || ""));
     const legacyCircuits = state.pages.flat().map((item) => String(item.head || "").match(/^(DS|DD)-/i)?.[1]?.toUpperCase()).filter(Boolean);
     const circuitOptions = [...new Set(["SS", "SD", ...legacyCircuits])];
     fillSelect(sizeSelect, isTransmissionDepartment ? circuitOptions : state.sizes, isTransmissionDepartment ? "เลือก SS/SD" : isTransformerDepartment ? "เลือกแผนก" : "เลือกขนาดเสา");
@@ -585,9 +589,11 @@ function renderInputs() {
     countInput.value = row.count || "";
     headCombobox.hidden = isTransmissionDepartment;
     transmissionHeadSelectors.hidden = !isTransmissionDepartment;
+    transmissionInsulatorChoice.hidden = !isTransmissionDepartment || !supportsCompositeAssembly(row.head, selectedTransmissionStructure);
+    transmissionInsulatorType.value = row.insulatorType === "composite" ? "composite" : "porcelain";
     if (isTransmissionDepartment) {
       const available = state.transmissionStructures.filter((item) => item.circuit === savedCircuit);
-      const savedStructure = state.transmissionStructures.find((item) => item.keycode === String(row.size || ""));
+      const savedStructure = selectedTransmissionStructure;
       const savedFamily = row.transmissionCategory || transmissionFamily(savedStructure || row.head);
       fillSelect(transmissionFamilySelect, transmissionFamilies(available), savedCircuit ? "เลือกประเภท Structure / Assembly" : "เลือก SS/SD ก่อน");
       transmissionFamilySelect.value = available.some((item) => transmissionFamily(item) === savedFamily) ? savedFamily : "";
@@ -637,6 +643,7 @@ function renderInputs() {
         page[index].wire2 = "";
         page[index].wire3 = "";
         page[index].latWire = "";
+        page[index].insulatorType = "porcelain";
         page[index].insulatorUpright = null;
         page[index].insulatorHorizontal = null;
         renderInputs();
@@ -649,6 +656,7 @@ function renderInputs() {
       page[index].wire2 = "";
       page[index].wire3 = "";
       page[index].latWire = "";
+      page[index].insulatorType = "porcelain";
       renderInputs();
     });
     transmissionFamilySelect.addEventListener("change", () => {
@@ -659,6 +667,7 @@ function renderInputs() {
       page[index].wire2 = "";
       page[index].wire3 = "";
       page[index].latWire = "";
+      page[index].insulatorType = "porcelain";
       page[index].insulatorUpright = null;
       page[index].insulatorHorizontal = null;
       renderInputs();
@@ -675,9 +684,14 @@ function renderInputs() {
       page[index].wire2 = "";
       page[index].wire3 = "";
       page[index].latWire = "";
+      page[index].insulatorType = "porcelain";
       page[index].insulatorUpright = null;
       page[index].insulatorHorizontal = null;
       renderInputs();
+      markProjectDirty();
+    });
+    transmissionInsulatorType.addEventListener("change", () => {
+      page[index].insulatorType = transmissionInsulatorType.value === "composite" ? "composite" : "porcelain";
       markProjectDirty();
     });
     const applyHeadSelection = () => {
@@ -1096,6 +1110,11 @@ function transmissionFamily(item) {
   if (/\bASSEMBLY\b/i.test(name)) return "assembly";
   if (/\bSTRUCTURE\b/i.test(name)) return "structure";
   return "other";
+}
+
+function supportsCompositeAssembly(head, structure = null) {
+  return structure?.supportsComposite === true || structure?.supportsComposite === "true"
+    || /SUSPENSION INSULATOR ASSEMBLY D-(?:1C|2B|3C|4C|11C|12B|13C|14C|15C|16[CD]|17C|18C|2\s*\(AGS\)|12\s*\(AGS\))/i.test(String(head || ""));
 }
 
 function transmissionFamilyLabel(family) {

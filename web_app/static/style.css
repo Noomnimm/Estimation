@@ -964,6 +964,8 @@ td select {
 .input-table .head-remove-column,
 .input-table .head-remove-cell { width: 6%; min-width: 48px; text-align: center; }
 .transmission-head-selectors { display: grid; grid-template-columns: minmax(120px, .55fr) minmax(0, 1.45fr); gap: 7px; }
+.transmission-insulator-choice { display: grid; grid-template-columns: auto minmax(150px, 220px); align-items: center; gap: 8px; margin-top: 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.transmission-insulator-choice select { min-height: 34px; padding: 5px 9px; }
 .remove-head-row { width: 38px; height: 40px; padding: 0; border-color: #e2b5c7; background: #fbe7ef; color: #8a234e; font-size: 20px; }
 
 .input-table.has-head-images #headImageColumnTitle { width: 12%; min-width: 112px; }

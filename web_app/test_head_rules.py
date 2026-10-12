@@ -4,7 +4,7 @@ import pandas as pd
 from openpyxl import load_workbook
 from web_app.material_logic import (
     MaterialWorkbook, classify_wire_head, wire_head_multiplier, add_wire_materials,
-    insulator_rate, page_labels, parse_number, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, TOTAL_COL,
+    insulator_rate, page_labels, parse_number, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, TOTAL_COL, DEPARTMENT_COL,
 )
 
 
@@ -13,8 +13,22 @@ class HeadRuleTests(unittest.TestCase):
         self.assertEqual(parse_number("(4+4)*2"), 16)
         self.assertEqual(parse_number("1200/3+100"), 500)
         self.assertEqual(parse_number("10-2*3"), 4)
+        self.assertEqual(parse_number("-2"), -2)
+        self.assertEqual(parse_number("4-6"), -2)
         self.assertEqual(parse_number("1/0"), 0)
         self.assertEqual(parse_number("2**8"), 0)
+
+    def test_negative_head_count_is_applied_as_a_material_offset(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([{
+            SIZE_COL: "12", HEAD_COL: "TEST HEAD", MATERIAL_COL: "TEST MATERIAL",
+            CODE_COL: "1000000001", QTY_COL: 5,
+        }])
+        result = workbook.calculate([[{
+            "workType": "install", "size": "12", "head": "TEST HEAD", "count": "-2",
+        }]])
+        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(result["items"][0]["จำนวนติดตั้ง"], -10)
 
     def test_manual_poles_and_stubs_are_added_to_selected_work_type(self):
         workbook = MaterialWorkbook()
@@ -39,6 +53,82 @@ class HeadRuleTests(unittest.TestCase):
         ])
         result = workbook.get_set_components("set20202", 3)
         self.assertEqual(result["items"], [{"material": "BOLT", "code": "1010110202", "quantity": 6.0}])
+
+    def test_transmission_porcelain_assembly_can_use_documented_composite_set(self):
+        workbook = MaterialWorkbook()
+        porcelain_head = "SUSPENSION INSULATOR ASSEMBLY D-3C"
+        composite_head = "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19B"
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: "453", HEAD_COL: porcelain_head, MATERIAL_COL: porcelain_head, CODE_COL: "Set54403", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "472", HEAD_COL: composite_head, MATERIAL_COL: composite_head, CODE_COL: "Set54420", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+        ])
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set54403", CODE_COL: "1030020001", "คำอธิบาย": "PORCELAIN INSULATOR", "ติดตั้ง": 10, "จำนวนนำกลับมาใช้ใหม่": 10},
+            {"Set": "Set54420", CODE_COL: "1030020101", "คำอธิบาย": "COMPOSITE INSULATOR", "ติดตั้ง": 1, "จำนวนนำกลับมาใช้ใหม่": 1},
+        ])
+
+        porcelain = workbook.calculate([[{
+            "workType": "install", "department": "แผนกสายส่ง", "size": "453", "head": porcelain_head, "count": 1,
+        }]])
+        self.assertEqual([row[CODE_COL] for row in porcelain["items"]], ["Set54403"])
+        porcelain_detail = workbook.expand_set()
+        self.assertEqual([row[CODE_COL] for row in porcelain_detail["items"]], ["1030020001"])
+
+        composite = workbook.calculate([[{
+            "workType": "install", "department": "แผนกสายส่ง", "size": "453", "head": porcelain_head,
+            "count": 1, "insulatorType": "composite",
+        }]])
+        self.assertEqual([row[CODE_COL] for row in composite["items"]], ["Set54420"])
+        composite_detail = workbook.expand_set()
+        self.assertEqual([row[CODE_COL] for row in composite_detail["items"]], ["1030020101"])
+
+    def test_composite_conversion_rejects_undocumented_structure_types(self):
+        workbook = MaterialWorkbook()
+        head = "SS-LA-2 ASSEMBLY NO. 5205A"
+        workbook.base_df = pd.DataFrame([{
+            SIZE_COL: "147", HEAD_COL: head, MATERIAL_COL: head, CODE_COL: "Set50232", QTY_COL: 1,
+            DEPARTMENT_COL: "แผนกสายส่ง",
+        }])
+        with self.assertRaisesRegex(ValueError, "ยังไม่มีคู่ Composite"):
+            workbook.calculate([[{
+                "workType": "install", "department": "แผนกสายส่ง", "size": "147", "head": head,
+                "count": 1, "insulatorType": "composite",
+            }]])
+
+    def test_parent_transmission_assembly_converts_embedded_d_series_insulators(self):
+        workbook = MaterialWorkbook()
+        parent = "SS-LA-2 ASSEMBLY NO. 5205A"
+        d3c = "SUSPENSION INSULATOR ASSEMBLY D-3C"
+        d4c = "SUSPENSION INSULATOR ASSEMBLY D-4C"
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: "147", HEAD_COL: parent, MATERIAL_COL: parent, CODE_COL: "Set50232", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "147", HEAD_COL: parent, MATERIAL_COL: d3c, CODE_COL: "Set54403", QTY_COL: 3, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "147", HEAD_COL: parent, MATERIAL_COL: d4c, CODE_COL: "Set54404", QTY_COL: 3, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "453", HEAD_COL: d3c, MATERIAL_COL: d3c, CODE_COL: "Set54403", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "454", HEAD_COL: d4c, MATERIAL_COL: d4c, CODE_COL: "Set54404", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "472", HEAD_COL: "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19B", MATERIAL_COL: "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19B", CODE_COL: "Set54420", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+            {SIZE_COL: "473", HEAD_COL: "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19C", MATERIAL_COL: "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19C", CODE_COL: "Set54421", QTY_COL: 1, DEPARTMENT_COL: "แผนกสายส่ง"},
+        ])
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set50232", CODE_COL: "1010000400", "คำอธิบาย": "POLE HARDWARE", "ติดตั้ง": 1},
+            {"Set": "Set54403", CODE_COL: "1030020001", "คำอธิบาย": "PORCELAIN D-3C", "ติดตั้ง": 1},
+            {"Set": "Set54404", CODE_COL: "1030020002", "คำอธิบาย": "PORCELAIN D-4C", "ติดตั้ง": 1},
+            {"Set": "Set54420", CODE_COL: "1030020101", "คำอธิบาย": "COMPOSITE D-19B", "ติดตั้ง": 1},
+            {"Set": "Set54421", CODE_COL: "1030020102", "คำอธิบาย": "COMPOSITE D-19C", "ติดตั้ง": 1},
+        ])
+
+        structures = workbook.get_transmission_structures()
+        self.assertTrue(next(item for item in structures if item["keycode"] == "147")["supportsComposite"] == "true")
+        result = workbook.calculate([[{
+            "workType": "install", "department": "แผนกสายส่ง", "size": "147", "head": parent,
+            "count": 1, "insulatorType": "composite",
+        }]])
+        by_code = {row[CODE_COL]: row for row in result["items"]}
+        self.assertIn("Set50232", by_code)
+        self.assertEqual(by_code["Set54420"]["จำนวนติดตั้ง"], 3)
+        self.assertEqual(by_code["Set54421"]["จำนวนติดตั้ง"], 3)
+        self.assertNotIn("Set54403", by_code)
+        self.assertNotIn("Set54404", by_code)
 
     def test_demolition_set_components_use_reuse_quantity(self):
         workbook = MaterialWorkbook()

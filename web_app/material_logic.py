@@ -44,6 +44,24 @@ DEMOLITION_ALWAYS_KEEP_CODES = {
     "1040010015", "1040010016", "1040030002", "1060020050",
 }
 
+COMPOSITE_ASSEMBLY_HEADS = {
+    ("1", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19A",
+    ("2", "B", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19A",
+    ("3", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19B",
+    ("4", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19C",
+    ("11", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19A",
+    ("12", "B", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19D",
+    ("13", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19E",
+    ("14", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19F",
+    ("15", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19G",
+    ("16", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19H",
+    ("16", "D", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19I",
+    ("17", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19D",
+    ("18", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19J",
+    ("2", "", True): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19A (AGS)",
+    ("12", "", True): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19D (AGS)",
+}
+
 WIRE_MATERIALS = {
     "50 PIC": ("PREFORMED DEAD END,FOR AL PARTIALLY INSULATED CONDUCTOR 22 KV. 50 SQ.MM.", "1020250001", "50", True),
     "95 PIC": ("PREFORMED DEAD END,FOR AL PARTIALLY INSULATED CONDUCTOR 22 KV. 95 SQ.MM.", "1020250002", "95", True),
@@ -391,13 +409,19 @@ class MaterialWorkbook:
                 continue
             circuit, _, remainder = head.partition("-")
             structure_type = remainder.split("-", 1)[0].split(" ", 1)[0].upper()
-            structures[keycode] = {
+            item = structures.setdefault(keycode, {
                 "keycode": keycode,
                 "circuit": circuit.upper(),
                 "type": structure_type,
                 "head": head,
                 "code": clean_text(row[CODE_COL]),
-            }
+            })
+            if (
+                item.get("supportsComposite") == "true"
+                or self._composite_target_head(head)
+                or self._composite_target_head(clean_text(row[MATERIAL_COL]))
+            ):
+                item["supportsComposite"] = "true"
         circuit_order = {"SS": 0, "SD": 1, "DS": 2, "DD": 3}
         type_order = {"TG": 0, "AS": 1, "SA": 2, "LA": 3, "TL": 4, "LS": 5, "DD": 6, "DE": 7, "SW": 8, "IH": 9, "DH": 10, "UG": 11, "HF": 12, "HFTG": 13, "TR": 14, "MA": 15}
         return sorted(structures.values(), key=lambda item: (circuit_order.get(item["circuit"], 99), type_order.get(item["type"], 99), natural_key(item["keycode"])))
@@ -633,7 +657,7 @@ class MaterialWorkbook:
                 head = str(item.get("head", "")).strip()
                 department = clean_text(item.get("department")) or DEFAULT_DEPARTMENT
                 count = parse_number(item.get("count"))
-                if not size or not head or count <= 0:
+                if not size or not head or count == 0:
                     continue
 
                 input_count += 1
@@ -652,11 +676,14 @@ class MaterialWorkbook:
                 lat_wire = clean_text(item.get("latWire"))
                 if add_wire_accessories and has_combined_lat(head):
                     validate_wire_selection("de", lat_wire, "", page_number, row_number, f"{head} — LAT.SLK")
-                matches = self.base_df[
-                    (self.base_df[SIZE_COL].astype(str).str.strip() == size)
-                    & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
-                    & self._department_mask(department)
-                ]
+                matches = self._head_material_matches(
+                    size,
+                    head,
+                    department,
+                    clean_text(item.get("insulatorType")) or "porcelain",
+                    page_number,
+                    row_number,
+                )
                 demolition_non_reusable_codes = set(globally_non_reusable_codes)
                 if work_type == "demolition" and set_reuse_by_set_and_code and not matches.empty:
                     selected_sets = {
@@ -794,6 +821,70 @@ class MaterialWorkbook:
         if DEPARTMENT_COL not in self.base_df.columns:
             return pd.Series(department == DEFAULT_DEPARTMENT, index=self.base_df.index)
         return self.base_df[DEPARTMENT_COL].astype(str).str.strip() == department
+
+    def _head_material_matches(
+        self,
+        size: str,
+        head: str,
+        department: str,
+        insulator_type: str = "porcelain",
+        page_number: int = 1,
+        row_number: int = 1,
+    ) -> pd.DataFrame:
+        """Resolve a documented porcelain suspension assembly to its D-19 composite equivalent."""
+        if self.base_df is None:
+            return pd.DataFrame()
+        source_matches = self.base_df[
+            (self.base_df[SIZE_COL].astype(str).str.strip() == size)
+            & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
+            & self._department_mask(department)
+        ]
+        if str(insulator_type).strip().casefold() != "composite":
+            return source_matches
+        if department != "แผนกสายส่ง":
+            raise ValueError(f"หน้า {page_number} แถว {row_number}: เลือก Composite ได้เฉพาะชุดลูกถ้วยสายส่งที่มีแบบ D-19 รองรับ")
+
+        target_head = self._composite_target_head(head)
+        if target_head:
+            composite_matches = self.base_df[
+                (self.base_df[HEAD_COL].astype(str).str.strip().str.casefold() == target_head.casefold())
+                & self._department_mask(department)
+            ].drop_duplicates(subset=[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL])
+            if composite_matches.empty:
+                raise ValueError(f"หน้า {page_number} แถว {row_number}: ไม่พบข้อมูล {target_head} ใน BaseData")
+            return composite_matches
+
+        # A pole assembly may contain separate D-series rows in its BaseData entry.
+        # Preserve other materials and replace only each documented porcelain subassembly.
+        converted_rows: list[pd.Series] = []
+        converted_any = False
+        for _, source_row in source_matches.iterrows():
+            child_head = self._composite_target_head(clean_text(source_row[MATERIAL_COL]))
+            if not child_head:
+                converted_rows.append(source_row)
+                continue
+            child_matches = self.base_df[
+                (self.base_df[HEAD_COL].astype(str).str.strip().str.casefold() == child_head.casefold())
+                & self._department_mask(department)
+            ].drop_duplicates(subset=[SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL])
+            if child_matches.empty:
+                raise ValueError(f"หน้า {page_number} แถว {row_number}: ไม่พบข้อมูล {child_head} ใน BaseData")
+            for _, composite_row in child_matches.iterrows():
+                replacement = source_row.copy()
+                replacement[MATERIAL_COL] = composite_row[MATERIAL_COL]
+                replacement[CODE_COL] = composite_row[CODE_COL]
+                converted_rows.append(replacement)
+                converted_any = True
+        if not converted_any:
+            raise ValueError(f"หน้า {page_number} แถว {row_number}: ยังไม่มีคู่ Composite ในแบบ D-19 หรือไม่พบลูกถ้วย D-series ที่รองรับใน {head}")
+        return pd.DataFrame(converted_rows, columns=source_matches.columns)
+
+    @staticmethod
+    def _composite_target_head(head: str) -> str:
+        normalized_head = clean_text(head).upper()
+        match = re.search(r"\bD-(\d{1,2})([A-Z])?\s*(\(AGS\))?", normalized_head)
+        key = (match.group(1), match.group(2) or "", bool(match.group(3))) if match else None
+        return COMPOSITE_ASSEMBLY_HEADS.get(key, "")
 
     def expand_set(self) -> dict[str, Any]:
         if self.set_df is None:
@@ -970,7 +1061,7 @@ class MaterialWorkbook:
                 head = clean_text(item.get("head"))
                 department = clean_text(item.get("department")) or DEFAULT_DEPARTMENT
                 count = parse_number(item.get("count"))
-                if not size or not head or count <= 0:
+                if not size or not head or count == 0:
                     continue
                 key = (head, size)
                 if key not in totals:
@@ -1101,7 +1192,7 @@ class MaterialWorkbook:
                 head = clean_text(item.get("head"))
                 department = clean_text(item.get("department")) or DEFAULT_DEPARTMENT
                 count = parse_number(item.get("count"))
-                if not size or not head or count <= 0:
+                if not size or not head or count == 0:
                     continue
 
                 upright, horizontal = self.get_insulator_rate(size, head, department)
@@ -1113,11 +1204,14 @@ class MaterialWorkbook:
                     details.append({"หน้า": page_label, HEAD_COL: head, "ที่มา": "เกณฑ์ลูกถ้วย", MATERIAL_COL: "ลูกถ้วยนอน", CODE_COL: "", TOTAL_COL: horizontal * count})
 
                 if self.base_df is not None and set_lookup is not None:
-                    matches = self.base_df[
-                        (self.base_df[SIZE_COL].astype(str).str.strip() == size)
-                        & (self.base_df[HEAD_COL].astype(str).str.strip() == head)
-                        & self._department_mask(department)
-                    ]
+                    matches = self._head_material_matches(
+                        size,
+                        head,
+                        department,
+                        clean_text(item.get("insulatorType")) or "porcelain",
+                        page_number,
+                        row_number,
+                    )
                     for _, base_row in matches.iterrows():
                         set_code = clean_text(base_row[CODE_COL])
                         if not set_code.lower().startswith("set"):
