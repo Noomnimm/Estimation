@@ -3072,8 +3072,10 @@ async function switchRequestAction() {
     return;
   }
   await loadRequestDepartmentSizes();
-  setSelectOptions(els.replaceHead, [], "เลือกหัวเสา");
-  els.existingDataHint.textContent = "เลือกขนาดเสาและหัวเสาเพื่อโหลดข้อมูลเดิม";
+  if (els.requestTargetDepartment.value !== "แผนกหม้อแปลง") {
+    setSelectOptions(els.replaceHead, [], "เลือกหัวเสา");
+    els.existingDataHint.textContent = "เลือกขนาดเสาและหัวเสาเพื่อโหลดข้อมูลเดิม";
+  }
 }
 
 async function loadRequestDepartmentSizes() {
