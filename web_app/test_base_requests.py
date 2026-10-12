@@ -383,6 +383,25 @@ class BaseRequestTests(unittest.TestCase):
         self.assertEqual(store.approved[0]["source_head"], "DDE")
         self.assertEqual(store.approved[0]["image_file_id"], "drive-image-1")
 
+    def test_transmission_copy_requires_a_distinct_keycode_for_source_and_approval(self):
+        store = MemoryBaseRequestStore()
+        payload = {
+            "submitter_name": "ผู้ทดสอบ", "employee_id": "123456", "department": "กวว.",
+            "target_department": "แผนกสายส่ง", "action": "copy",
+            "source_size": "5205", "source_head": "SS-LA-2 ASSEMBLY NO. 5205A",
+            "size": "5205", "head": "SS-LA-2 COPY",
+            "rows": [{"material": "OVERHEAD GROUND WIRE ASSEMBLY D-5U", "code": "Set54121", "quantity": 1}],
+        }
+        with self.assertRaisesRegex(ValueError, "KeyCode ใหม่"):
+            store.submit_base_request(payload)
+
+        request = store.submit_base_request({**payload, "size": "5206"})
+        with self.assertRaisesRegex(ValueError, "ห้ามอนุมัติ"):
+            store.review_base_request(request["id"], True, "admin", edits={
+                "size": "5205", "head": "SS-LA-2 COPY",
+                "rows": [{"material": "OVERHEAD GROUND WIRE ASSEMBLY D-5U", "code": "Set54121", "quantity": 1}],
+            })
+
     def test_delete_request_publishes_tombstone_for_selected_head(self):
         store = MemoryBaseRequestStore()
         request = store.submit_base_request({

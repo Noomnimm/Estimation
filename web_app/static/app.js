@@ -2685,7 +2685,9 @@ async function submitBaseRequest(event) {
     const usesSource = action !== "add";
     const source = usesSource ? requestSourceSelection() : { size: "", head: "" };
     if (usesSource && (!source.size || !source.head)) throw new Error("กรุณาเลือกระบบและหัวเสาที่ต้องการแก้ไขก่อน");
-    const size = action === "add" ? els.requestSize.value : source.size;
+    const transmissionDepartment = els.requestTargetDepartment.value === "แผนกสายส่ง";
+    const transmissionNewHead = transmissionDepartment && ["add", "copy"].includes(action);
+    const size = transmissionNewHead ? "" : action === "add" ? els.requestSize.value.trim() : source.size;
     const head = ["replace", "delete"].includes(action) ? source.head : els.requestHead.value;
     const requestImage = action !== "delete" && els.requestTargetDepartment.value === "แผนกแรงสูง TAC" ? await uploadSelectedRequestImage() : null;
     const response = await fetch("/api/base-requests", {
@@ -2829,7 +2831,8 @@ function renderPublicPendingRequests() {
     toggle.className = "public-pending-toggle";
     toggle.setAttribute("aria-expanded", "false");
     const displayedRows = request.action === "delete" ? (request.originalRows || []) : (request.rows || []);
-    toggle.innerHTML = `<span class="pending-toggle-symbol">+</span><span><strong>${escapeHtml(request.size)} · ${escapeHtml(request.head)}</strong><small>${escapeHtml(request.targetDepartment || DEFAULT_DEPARTMENT)} · ${escapeHtml(actionLabels[request.action] || "เพิ่มข้อมูล")} · ${escapeHtml(formatSavedDate(request.submittedAt))}</small></span><em>${displayedRows.length} รายการ</em>`;
+    const requestTitle = request.targetDepartment === "แผนกสายส่ง" ? request.head : `${request.size} · ${request.head}`;
+    toggle.innerHTML = `<span class="pending-toggle-symbol">+</span><span><strong>${escapeHtml(requestTitle)}</strong><small>${escapeHtml(request.targetDepartment || DEFAULT_DEPARTMENT)} · ${escapeHtml(actionLabels[request.action] || "เพิ่มข้อมูล")} · ${escapeHtml(formatSavedDate(request.submittedAt))}</small></span><em>${displayedRows.length} รายการ</em>`;
     const details = document.createElement("div");
     details.className = "public-pending-details";
     details.hidden = true;
@@ -3010,7 +3013,7 @@ function fillTransmissionEditHeads(circuit, family) {
     .forEach((item) => {
       const option = document.createElement("option");
       option.value = item.keycode;
-      option.textContent = `${item.head} · ${item.keycode}`;
+      option.textContent = item.head;
       els.transmissionEditHead.appendChild(option);
     });
 }
@@ -3027,10 +3030,10 @@ async function switchRequestAction() {
   els.transmissionEditSelector.hidden = !usesSource || !transmissionDepartment;
   els.replaceHeadField.hidden = transformerDepartment || transmissionDepartment;
   els.existingDataHint.hidden = !usesSource;
-  els.requestSizeField.hidden = action !== "add";
-  els.requestSizeLabel.textContent = transmissionDepartment ? "KeyCode ใหม่" : "ขนาดเสา / KeyCode";
-  els.requestSize.placeholder = transmissionDepartment ? "เช่น 10500000002" : "เช่น 14.3 หรือ 99";
-  els.requestHeadLabel.textContent = usesSource ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
+  els.requestSizeField.hidden = transmissionDepartment || action !== "add";
+  els.requestSizeLabel.textContent = "ขนาดเสา / KeyCode";
+  els.requestSize.placeholder = "เช่น 14.3 หรือ 99";
+  els.requestHeadLabel.textContent = usesSource || transmissionDepartment ? "ชื่อหัวเสาใหม่" : "รหัสหัวเสา / รายการใหม่";
   els.requestLastEditorField.hidden = !usesSource || deleting;
   els.requestLastEditor.value = "";
   els.addRequestMaterial.hidden = deleting;
@@ -3374,10 +3377,12 @@ function renderBaseRequests() {
     const card = document.createElement("article");
     card.className = `request-card status-${request.status}`;
     const title = document.createElement("h3");
-    const sourceLabel = request.sourceHead ? `${request.sourceSize} · ${request.sourceHead}` : "";
+    const transmissionDepartment = request.targetDepartment === "แผนกสายส่ง";
+    const sourceLabel = request.sourceHead ? (transmissionDepartment ? request.sourceHead : `${request.sourceSize} · ${request.sourceHead}`) : "";
+    const requestLabel = transmissionDepartment ? request.head : `${request.size} · ${request.head}`;
     title.textContent = sourceLabel && request.action !== "replace"
-      ? `${sourceLabel} → ${request.size} · ${request.head}`
-      : `${request.size} · ${request.head}`;
+      ? `${sourceLabel} → ${requestLabel}`
+      : requestLabel;
     const meta = document.createElement("p");
     const actionLabels = { add: "เพิ่มข้อมูล", replace: "แก้ไขไส้ในหัวเดิม", rename: "แก้ไขหัวเสา", copy: "คัดลอกเป็นหัวใหม่", delete: "ลบหัวเสา" };
     meta.textContent = `${request.targetDepartment || DEFAULT_DEPARTMENT} · ผู้เสนอ ${request.submitterName} · ${request.employeeId} · ${request.department} · ${actionLabels[request.action] || "เพิ่มข้อมูล"}`;
@@ -3446,7 +3451,8 @@ function renderBaseRequests() {
       const audit = document.createElement("details");
       audit.className = "admin-edit-audit";
       const summary = document.createElement("summary");
-      summary.textContent = `Admin แก้ไขก่อนอนุมัติ · ดูข้อมูลเดิม (${request.submitted.size} · ${request.submitted.head})`;
+      const submittedLabel = transmissionDepartment ? request.submitted.head : `${request.submitted.size} · ${request.submitted.head}`;
+      summary.textContent = `Admin แก้ไขก่อนอนุมัติ · ดูข้อมูลเดิม (${submittedLabel})`;
       const auditTable = document.createElement("table");
       auditTable.innerHTML = "<thead><tr><th>รายการวัสดุเดิม</th><th>รหัสเดิม</th><th>จำนวนเดิม</th></tr></thead>";
       const auditBody = document.createElement("tbody");
@@ -3520,6 +3526,7 @@ function showAdminRequestEditor(card, request, insulatorReview, tableWrap) {
     <div class="table-wrap"><table><thead><tr><th>รายการวัสดุ</th><th>รหัสพัสดุ/SET</th><th>จำนวน</th><th></th></tr></thead><tbody></tbody></table></div>
     <div class="admin-edit-actions"><button type="button" class="admin-edit-add">+ เพิ่มรายการ</button><span></span><button type="button" class="admin-edit-cancel">ยกเลิก</button><button type="button" class="primary admin-edit-approve">บันทึกและอนุมัติ</button></div>`;
   editor.querySelector(".admin-edit-size").value = request.size || "";
+  if (request.targetDepartment === "แผนกสายส่ง") editor.querySelector(".admin-edit-size").closest("label").hidden = true;
   editor.querySelector(".admin-edit-head").value = request.head || "";
   editor.querySelector(".admin-edit-upright").value = request.insulatorUpright ?? 0;
   editor.querySelector(".admin-edit-horizontal").value = request.insulatorHorizontal ?? 0;
@@ -3558,7 +3565,7 @@ function showAdminRequestEditor(card, request, insulatorReview, tableWrap) {
   insulatorReview.hidden = true; tableWrap.hidden = true;
   card.querySelector(".request-card-footer").hidden = true;
   card.appendChild(editor);
-  editor.querySelector(".admin-edit-size").focus();
+  editor.querySelector(request.targetDepartment === "แผนกสายส่ง" ? ".admin-edit-head" : ".admin-edit-size").focus();
 }
 
 async function reviewBaseRequest(requestId, approve, button, edits = null) {

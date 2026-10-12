@@ -159,6 +159,8 @@ class GoogleSheetProjectStore:
         source_head = str(payload.get("source_head", "")).strip() or (values["head"] if action in {"replace", "delete"} else "")
         if action in {"rename", "copy", "delete"} and (not source_size or not source_head):
             raise ValueError("กรุณาเลือกขนาดเสาและหัวเสาต้นฉบับ")
+        if action == "copy" and target_department == "แผนกสายส่ง" and values["size"] == source_size:
+            raise ValueError("คัดลอกหัวเสาสายส่งต้องใช้ KeyCode ใหม่ ห้ามใช้ KeyCode ของหัวเสาต้นฉบับซ้ำ")
         record = {
             "request_id": uuid.uuid4().hex,
             "submitted_at": datetime.now(timezone.utc).isoformat(),
@@ -319,6 +321,15 @@ class GoogleSheetProjectStore:
                 record["size"] = edited_size
                 record["head"] = edited_head
                 record["rows_json"] = json.dumps(stored_rows, ensure_ascii=False, separators=(",", ":"))
+            if record.get("action") == "copy":
+                try:
+                    copy_metadata = json.loads(record.get("rows_json", "{}"))
+                except json.JSONDecodeError:
+                    copy_metadata = {}
+                if (isinstance(copy_metadata, dict)
+                        and copy_metadata.get("department") == "แผนกสายส่ง"
+                        and str(record.get("size", "")).strip() == str(copy_metadata.get("source_size", "")).strip()):
+                    raise ValueError("คัดลอกหัวเสาสายส่งต้องใช้ KeyCode ใหม่ ห้ามอนุมัติด้วย KeyCode ของหัวเสาต้นฉบับซ้ำ")
             now = datetime.now(timezone.utc).isoformat()
             record.update({
                 "status": "approved" if approve else "rejected", "reviewed_at": now,

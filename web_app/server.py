@@ -45,6 +45,7 @@ DEFAULT_TRANSMISSION = ROOT.parent / "สายส่ง 115kV.xlsx"
 
 WORKBOOK = MaterialWorkbook()
 CLOUD_STORE = GoogleSheetProjectStore()
+TRANSMISSION_KEYCODE_LOCK = threading.RLock()
 HEAD_IMAGES: dict[tuple[str, str, str], dict[str, str]] = {}
 HEAD_EDITORS: dict[tuple[str, str, str], str] = {}
 ADMIN_USERNAME = os.environ.get("BASE_ADMIN_USERNAME", "").strip()
@@ -59,6 +60,22 @@ if DEFAULT_TRANSMISSION.exists():
 if DEFAULT_SET.exists():
     WORKBOOK.load_set(DEFAULT_SET)
 WORKBOOK.ensure_high_voltage_auxiliary_catalog()
+
+
+def allocate_transmission_keycode() -> str:
+    used = {str(value).strip() for value in WORKBOOK.get_sizes("แผนกสายส่ง") if str(value).strip()}
+    for request in CLOUD_STORE.list_base_requests():
+        if request.get("targetDepartment") != "แผนกสายส่ง":
+            continue
+        for field in ("size", "sourceSize"):
+            value = str(request.get(field, "")).strip()
+            if value:
+                used.add(value)
+    numeric = [int(value) for value in used if value.isdecimal()]
+    candidate = max(numeric, default=0) + 1
+    while str(candidate) in used:
+        candidate += 1
+    return str(candidate)
 
 
 def reload_approved_base() -> None:
@@ -375,7 +392,18 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def submit_base_request(self) -> None:
         try:
-            request = CLOUD_STORE.submit_base_request(self.read_json())
+            payload = self.read_json()
+            action = str(payload.get("action", "")).strip().lower()
+            transmission_new_head = (
+                str(payload.get("target_department", "")).strip() == "แผนกสายส่ง"
+                and action in {"add", "copy"}
+            )
+            if transmission_new_head:
+                with TRANSMISSION_KEYCODE_LOCK:
+                    payload["size"] = allocate_transmission_keycode()
+                    request = CLOUD_STORE.submit_base_request(payload)
+            else:
+                request = CLOUD_STORE.submit_base_request(payload)
             self.send_json({"request": request}, HTTPStatus.CREATED)
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
@@ -541,6 +569,20 @@ class AppHandler(SimpleHTTPRequestHandler):
         try:
             admin = verify_admin_token(self.admin_token())
             payload = self.read_json()
+            if payload.get("approve"):
+                pending = next(
+                    (item for item in CLOUD_STORE.list_base_requests()
+                     if item.get("id") == str(payload.get("requestId", ""))),
+                    None,
+                )
+                if pending and pending.get("action") == "copy" and pending.get("targetDepartment") == "แผนกสายส่ง":
+                    target_keycode = str((payload.get("edits") or {}).get("size", pending.get("size", ""))).strip().casefold()
+                    source_keycode = str(pending.get("sourceSize", "")).strip().casefold()
+                    existing_keycodes = {key.casefold() for key in WORKBOOK.get_sizes("แผนกสายส่ง")}
+                    if target_keycode == source_keycode:
+                        raise ValueError("คัดลอกหัวเสาสายส่งต้องใช้ KeyCode ใหม่ ไม่สามารถใช้ KeyCode ต้นฉบับซ้ำ")
+                    if target_keycode in existing_keycodes:
+                        raise ValueError("KeyCode นี้มีในแผนกสายส่งแล้ว กรุณาแก้เป็น KeyCode ใหม่ก่อนอนุมัติ")
             request = CLOUD_STORE.review_base_request(
                 str(payload.get("requestId", "")), bool(payload.get("approve")), admin,
                 str(payload.get("note", "")), payload.get("edits"),
