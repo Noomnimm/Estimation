@@ -527,6 +527,30 @@ class HeadRuleTests(unittest.TestCase):
             (1, '14.3', 'BA', 3, 'STEEL CHANNEL, 150x75x6.5 MM. 4,500 MM.LONG', '1010000302', 6),
         ])
 
+    def test_material_catalog_search_matches_names_set_codes_and_material_codes(self):
+        workbook = MaterialWorkbook()
+        workbook.base_df = pd.DataFrame([
+            {SIZE_COL: "99", HEAD_COL: "HEAD", MATERIAL_COL: "SS-IH-1* INCREASE HIGH STRUCTURE", CODE_COL: "Set50137", QTY_COL: 1},
+        ])
+        workbook.set_df = pd.DataFrame([
+            {"Set": "Set50137", CODE_COL: "1010000302", "คำอธิบาย": "STEEL CHANNEL, 150x75x6.5 MM.", "ติดตั้ง": 2},
+            {"Set": "Set50137", CODE_COL: "1010110206", "คำอธิบาย": "BOLT MACHINE M16x400 mm.", "ติดตั้ง": 2},
+        ])
+
+        self.assertEqual(
+            workbook.search_material_catalog("set50137")[0],
+            {"material": "SS-IH-1* INCREASE HIGH STRUCTURE", "code": "Set50137"},
+        )
+        self.assertEqual(
+            workbook.search_material_catalog("1010110206")[0],
+            {"material": "BOLT MACHINE M16x400 mm.", "code": "1010110206"},
+        )
+        self.assertEqual(
+            workbook.search_material_catalog("steel channel")[0],
+            {"material": "STEEL CHANNEL, 150x75x6.5 MM.", "code": "1010000302"},
+        )
+        self.assertEqual(workbook.search_material_catalog("x"), [])
+
 
 if __name__ == '__main__':
     unittest.main()

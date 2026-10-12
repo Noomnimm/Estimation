@@ -493,6 +493,16 @@ td select:focus,
 .form-grid input[readonly] { background: var(--soft); color: var(--text); font-weight: 700; cursor: default; }
 .request-material-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
 .request-material-head h3 { margin: 0; font-size: 16px; }
+.request-catalog-hint { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.request-catalog-input { position: relative; }
+.request-code-control { display: flex; align-items: center; gap: 6px; }
+.request-code-control > input { flex: 1; min-width: 0; }
+.request-code-control > .request-set-expand-button { flex: 0 0 28px; width: 28px; height: 28px; margin: 0; }
+.request-set-expand-button[hidden] { display: none; }
+.request-catalog-suggestions { position: fixed; z-index: 10000; overflow-y: auto; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 30px var(--purple-shadow); }
+.request-catalog-option { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); text-align: left; line-height: 1.35; }
+.request-catalog-option:hover, .request-catalog-option:focus-visible { background: var(--accent-light); }
+.request-catalog-empty { padding: 10px; color: var(--muted); font-size: 12px; }
 .pending-request-board { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 .pending-request-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .pending-request-heading h3, .pending-request-heading p { margin: 0; }

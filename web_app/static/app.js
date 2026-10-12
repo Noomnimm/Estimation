@@ -2377,8 +2377,31 @@ function addRequestMaterialRow(value = {}, isOriginal = false) {
     if (type === "number") input.step = "any";
     input.value = className === "request-material" ? (value.material || "")
       : className === "request-code" ? (value.code || "") : (value.quantity ?? "");
-    input.addEventListener("input", () => updateRequestRowStatus(row));
-    cell.appendChild(input);
+    if (className === "request-material" || className === "request-code") {
+      const wrapper = document.createElement("div");
+      wrapper.className = "request-catalog-input";
+      if (className === "request-code") {
+        const codeControl = document.createElement("div");
+        codeControl.className = "request-code-control";
+        const expandSet = document.createElement("button");
+        expandSet.type = "button";
+        expandSet.className = "set-expand-button request-set-expand-button";
+        expandSet.textContent = "+";
+        expandSet.title = "ดูรายการวัสดุภายใน SET";
+        expandSet.setAttribute("aria-label", "ดูรายการวัสดุภายใน SET");
+        expandSet.setAttribute("aria-expanded", "false");
+        expandSet.hidden = !String(value.code || "").trim().toLowerCase().startsWith("set");
+        codeControl.append(input, expandSet);
+        wrapper.appendChild(codeControl);
+      } else {
+        wrapper.appendChild(input);
+      }
+      cell.appendChild(wrapper);
+      attachCatalogAutocomplete(row, input);
+    } else {
+      input.addEventListener("input", () => updateRequestRowStatus(row));
+      cell.appendChild(input);
+    }
     row.appendChild(cell);
   }
   const statusCell = document.createElement("td");
@@ -2392,12 +2415,15 @@ function addRequestMaterialRow(value = {}, isOriginal = false) {
   remove.className = "danger compact";
   remove.textContent = isOriginal ? "นำออก" : "ลบ";
   remove.addEventListener("click", () => {
+    closeCatalogDropdown(row);
+    collapseRequestSetPreview(row);
     if (row.dataset.original) {
       const removed = row.classList.toggle("row-removed");
       remove.textContent = removed ? "คืนค่า" : "นำออก";
       row.querySelectorAll("input").forEach((input) => { input.disabled = removed; });
       updateRequestRowStatus(row);
     } else if (els.requestMaterialRows.children.length > 1) {
+      row._catalogDropdown?.remove();
       row.remove();
     }
   });
@@ -2407,7 +2433,194 @@ function addRequestMaterialRow(value = {}, isOriginal = false) {
   updateRequestRowStatus(row);
 }
 
+function positionCatalogDropdown(input, dropdown) {
+  if (!input?.isConnected || dropdown.hidden) return;
+  const rect = input.getBoundingClientRect();
+  // Suggestions contain long material descriptions, so keep the list anchored
+  // to the material column and give it enough room to read them comfortably.
+  const width = Math.min(Math.max(rect.width, 460), window.innerWidth - 16);
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+  const maxHeight = Math.min(250, Math.max(90, window.innerHeight - 24));
+  const placeAbove = window.innerHeight - rect.bottom < Math.min(180, maxHeight) && rect.top > maxHeight;
+  dropdown.style.left = `${left}px`;
+  dropdown.style.width = `${width}px`;
+  dropdown.style.maxHeight = `${maxHeight}px`;
+  dropdown.style.top = placeAbove
+    ? `${Math.max(8, rect.top - maxHeight - 4)}px`
+    : `${Math.min(rect.bottom + 4, window.innerHeight - maxHeight - 8)}px`;
+}
+
+function closeCatalogDropdown(row) {
+  clearTimeout(row._catalogSearchTimer);
+  if (row._catalogDropdown) row._catalogDropdown.hidden = true;
+}
+
+function collapseRequestSetPreview(row) {
+  const preview = row.nextElementSibling;
+  if (preview?.classList.contains("request-set-preview-row")) preview.remove();
+  const button = row.querySelector(".request-set-expand-button");
+  if (button) {
+    button.textContent = "+";
+    button.disabled = false;
+    button.setAttribute("aria-expanded", "false");
+  }
+}
+
+function syncRequestSetPreviewButton(row) {
+  const code = row.querySelector(".request-code")?.value.trim() || "";
+  const button = row.querySelector(".request-set-expand-button");
+  if (!button) return;
+  const isSet = code.toLowerCase().startsWith("set");
+  button.hidden = !isSet;
+  if (!isSet || (row.nextElementSibling?.classList.contains("request-set-preview-row")
+      && row.nextElementSibling.dataset.setCode !== code)) {
+    collapseRequestSetPreview(row);
+  }
+}
+
+async function toggleRequestSetPreview(event) {
+  const button = event.target.closest(".request-set-expand-button");
+  if (!button) return;
+  const row = button.closest("tr");
+  const code = row.querySelector(".request-code").value.trim();
+  if (!code.toLowerCase().startsWith("set")) return;
+  if (row.nextElementSibling?.classList.contains("request-set-preview-row")) {
+    collapseRequestSetPreview(row);
+    return;
+  }
+  try {
+    button.disabled = true;
+    button.textContent = "…";
+    const data = await postJson("/api/set-components", { code, quantity: 1, workType: "install" });
+    if (!row.isConnected || row.querySelector(".request-code").value.trim() !== code) return;
+    const preview = document.createElement("tr");
+    preview.className = "request-set-preview-row set-component-row";
+    preview.dataset.setCode = code;
+    const items = data.items || [];
+    preview.innerHTML = `<td colspan="${row.children.length}"><div class="set-component-panel">
+      <div class="set-component-title">อุปกรณ์ภายใน ${escapeHtml(data.setCode || code)} ต่อ 1 SET</div>
+      ${items.length ? `<table class="set-component-table"><colgroup><col class="set-component-no-column"><col class="set-component-material-column"><col class="set-component-code-column"><col class="set-component-quantity-column"></colgroup><thead><tr><th>No.</th><th>รายการวัสดุ</th><th>รหัสพัสดุ 10 หลัก</th><th>จำนวน</th></tr></thead><tbody>${items.map((item, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(item.material || "")}</td><td>${escapeHtml(item.code || "")}</td><td>${formatAmount(item.quantity)}</td></tr>`).join("")}</tbody></table>` : '<div class="set-component-empty">ไม่พบรายการวัสดุภายใน SET นี้</div>'}
+    </div></td>`;
+    row.after(preview);
+    button.textContent = "−";
+    button.setAttribute("aria-expanded", "true");
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      if (button.getAttribute("aria-expanded") !== "true") button.textContent = "+";
+    }
+  }
+}
+
+function attachCatalogAutocomplete(row, input) {
+  let dropdown = row._catalogDropdown;
+  if (!dropdown) {
+    dropdown = document.createElement("div");
+    dropdown.className = "request-catalog-suggestions";
+    dropdown.setAttribute("role", "listbox");
+    dropdown.hidden = true;
+    document.body.appendChild(dropdown);
+    row._catalogDropdown = dropdown;
+  }
+  if (!window._requestCatalogPositioningAttached) {
+    const repositionOpenCatalogs = () => document.querySelectorAll(".request-catalog-suggestions:not([hidden])")
+      .forEach((list) => positionCatalogDropdown(list._sourceInput, list));
+    window.addEventListener("resize", repositionOpenCatalogs);
+    window.addEventListener("scroll", repositionOpenCatalogs, true);
+    window._requestCatalogPositioningAttached = true;
+  }
+  dropdown._sourceInput = row.querySelector(".request-material") || input;
+
+  input.addEventListener("focus", () => {
+    const materialInput = row.querySelector(".request-material") || input;
+    dropdown._sourceInput = materialInput;
+    row.closest(".table-wrap")?.scrollTo({ left: 0, behavior: "smooth" });
+    materialInput.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  });
+
+  input.addEventListener("input", () => {
+    updateRequestRowStatus(row);
+    // The material column is the most useful reference for these long names,
+    // even when the query was typed into the code/SET column.
+    const materialInput = row.querySelector(".request-material") || input;
+    dropdown._sourceInput = materialInput;
+    clearTimeout(row._catalogSearchTimer);
+    const term = input.value.trim();
+    const requestNumber = row._catalogSearchNumber = (row._catalogSearchNumber || 0) + 1;
+    if (term.length < 2) {
+      closeCatalogDropdown(row);
+      return;
+    }
+    row._catalogSearchTimer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/material-catalog?q=${encodeURIComponent(term)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("ค้นหารายการวัสดุไม่สำเร็จ");
+        const data = await response.json();
+        if (requestNumber !== row._catalogSearchNumber || !row.isConnected || document.activeElement !== input) return;
+        const items = data.items || [];
+        const normalizedTerm = term.toLocaleLowerCase();
+        const exactCodeMatch = items.find((item) => item.code.toLocaleLowerCase() === normalizedTerm);
+        const exactNameMatches = items.filter((item) => item.material.toLocaleLowerCase() === normalizedTerm);
+        const exactMatch = exactCodeMatch || (exactNameMatches.length === 1 ? exactNameMatches[0] : null);
+        if (exactMatch) {
+          row.querySelector(".request-material").value = exactMatch.material;
+          row.querySelector(".request-code").value = exactMatch.code;
+          updateRequestRowStatus(row);
+          closeCatalogDropdown(row);
+          return;
+        }
+
+        dropdown.replaceChildren();
+        dropdown.scrollTop = 0;
+        if (!items.length) {
+          const empty = document.createElement("div");
+          empty.className = "request-catalog-empty";
+          empty.textContent = "ไม่พบรายการที่ตรงกัน — กรอกข้อมูลเองได้";
+          dropdown.appendChild(empty);
+        } else {
+          items.forEach((item) => {
+            const option = document.createElement("button");
+            option.type = "button";
+            option.className = "request-catalog-option";
+            option.setAttribute("role", "option");
+            option.textContent = `${item.material} · ${item.code}`;
+            option.addEventListener("mousedown", (event) => event.preventDefault());
+            option.addEventListener("click", () => {
+              row.querySelector(".request-material").value = item.material;
+              row.querySelector(".request-code").value = item.code;
+              updateRequestRowStatus(row);
+              closeCatalogDropdown(row);
+            });
+            dropdown.appendChild(option);
+          });
+        }
+        dropdown.hidden = false;
+        positionCatalogDropdown(materialInput, dropdown);
+      } catch {
+        closeCatalogDropdown(row);
+      }
+    }, 220);
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeCatalogDropdown(row);
+    if (event.key === "Enter" && !dropdown.hidden) {
+      const firstOption = dropdown.querySelector(".request-catalog-option");
+      if (firstOption) {
+        event.preventDefault();
+        firstOption.click();
+      }
+    }
+  });
+  input.addEventListener("blur", () => setTimeout(() => {
+    if (!dropdown.matches(":hover")) closeCatalogDropdown(row);
+  }, 120));
+}
+
 function updateRequestRowStatus(row) {
+  syncRequestSetPreviewButton(row);
   const badge = row.querySelector(".change-badge");
   if (row.classList.contains("row-removed")) {
     badge.textContent = "นำออก"; badge.dataset.kind = "removed"; return;
@@ -3386,6 +3599,7 @@ async function reviewBaseRequest(requestId, approve, button, edits = null) {
 }
 
 els.addRequestMaterial.addEventListener("click", () => addRequestMaterialRow());
+els.requestMaterialRows.addEventListener("click", toggleRequestSetPreview);
 els.requestImage.addEventListener("change", async () => {
   const file = selectedRequestImage();
   if (!file) { renderRequestImagePreview(); return; }

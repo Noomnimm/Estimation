@@ -554,6 +554,53 @@ class MaterialWorkbook:
 
         return {"base": base, "set": set_data}
 
+    def search_material_catalog(self, query: str, limit: int = 20) -> list[dict[str, str]]:
+        """Search BaseData entries and SET components for the public request editor."""
+        term = clean_text(query).casefold()
+        if len(term) < 2:
+            return []
+
+        catalog: dict[tuple[str, str], dict[str, str]] = {}
+
+        def add(material: Any, code: Any) -> None:
+            material_text, code_text = clean_text(material), clean_text(code)
+            if not material_text or not code_text:
+                return
+            catalog.setdefault(
+                (material_text.casefold(), code_text.casefold()),
+                {"material": material_text, "code": code_text},
+            )
+
+        if self.base_df is not None and {MATERIAL_COL, CODE_COL}.issubset(self.base_df.columns):
+            for material, code in self.base_df[[MATERIAL_COL, CODE_COL]].itertuples(index=False, name=None):
+                add(material, code)
+        if self.set_df is not None and {SET_DESC_COL, CODE_COL}.issubset(self.set_df.columns):
+            for material, code in self.set_df[[SET_DESC_COL, CODE_COL]].itertuples(index=False, name=None):
+                add(material, code)
+
+        def rank(item: dict[str, str]) -> tuple[int, int, str, str]:
+            material = item["material"].casefold()
+            code = item["code"].casefold()
+            if code == term:
+                priority = 0
+            elif code.startswith(term):
+                priority = 1
+            elif material == term:
+                priority = 2
+            elif material.startswith(term):
+                priority = 3
+            elif term in code:
+                priority = 4
+            else:
+                priority = 5
+            return priority, len(code) + len(material), code, material
+
+        matches = [
+            item for item in catalog.values()
+            if term in item["material"].casefold() or term in item["code"].casefold()
+        ]
+        return sorted(matches, key=rank)[:max(1, min(int(limit), 50))]
+
     def calculate(self, pages: list[list[dict[str, Any]]], structure_pages: list[list[dict[str, Any]]] | None = None) -> dict[str, Any]:
         if self.base_df is None:
             raise ValueError("ยังไม่ได้โหลดไฟล์ BaseData")

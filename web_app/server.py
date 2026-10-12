@@ -177,6 +177,11 @@ class AppHandler(SimpleHTTPRequestHandler):
             query = parse_qs(parsed.query)
             self.base_entry(query.get("size", [""])[0], query.get("head", [""])[0], query.get("department", [DEFAULT_DEPARTMENT])[0])
             return
+        if parsed.path == "/api/material-catalog":
+            query = parse_qs(parsed.query)
+            term = query.get("q", [""])[0]
+            self.handle_json(lambda: {"items": WORKBOOK.search_material_catalog(term)})
+            return
         if parsed.path == "/api/head-image":
             query = parse_qs(parsed.query)
             self.head_image(query.get("id", [""])[0])
