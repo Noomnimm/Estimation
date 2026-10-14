@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 
-from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL, DEFAULT_DEPARTMENT, INSULATOR_UPRIGHT_COL, INSULATOR_HORIZONTAL_COL
+from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL, DEFAULT_DEPARTMENT, INSULATOR_UPRIGHT_COL, INSULATOR_HORIZONTAL_COL, TRANSFORMER_DEMOLITION_QTY_COL, TRANSFORMER_SCAFFOLD_ROLE_COL
 from cloud_store import GoogleSheetProjectStore
 
 
@@ -83,6 +83,18 @@ def reload_approved_base() -> None:
     HEAD_EDITORS.clear()
     if not DEFAULT_BASE.exists():
         return
+    scaffold_metadata: dict[tuple[str, str, str], list[dict[str, object]]] = {}
+    if WORKBOOK.base_df is not None:
+        for _, source in WORKBOOK.base_df.iterrows():
+            size = str(source.get(SIZE_COL, "")).strip()
+            head = str(source.get(HEAD_COL, "")).strip()
+            if not head.startswith("หม้อแปลง 3 เฟส 100 kVA (ติดตั้งแบบนั่งร้าน) ·"):
+                continue
+            key = (size, head, str(source.get(CODE_COL, "")).strip())
+            scaffold_metadata.setdefault(key, []).append({
+                TRANSFORMER_DEMOLITION_QTY_COL: source.get(TRANSFORMER_DEMOLITION_QTY_COL, pd.NA),
+                TRANSFORMER_SCAFFOLD_ROLE_COL: source.get(TRANSFORMER_SCAFFOLD_ROLE_COL, ""),
+            })
     WORKBOOK.load_base(DEFAULT_BASE)
     if DEFAULT_TRANSFORMER_BASE.exists():
         WORKBOOK.load_department_base(DEFAULT_TRANSFORMER_BASE, "แผนกหม้อแปลง", "หม้อแปลง")
@@ -102,9 +114,11 @@ def reload_approved_base() -> None:
         size, head = str(first.get("size", "")).strip(), str(first.get("head", "")).strip()
         department = str(first.get("department", "")).strip() or DEFAULT_DEPARTMENT
         action = str(first.get("action", "add")).strip()
+        source_size = str(first.get("source_size", "")).strip() or size
+        source_head = str(first.get("source_head", "")).strip() or head
         if action in {"replace", "rename", "delete"}:
-            remove_size = str(first.get("source_size", "")).strip() or size
-            remove_head = str(first.get("source_head", "")).strip() or head
+            remove_size = source_size
+            remove_head = source_head
             suppressed_heads.add((department, remove_size, remove_head))
             WORKBOOK.base_df = WORKBOOK.base_df[
                 ~((WORKBOOK.base_df[SIZE_COL].astype(str).str.strip() == remove_size)
@@ -120,6 +134,17 @@ def reload_approved_base() -> None:
             INSULATOR_UPRIGHT_COL: pd.NA if row.get("insulator_upright", "") == "" else row.get("insulator_upright"),
             INSULATOR_HORIZONTAL_COL: pd.NA if row.get("insulator_horizontal", "") == "" else row.get("insulator_horizontal"),
         } for row in request_rows if action != "delete"]
+        if head.startswith("หม้อแปลง 3 เฟส 100 kVA (ติดตั้งแบบนั่งร้าน) ·"):
+            metadata_by_code: dict[str, list[dict[str, object]]] = {}
+            for (metadata_size, metadata_head, code), metadata_rows in scaffold_metadata.items():
+                if metadata_size == source_size and metadata_head == source_head:
+                    metadata_by_code[code] = list(metadata_rows)
+            for addition in additions:
+                code = addition[CODE_COL]
+                metadata_rows = metadata_by_code.get(code, [])
+                if metadata_rows:
+                    metadata = metadata_rows.pop(0)
+                    addition.update(metadata)
         if additions:
             WORKBOOK.base_df = pd.concat([WORKBOOK.base_df, pd.DataFrame(additions)], ignore_index=True)
             suppressed_heads.discard((department, size, head))
@@ -324,7 +349,9 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def export_summary(self) -> None:
         try:
-            data = WORKBOOK.export_summary()
+            payload = self.read_json()
+            departments = payload.get("departments", [])
+            data = WORKBOOK.export_department_summaries(departments) if departments else WORKBOOK.export_summary()
             OUTPUTS.mkdir(parents=True, exist_ok=True)
             path = OUTPUTS / "material_summary_web.xlsx"
             path.write_bytes(data)
@@ -340,7 +367,11 @@ class AppHandler(SimpleHTTPRequestHandler):
     def export_pages(self) -> None:
         try:
             payload = self.read_json()
-            data = WORKBOOK.export_page_summary(payload.get("pages", []))
+            departments = payload.get("departments", [])
+            data = (
+                WORKBOOK.export_department_page_summary(departments)
+                if departments else WORKBOOK.export_page_summary(payload.get("pages", []))
+            )
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             self.send_header("Content-Disposition", 'attachment; filename="page_summary.xlsx"')
@@ -353,7 +384,12 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def export_page_hardware(self) -> None:
         try:
-            data = WORKBOOK.export_page_hardware_combined(self.read_json().get("pages", []))
+            payload = self.read_json()
+            departments = payload.get("departments", [])
+            data = (
+                WORKBOOK.export_department_page_hardware(departments)
+                if departments else WORKBOOK.export_page_hardware_combined(payload.get("pages", []))
+            )
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             self.send_header("Content-Disposition", 'attachment; filename="page_insulators_hardware.xlsx"')
@@ -379,7 +415,12 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def export_page_crossarms(self) -> None:
         try:
-            data = WORKBOOK.export_page_crossarms(self.read_json().get("pages", []))
+            payload = self.read_json()
+            departments = payload.get("departments", [])
+            data = (
+                WORKBOOK.export_department_page_crossarms(departments)
+                if departments else WORKBOOK.export_page_crossarms(payload.get("pages", []))
+            )
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             self.send_header("Content-Disposition", 'attachment; filename="page_crossarms.xlsx"')

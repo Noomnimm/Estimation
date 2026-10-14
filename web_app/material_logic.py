@@ -108,8 +108,38 @@ SURGE_ARRESTER_TANK = {
     True: ("S.A., 24 kV.5 kA.,WITHOUT BRACKET.", "1040000008"),
 }
 SURGE_ARRESTER_CODES = {code for _, code in (*SURGE_ARRESTER_CROSSARM.values(), *SURGE_ARRESTER_TANK.values())}
+SCAFFOLD_ANIMAL_BARRIER_CODES = {"1030010200", "1040010015", "1040010016", "1010100002", "1010230000"}
 
 THREE_PHASE_TRANSFORMER_HEAD = "หม้อแปลง 3 เฟส 22 kV (Sealed)"
+THREE_PHASE_SCAFFOLD_HEAD = "หม้อแปลง 3 เฟส 100 kVA (ติดตั้งแบบนั่งร้าน)"
+TRANSFORMER_DEMOLITION_QTY_COL = "จำนวนรื้อถอน (ข้อมูลหม้อแปลงนั่งร้าน)"
+TRANSFORMER_SCAFFOLD_ROLE_COL = "รายการตัวเลือกหม้อแปลงนั่งร้าน"
+TRANSFORMER_SCAFFOLD_POLES = {
+    "1000010004": "POLE,CONCRETE, 12 M.LONG",
+    "1000010006": "POLE,CONCRETE, 14 M. LONG",
+    "1000010012": "POLE,CONCRETE, 12.20 M. LONG",
+    "1000010013": "POLE,CONCRETE, 14.30 M. LONG",
+}
+TRANSFORMER_SCAFFOLD_STUBS_BY_POLE = {
+    "1000010004": {"Set14304", "Set14305", "Set14306"},
+    "1000010006": {"Set14307", "Set14308", "Set14309"},
+    "1000010012": {"Set14316", "Set14317", "Set14318"},
+    "1000010013": {"Set14313", "Set14314", "Set14315"},
+}
+TRANSFORMER_SCAFFOLD_STUB_NAMES = {
+    "Set14304": "CONCRETE STUB, 0.30 × 0.30 m, 4.50 m",
+    "Set14305": "CONCRETE STUB, 0.30 × 0.30 m, 5.50 m",
+    "Set14306": "CONCRETE STUB, 0.30 × 0.30 m, 6.50 m",
+    "Set14307": "CONCRETE STUB, 0.35 × 0.35 m, 4.50 m",
+    "Set14308": "CONCRETE STUB, 0.35 × 0.35 m, 5.50 m",
+    "Set14309": "CONCRETE STUB, 0.35 × 0.35 m, 6.50 m",
+    "Set14313": "CONCRETE STUB, 0.41 × 0.41 m, 5.50 m",
+    "Set14314": "CONCRETE STUB, 0.41 × 0.41 m, 6.50 m",
+    "Set14315": "CONCRETE STUB, 0.41 × 0.41 m, 7.50 m",
+    "Set14316": "CONCRETE STUB, 0.36 × 0.36 m, 4.50 m",
+    "Set14317": "CONCRETE STUB, 0.36 × 0.36 m, 5.50 m",
+    "Set14318": "CONCRETE STUB, 0.36 × 0.36 m, 6.50 m",
+}
 THREE_PHASE_TRANSFORMERS = {
     50: ("หม้อแปลงขนาด 50 เควีเอ", "1050010200", 3, "1040030002"),
     100: ("หม้อแปลงขนาด 100 เควีเอ", "1050010201", "5-6", "1040030003"),
@@ -143,6 +173,13 @@ def three_phase_config_head(kva: int, circuits: int, choice_index: int) -> str:
         raise ValueError("ยังไม่มีข้อมูลฟิวส์ที่รองรับสำหรับขนาดและจำนวน LT ที่เลือก")
     fuse_label = "/".join(choices[choice_index])
     return f"3P Sealed 22 kV · {kva} kVA · {circuits} LT · Fuse {fuse_label} A"
+
+
+def three_phase_scaffold_config_head(lt_sides: int, has_stub: bool) -> str:
+    if lt_sides not in {1, 2}:
+        raise ValueError("หม้อแปลงนั่งร้านรองรับจ่ายแรงต่ำ 1 หรือ 2 ข้าง")
+    stub_label = "มีต่อม่อ" if has_stub else "ไม่มีต่อม่อ"
+    return f"{THREE_PHASE_SCAFFOLD_HEAD} · จ่ายแรงต่ำ {lt_sides} ข้าง · {stub_label}"
 
 
 def is_three_phase_config_head(head: str) -> bool:
@@ -209,6 +246,8 @@ class MaterialWorkbook:
         self.summary: list[dict[str, Any]] = []
         self.summary_by_work_type: dict[str, list[dict[str, Any]]] = {"install": [], "demolition": []}
         self.transformer_surge_by_work_type: dict[str, dict[str, float]] = {"install": {}, "demolition": {}}
+        self.transformer_scaffold_no_reuse_sets: set[str] = set()
+        self.transformer_scaffold_animal_barrier_sets: set[str] = set()
         self.separate_work_types = False
         self.base_path: Path | None = None
         self.set_path: Path | None = None
@@ -387,6 +426,63 @@ class MaterialWorkbook:
                         editable_rows.extend(config_rows)
                 if editable_rows:
                     self.base_df = pd.concat([self.base_df, pd.DataFrame(editable_rows)], ignore_index=True)
+            scaffold_rows: list[dict[str, Any]] = []
+            for lt_sides in (1, 2):
+                for has_stub in (False, True):
+                    scaffold_head = three_phase_scaffold_config_head(lt_sides, has_stub)
+                    materials = [
+                        ("TR. 3 เฟส 100 KVA (SHORT CIRCUIT TYPE)", "1050010052", 1, 1),
+                        ("TR.INST., 3-P, 22 KV. ON PLATFORM, X-ARM.", "Set40211", 1, 1),
+                        ("X-ARM-C, 3-P, SP 0-5", "Set20201", -1, -1),
+                        ("POLE,CONCRETE, 12 M.LONG", "1000010004", -1, -1),
+                        ("CONCRETE STUB, 1X(.30X.30X4.50 M.)", "Set14304", int(has_stub), int(has_stub)),
+                        ("X-ARM-C, INST. WITH 3-LT. SWITCH (3-P, 1-CCT) (12 M)", "Set14143", lt_sides, lt_sides),
+                        ("S.A., 21 KV.5 KA.,WITHOUT BRACKET", "1040000007", -3, -3),
+                        ("LIGHTNING ARRESTER 20-21 kV. 5 kA", "1040000000", 3, 3),
+                        ("BOLT,MACHINE,HEXAGON,M.16X600 MM.", "1010110402", 12, 0),
+                        ("BOLT,MACHINE,HEXAGON,M.16x550 mm.", "1010110401", -12, 0),
+                        ("LT WIRING, 95 SQ.MM., 3-P, 4-WIRE, TO LT SWITCH", "Set40114", lt_sides, 0),
+                        ("BAIL-CLAMP 35-70 SQ.MM. (ติดตั้งลบออก)", "1020330005", -3, 0),
+                        ("BAIL-CLAMP 70-185 SQ.MM. (ให้เพิ่ม)", "1020330006", 3, 0),
+                        ("TRANSFORMER BUSHING COVERS", "1090250038", 3, 0),
+                        ("DROPOUT FUSE CUTOUT COVERS", "1090250040", 3, 0),
+                        ("LIGHTNING ARRESTER COVERS", "1090250041", 3, 0),
+                        ("FUSE LINK 22 kV. 3 A.EEI-NEMA TYPE K", "1040030002", 3, 0),
+                    ]
+                    for material, code, install_quantity, demolition_quantity in materials:
+                        if install_quantity == 0 and demolition_quantity == 0:
+                            continue
+                        scaffold_rows.append({
+                            SIZE_COL: size_label,
+                            HEAD_COL: scaffold_head,
+                            MATERIAL_COL: material,
+                            CODE_COL: code,
+                            QTY_COL: float(install_quantity),
+                            TRANSFORMER_DEMOLITION_QTY_COL: float(demolition_quantity),
+                            TRANSFORMER_SCAFFOLD_ROLE_COL: (
+                                "pole" if code == "1000010004" else "stub" if code == "Set14304" else ""
+                            ),
+                            DEPARTMENT_COL: department,
+                            INSULATOR_UPRIGHT_COL: pd.NA,
+                            INSULATOR_HORIZONTAL_COL: pd.NA,
+                        })
+                    default_fuse_amps = ("150-160",) if lt_sides == 1 else ("80", "80")
+                    for fuse_index, amp in enumerate(default_fuse_amps):
+                        fuse_name, fuse_set = LT_FUSE_SETS[amp]
+                        scaffold_rows.append({
+                            SIZE_COL: size_label,
+                            HEAD_COL: scaffold_head,
+                            MATERIAL_COL: fuse_name,
+                            CODE_COL: fuse_set,
+                            QTY_COL: 1.0,
+                            TRANSFORMER_DEMOLITION_QTY_COL: 0.0,
+                            TRANSFORMER_SCAFFOLD_ROLE_COL: f"lt-fuse:{fuse_index}",
+                            DEPARTMENT_COL: department,
+                            INSULATOR_UPRIGHT_COL: pd.NA,
+                            INSULATOR_HORIZONTAL_COL: pd.NA,
+                        })
+            if scaffold_rows:
+                self.base_df = pd.concat([self.base_df, pd.DataFrame(scaffold_rows)], ignore_index=True)
         return len(rows)
 
     def get_departments(self) -> list[str]:
@@ -634,6 +730,8 @@ class MaterialWorkbook:
         transformer_surge_by_work_type: dict[str, dict[str, float]] = {"install": {}, "demolition": {}}
         input_count = 0
         matched_rows = 0
+        transformer_scaffold_no_reuse_sets: set[str] = set()
+        transformer_scaffold_animal_barrier_sets: set[str] = set()
 
         base_set_codes = self._base_set_codes()
         if (
@@ -663,8 +761,76 @@ class MaterialWorkbook:
                 input_count += 1
                 selected_surge_code = ""
                 editable_three_phase_variant = department == "แผนกหม้อแปลง" and is_three_phase_config_head(head)
+                scaffold_transformer = False
+                selected_scaffold_pole_code = "1000010004"
+                selected_scaffold_stub_code = ""
+                selected_scaffold_fuse_amps: tuple[str, ...] = ()
                 if department == "แผนกหม้อแปลง" and head == THREE_PHASE_TRANSFORMER_HEAD:
-                    head, selected_surge_code = self._three_phase_config(item, page_number, row_number)
+                    if clean_text(item.get("transformerMounting", "single-pole-crossarm")) == "scaffold":
+                        scaffold_transformer = True
+                        try:
+                            kva = int(item.get("transformerKva", 0))
+                            lt_sides = int(item.get("transformerPlatformSides", item.get("transformerLtCircuits", 1)))
+                        except (TypeError, ValueError):
+                            raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกขนาดหม้อแปลงและจำนวนด้านจ่ายแรงต่ำ")
+                        if kva != 100:
+                            raise ValueError(f"หน้า {page_number} แถว {row_number}: แบบนั่งร้านรองรับหม้อแปลง 100 kVA เท่านั้น")
+                        if lt_sides not in {1, 2}:
+                            raise ValueError(f"หน้า {page_number} แถว {row_number}: แบบนั่งร้านรองรับจ่ายแรงต่ำ 1 หรือ 2 ข้าง")
+                        selected_scaffold_pole_code = clean_text(item.get("transformerScaffoldPoleCode")) or "1000010004"
+                        selected_scaffold_stub_code = clean_text(item.get("transformerScaffoldStubCode"))
+                        if not selected_scaffold_stub_code and item.get("transformerHasConcreteStub") in {True, 1, "1", "true", "True", "yes"}:
+                            selected_scaffold_stub_code = "Set14304"
+                        if selected_scaffold_pole_code not in TRANSFORMER_SCAFFOLD_POLES:
+                            raise ValueError(f"หน้า {page_number} แถว {row_number}: ไม่พบรหัสเสาที่เลือกสำหรับแบบนั่งร้าน")
+                        valid_stubs = TRANSFORMER_SCAFFOLD_STUBS_BY_POLE[selected_scaffold_pole_code]
+                        if selected_scaffold_stub_code and selected_scaffold_stub_code not in valid_stubs:
+                            raise ValueError(f"หน้า {page_number} แถว {row_number}: ตอม่อที่เลือกไม่ตรงกับขนาดเสา")
+                        has_stub = bool(selected_scaffold_stub_code)
+                        if selected_scaffold_stub_code.casefold() == "set14304":
+                            transformer_scaffold_no_reuse_sets.add("set14304")
+                        fuse_choices = THREE_PHASE_LT_FUSE_CHOICES[(100, lt_sides)]
+                        try:
+                            fuse_choice_index = int(item.get("transformerScaffoldFuseChoice", item.get("transformerLtFuseChoice", 1 if lt_sides == 2 else 0)))
+                        except (TypeError, ValueError):
+                            raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกชุดฟิวส์ LT ของหม้อแปลงนั่งร้าน")
+                        if not 0 <= fuse_choice_index < len(fuse_choices):
+                            raise ValueError(f"หน้า {page_number} แถว {row_number}: ชุดฟิวส์ LT ที่เลือกไม่รองรับกับจำนวนด้านจ่าย")
+                        selected_scaffold_fuse_amps = fuse_choices[fuse_choice_index]
+                        head = three_phase_scaffold_config_head(lt_sides, has_stub)
+                    else:
+                        head, selected_surge_code = self._three_phase_config(item, page_number, row_number)
+                elif department == "แผนกหม้อแปลง" and head == THREE_PHASE_SCAFFOLD_HEAD:
+                    scaffold_transformer = True
+                    try:
+                        lt_sides = int(item.get("transformerPlatformSides", item.get("transformerLtCircuits", 1)))
+                    except (TypeError, ValueError):
+                        raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกจำนวนด้านจ่ายแรงต่ำของหม้อแปลงนั่งร้าน")
+                    if lt_sides not in {1, 2}:
+                        raise ValueError(f"หน้า {page_number} แถว {row_number}: แบบนั่งร้านรองรับจ่ายแรงต่ำ 1 หรือ 2 ข้าง")
+                    has_stub = item.get("transformerHasConcreteStub") in {True, 1, "1", "true", "True", "yes"}
+                    selected_scaffold_pole_code = clean_text(item.get("transformerScaffoldPoleCode")) or "1000010004"
+                    selected_scaffold_stub_code = clean_text(item.get("transformerScaffoldStubCode"))
+                    if has_stub:
+                        selected_scaffold_stub_code = selected_scaffold_stub_code or "Set14304"
+                    if selected_scaffold_pole_code not in TRANSFORMER_SCAFFOLD_POLES:
+                        raise ValueError(f"หน้า {page_number} แถว {row_number}: ไม่พบรหัสเสาที่เลือกสำหรับแบบนั่งร้าน")
+                    if selected_scaffold_stub_code and selected_scaffold_stub_code not in TRANSFORMER_SCAFFOLD_STUBS_BY_POLE[selected_scaffold_pole_code]:
+                        raise ValueError(f"หน้า {page_number} แถว {row_number}: ตอม่อที่เลือกไม่ตรงกับขนาดเสา")
+                    has_stub = bool(selected_scaffold_stub_code)
+                    if selected_scaffold_stub_code.casefold() == "set14304":
+                        transformer_scaffold_no_reuse_sets.add("set14304")
+                    fuse_choices = THREE_PHASE_LT_FUSE_CHOICES[(100, lt_sides)]
+                    try:
+                        fuse_choice_index = int(item.get("transformerScaffoldFuseChoice", item.get("transformerLtFuseChoice", 1 if lt_sides == 2 else 0)))
+                    except (TypeError, ValueError):
+                        raise ValueError(f"หน้า {page_number} แถว {row_number}: กรุณาเลือกชุดฟิวส์ LT ของหม้อแปลงนั่งร้าน")
+                    if not 0 <= fuse_choice_index < len(fuse_choices):
+                        raise ValueError(f"หน้า {page_number} แถว {row_number}: ชุดฟิวส์ LT ที่เลือกไม่รองรับกับจำนวนด้านจ่าย")
+                    selected_scaffold_fuse_amps = fuse_choices[fuse_choice_index]
+                    head = three_phase_scaffold_config_head(lt_sides, has_stub)
+                if scaffold_transformer:
+                    transformer_scaffold_animal_barrier_sets.add("set40211")
                 high_voltage = department in {DEFAULT_DEPARTMENT, "แผนกแรงสูง TAC"}
                 add_wire_accessories = high_voltage and work_type == "install"
                 wire_kind = classify_wire_head(head) if add_wire_accessories else None
@@ -708,7 +874,25 @@ class MaterialWorkbook:
                 for _, row in matches.iterrows():
                     material = clean_text(row[MATERIAL_COL])
                     code = clean_text(row[CODE_COL])
+                    scaffold_role = clean_text(row.get(TRANSFORMER_SCAFFOLD_ROLE_COL))
+                    if scaffold_role == "pole":
+                        code = selected_scaffold_pole_code
+                        material = TRANSFORMER_SCAFFOLD_POLES[code]
+                    elif scaffold_role == "stub":
+                        if not selected_scaffold_stub_code:
+                            continue
+                        code = selected_scaffold_stub_code
+                        material = TRANSFORMER_SCAFFOLD_STUB_NAMES[code]
+                    elif scaffold_role.startswith("lt-fuse:"):
+                        fuse_index = int(scaffold_role.split(":", 1)[1])
+                        if fuse_index >= len(selected_scaffold_fuse_amps):
+                            continue
+                        material, code = LT_FUSE_SETS[selected_scaffold_fuse_amps[fuse_index]]
                     amount = parse_number(row[QTY_COL]) * count
+                    if work_type == "demolition":
+                        demolition_quantity = row.get(TRANSFORMER_DEMOLITION_QTY_COL)
+                        if not pd.isna(demolition_quantity):
+                            amount = parse_number(demolition_quantity) * count
                     if not code or amount == 0:
                         continue
                     normalized_code = code.replace("-", "")
@@ -725,9 +909,11 @@ class MaterialWorkbook:
                         ngr = bool(item.get("surgeNgr"))
                         within_3km = bool(item.get("surgeWithin3km"))
                         mounting = clean_text(item.get("surgeMounting")) or "crossarm"
-                        if within_3km:
+                        if scaffold_transformer:
+                            mounting = "crossarm"  # Scaffold Surge is fixed to the crossarm.
+                        elif within_3km:
                             mounting = "crossarm"  # WITHOUT BRACKET is not available in 10 kA.
-                        if editable_three_phase_variant and amount < 0:
+                        if (editable_three_phase_variant or scaffold_transformer) and amount < 0:
                             # The copied negative row offsets the three default arresters inside Set40203.
                             material, code = SURGE_ARRESTER_TANK[False]
                         elif mounting == "tank":
@@ -764,6 +950,8 @@ class MaterialWorkbook:
             for work_type, totals in totals_by_work_type.items()
         }
         self.transformer_surge_by_work_type = transformer_surge_by_work_type
+        self.transformer_scaffold_no_reuse_sets = transformer_scaffold_no_reuse_sets
+        self.transformer_scaffold_animal_barrier_sets = transformer_scaffold_animal_barrier_sets
         self.summary = combine_work_type_summaries(self.summary_by_work_type) if self.separate_work_types else self.summary_by_work_type["install"]
         return {
             "items": self.summary,
@@ -912,11 +1100,16 @@ class MaterialWorkbook:
                         set_missing.append(code)
                         continue
                     set_found += 1
+                    if work_type == "demolition" and key in self.transformer_scaffold_no_reuse_sets:
+                        continue
+                    filter_scaffold_animal_barrier = key in self.transformer_scaffold_animal_barrier_sets
                     surge_choices = self.transformer_surge_by_work_type.get(work_type, {}) if key == "set40203" else {}
                     default_surge_code = SURGE_ARRESTER_TANK[False][1]
                     alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
                     for _, item in matches.iterrows():
                         child_code = clean_text(item[CODE_COL])
+                        if filter_scaffold_animal_barrier and child_code in SCAFFOLD_ANIMAL_BARRIER_CODES:
+                            continue
                         if work_type == "demolition":
                             child_quantity = set_reuse_quantity(
                                 item.get(SET_DESC_COL), item.get(SET_REUSE_COL, 0), child_code
@@ -1011,10 +1204,12 @@ class MaterialWorkbook:
         alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
         for _, item in matches.iterrows():
             material_code = clean_text(item[CODE_COL])
+            if set_code.casefold() in self.transformer_scaffold_animal_barrier_sets and material_code in SCAFFOLD_ANIMAL_BARRIER_CODES:
+                continue
             if not re.fullmatch(r"\d{10}", material_code):
                 continue
             if work_type == "demolition":
-                quantity = set_reuse_quantity(
+                quantity = 0.0 if set_code.lower() in self.transformer_scaffold_no_reuse_sets else set_reuse_quantity(
                     item.get(SET_DESC_COL), item.get(SET_REUSE_COL, 0), material_code
                 ) * multiplier
             else:
@@ -1051,6 +1246,41 @@ class MaterialWorkbook:
         df = pd.DataFrame(self.summary, columns=columns)
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Summary")
+        return output.getvalue()
+
+    def export_department_summaries(self, departments: list[dict[str, Any]]) -> bytes:
+        if not departments:
+            raise ValueError("ไม่พบข้อมูลแผนกสำหรับ export")
+
+        output = BytesIO()
+        used_sheet_names: set[str] = set()
+
+        def unique_sheet_name(value: Any, index: int) -> str:
+            name = re.sub(r"[\\/*?:\[\]]", "_", clean_text(value)).strip("' ") or f"แผนก {index}"
+            base = name[:31]
+            candidate = base
+            suffix = 2
+            while candidate.casefold() in used_sheet_names:
+                ending = f" ({suffix})"
+                candidate = f"{base[:31 - len(ending)]}{ending}"
+                suffix += 1
+            used_sheet_names.add(candidate.casefold())
+            return candidate
+
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            for index, department in enumerate(departments, start=1):
+                if not isinstance(department, dict):
+                    continue
+                sheet_name = unique_sheet_name(department.get("name"), index)
+                rows = department.get("results")
+                valid_rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+                if valid_rows:
+                    pd.DataFrame(valid_rows).to_excel(writer, index=False, sheet_name=sheet_name)
+                else:
+                    pd.DataFrame([{"ผลลัพธ์": "ยังไม่มีผลคำนวณในแผนกนี้"}]).to_excel(
+                        writer, index=False, sheet_name=sheet_name
+                    )
+
         return output.getvalue()
 
     def export_page_summary(self, pages: list[list[dict[str, Any]]]) -> bytes:
@@ -1414,9 +1644,19 @@ class MaterialWorkbook:
 
     def export_page_hardware_combined(self, pages: list[list[dict[str, Any]]]) -> bytes:
         """Combine hardware/preform and insulator-audit exports into separate sheets."""
-        hardware = self.export_page_hardware(pages)
-        insulators = self.export_page_insulators(pages)
-        return merge_excel_workbooks(hardware, insulators)
+        exports = []
+        for export_method, empty_error in (
+            (self.export_page_hardware, "ยังไม่มีข้อมูลลูกถ้วยหรืออุปกรณ์ยึดสายสำหรับ export"),
+            (self.export_page_insulators, "ยังไม่มีข้อมูลหัวเสาที่มีลูกถ้วยสำหรับ export"),
+        ):
+            try:
+                exports.append(export_method(pages))
+            except ValueError as exc:
+                if str(exc) != empty_error:
+                    raise
+        if not exports:
+            raise ValueError("ยังไม่มีข้อมูลลูกถ้วยหรืออุปกรณ์ยึดสายสำหรับ export")
+        return merge_excel_workbooks(*exports)
 
     def export_page_crossarms(self, pages: list[list[dict[str, Any]]]) -> bytes:
         if self.base_df is None or self.set_df is None:
@@ -1537,6 +1777,69 @@ class MaterialWorkbook:
             for column, width in enumerate([10, 18, 34, 14, 64, 18, 16], start=1):
                 detail_sheet.column_dimensions[get_column_letter(column)].width = width
         return output.getvalue()
+
+    def _empty_department_export(self) -> bytes:
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            pd.DataFrame([{"ข้อมูล": "ยังไม่มีข้อมูลสำหรับ export ในแผนกนี้"}]).to_excel(
+                writer, index=False, sheet_name="ไม่มีข้อมูล"
+            )
+        return output.getvalue()
+
+    def _export_pages_by_department(
+        self,
+        departments: list[dict[str, Any]],
+        export_method,
+        empty_errors: tuple[str, ...],
+    ) -> bytes:
+        if not departments:
+            raise ValueError("ไม่พบข้อมูลแผนกสำหรับ export")
+
+        exports: list[bytes] = []
+        prefixes: list[str] = []
+        for department in departments:
+            if not isinstance(department, dict):
+                continue
+            name = clean_text(department.get("name")) or f"แผนก {len(exports) + 1}"
+            pages = department.get("pages")
+            if not isinstance(pages, list):
+                pages = []
+            try:
+                data = export_method(pages)
+            except ValueError as exc:
+                if str(exc) not in empty_errors:
+                    raise
+                data = self._empty_department_export()
+            exports.append(data)
+            prefixes.append(name)
+
+        if not exports:
+            raise ValueError("ไม่พบข้อมูลแผนกสำหรับ export")
+        return merge_excel_workbooks(*exports, sheet_prefixes=prefixes)
+
+    def export_department_page_summary(self, departments: list[dict[str, Any]]) -> bytes:
+        return self._export_pages_by_department(
+            departments,
+            self.export_page_summary,
+            ("ยังไม่มีข้อมูลแต่ละหน้าสำหรับ export",),
+        )
+
+    def export_department_page_hardware(self, departments: list[dict[str, Any]]) -> bytes:
+        return self._export_pages_by_department(
+            departments,
+            self.export_page_hardware_combined,
+            (
+                "ยังไม่มีข้อมูลลูกถ้วยหรืออุปกรณ์ยึดสายสำหรับ export",
+                "ยังไม่มีข้อมูลหัวเสาที่มีลูกถ้วยสำหรับ export",
+            ),
+        )
+
+    def export_department_page_crossarms(self, departments: list[dict[str, Any]]) -> bytes:
+        return self._export_pages_by_department(
+            departments,
+            self.export_page_crossarms,
+            ("ไม่พบรายการคอนจากหัวเสาที่เลือก",),
+        )
 
 
 def classify_wire_head(head: str) -> str | None:
@@ -1803,15 +2106,18 @@ def clean_text(value: Any) -> str:
     return str(value).strip()
 
 
-def merge_excel_workbooks(*workbook_bytes: bytes) -> bytes:
+def merge_excel_workbooks(*workbook_bytes: bytes, sheet_prefixes: list[str] | None = None) -> bytes:
     """Merge worksheets from generated workbooks while preserving their presentation."""
     target = Workbook()
     target.remove(target.active)
     used_names: set[str] = set()
-    for data in workbook_bytes:
+    for workbook_index, data in enumerate(workbook_bytes):
         source = load_workbook(BytesIO(data))
         for source_sheet in source.worksheets:
-            title = source_sheet.title[:31]
+            prefix = sheet_prefixes[workbook_index] if sheet_prefixes and workbook_index < len(sheet_prefixes) else ""
+            base_title = f"{prefix} - {source_sheet.title}" if prefix else source_sheet.title
+            base_title = re.sub(r"[\\/*?:\[\]]", "_", base_title).strip("' ") or "Sheet"
+            title = base_title[:31]
             base, suffix = title, 2
             while title in used_names:
                 marker = f" ({suffix})"

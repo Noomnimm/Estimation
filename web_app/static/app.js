@@ -30,6 +30,26 @@ const STRUCTURE_CATALOG = [
   { group: "งานปรับปรุงเสา", code: "9010070004", material: "POLE IMPROVEMENT 12.20, 14 M." },
 ];
 const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสาแรงต่ำ", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
+const TRANSFORMER_SCAFFOLD_POLES = [
+  { code: "1000010004", name: "เสา คอร. 12.00 ม.", stubs: ["Set14304", "Set14305", "Set14306"] },
+  { code: "1000010006", name: "เสา คอร. 14.00 ม.", stubs: ["Set14307", "Set14308", "Set14309"] },
+  { code: "1000010012", name: "เสา คอร. 12.20 ม.", stubs: ["Set14316", "Set14317", "Set14318"] },
+  { code: "1000010013", name: "เสา คอร. 14.30 ม.", stubs: ["Set14313", "Set14314", "Set14315"] },
+];
+const TRANSFORMER_SCAFFOLD_STUBS = {
+  Set14304: "ตอม่อ 0.30 × 0.30 ม. · 4.50 ม.",
+  Set14305: "ตอม่อ 0.30 × 0.30 ม. · 5.50 ม.",
+  Set14306: "ตอม่อ 0.30 × 0.30 ม. · 6.50 ม.",
+  Set14307: "ตอม่อ 0.35 × 0.35 ม. · 4.50 ม.",
+  Set14308: "ตอม่อ 0.35 × 0.35 ม. · 5.50 ม.",
+  Set14309: "ตอม่อ 0.35 × 0.35 ม. · 6.50 ม.",
+  Set14313: "ตอม่อ 0.41 × 0.41 ม. · 5.50 ม.",
+  Set14314: "ตอม่อ 0.41 × 0.41 ม. · 6.50 ม.",
+  Set14315: "ตอม่อ 0.41 × 0.41 ม. · 7.50 ม.",
+  Set14316: "ตอม่อ 0.36 × 0.36 ม. · 4.50 ม.",
+  Set14317: "ตอม่อ 0.36 × 0.36 ม. · 5.50 ม.",
+  Set14318: "ตอม่อ 0.36 × 0.36 ม. · 6.50 ม.",
+};
 const WIRE_CATALOG = [
   { group: "สาย TAC", department: "แผนกแรงสูง TAC", code: "1020050204", shortName: "240TAC", material: "CABLE,TWISTED,AL.22KV.3-1X240 SQ.MM." },
   { group: "สาย OHGW", code: "1010100002", shortName: "25OHGW", material: "WIRE,STEEL STRANDED 25 SQ.MM.TIS.404" },
@@ -171,6 +191,8 @@ const els = {
   transmissionEditHead: document.getElementById("transmissionEditHead"),
   transformerEditSelector: document.getElementById("transformerEditSelector"),
   transformerEditModel: document.getElementById("transformerEditModel"),
+  transformerEditScaffoldField: document.getElementById("transformerEditScaffoldField"),
+  transformerEditScaffold: document.getElementById("transformerEditScaffold"),
   transformerEditKvaField: document.getElementById("transformerEditKvaField"),
   transformerEditKva: document.getElementById("transformerEditKva"),
   transformerEditLtField: document.getElementById("transformerEditLtField"),
@@ -270,7 +292,7 @@ els.themeToggle?.addEventListener("click", () => {
 });
 
 function blankRow(department = DEFAULT_DEPARTMENT, workType = "install") {
-  return { department, workType, size: "", head: "", count: "", transmissionCircuit: "", transmissionCategory: "", insulatorType: "porcelain", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, insulatorUpright: null, insulatorHorizontal: null };
+  return { department, workType, size: "", head: "", count: "", transmissionCircuit: "", transmissionCategory: "", insulatorType: "porcelain", wire1: "", wire2: "", wire3: "", latWire: "", surgeNgr: false, surgeWithin3km: false, surgeMounting: "crossarm", transformerKva: 100, transformerType: "sealed", transformerMounting: "single-pole-crossarm", transformerLtCircuits: 1, transformerLtFuseChoice: 0, transformerScaffoldFuseChoice: 0, transformerScaffoldTwoLtFuseChoice: 1, transformerPlatformSides: 1, transformerScaffoldPoleCode: "1000010004", transformerScaffoldStubCode: "", transformerHasConcreteStub: false, insulatorUpright: null, insulatorHorizontal: null };
 }
 
 const THREE_PHASE_LT_FUSE_OPTIONS = {
@@ -874,10 +896,13 @@ function createTransformerDetailsRow(row) {
   panel.innerHTML = `
     <div class="transformer-title"><strong>ตั้งค่าหม้อแปลง 3 เฟส · 22 kV</strong><span class="transformer-preview">แบบ Sealed · ติดตั้งบนคอนเดี่ยว (Set40203)</span></div>
     <label><span>ขนาด</span><select class="transformer-kva"><option value="50">50 kVA</option><option value="100">100 kVA</option><option value="160">160 kVA</option><option value="250">250 kVA</option><option value="315">315 kVA</option></select></label>
-    <label><span>ชนิด</span><select class="transformer-type"><option value="sealed">Sealed</option></select></label>
-    <label><span>วิธีติดตั้ง</span><select class="transformer-mounting"><option value="single-pole-crossarm">บนคอนเดี่ยว · Set40203</option></select></label>
-    <label><span>จำนวน LT</span><select class="transformer-lt"></select></label>
+    <label><span>ชนิด</span><select class="transformer-type"><option value="sealed">Sealed</option><option value="short-circuit">Short Circuit</option></select></label>
+    <label><span>วิธีติดตั้ง</span><select class="transformer-mounting"><option value="single-pole-crossarm">คอนเดี่ยว · Set40203</option><option value="scaffold">นั่งร้าน · Short Circuit 100 kVA</option></select></label>
+    <label><span class="transformer-lt-label">จำนวน LT</span><select class="transformer-lt"></select></label>
     <label><span>ชุดฟิวส์ LT</span><select class="transformer-lt-fuse"></select></label>
+    <label class="transformer-pole-label" hidden><span>เสาคอนกรีต</span><select class="transformer-platform-pole"></select></label>
+    <label class="transformer-stub-label" hidden><span>ตอม่อ</span><select class="transformer-platform-stub"></select></label>
+    <small class="transformer-scaffold-note" hidden>เลือกชุดฟิวส์ LT, ระบบ Surge และระยะจากสถานีได้ · Surge ติดตั้งบนคอน · เหล็ก OHGW ให้ประมาณการแยกในแผนกแรงสูง</small>
     <label><span>ระบบ Surge</span><select class="transformer-surge-ngr"><option value="normal">ระบบปกติ</option><option value="ngr">ระบบ NGR</option></select></label>
     <label><span>ระยะจากสถานี</span><select class="transformer-surge-distance"><option value="outside">นอกระยะ 3 กม.</option><option value="inside">ภายในระยะ 3 กม.</option></select></label>
     <label><span>ตำแหน่ง Surge</span><select class="transformer-surge-mounting"><option value="crossarm">ติดตั้งบนคอน</option><option value="tank">ติดตั้งตัวถังหม้อแปลง</option></select></label>
@@ -887,21 +912,46 @@ function createTransformerDetailsRow(row) {
   const mounting = panel.querySelector(".transformer-mounting");
   const circuits = panel.querySelector(".transformer-lt");
   const fuse = panel.querySelector(".transformer-lt-fuse");
+  const pole = panel.querySelector(".transformer-platform-pole");
+  const stub = panel.querySelector(".transformer-platform-stub");
   const surgeNgr = panel.querySelector(".transformer-surge-ngr");
   const surgeDistance = panel.querySelector(".transformer-surge-distance");
   const surgeMounting = panel.querySelector(".transformer-surge-mounting");
+  const ltLabel = panel.querySelector(".transformer-lt-label");
+  const scaffoldNote = panel.querySelector(".transformer-scaffold-note");
+  const poleLabel = panel.querySelector(".transformer-pole-label");
+  const stubLabel = panel.querySelector(".transformer-stub-label");
   const preferredCircuits = Number(row.transformerLtCircuits) || 1;
+  let preferredStubCode = row.transformerScaffoldStubCode || (row.transformerHasConcreteStub ? "Set14304" : "");
   kva.value = String(row.transformerKva || 100);
   type.value = row.transformerType || "sealed";
   mounting.value = row.transformerMounting || "single-pole-crossarm";
   circuits.value = String(row.transformerLtCircuits || 1);
+  pole.replaceChildren(...TRANSFORMER_SCAFFOLD_POLES.map((entry) => {
+    const option = document.createElement("option");
+    option.value = entry.code;
+    option.textContent = entry.name;
+    return option;
+  }));
+  pole.value = row.transformerScaffoldPoleCode || "1000010004";
   surgeNgr.value = row.surgeNgr ? "ngr" : "normal";
   surgeDistance.value = row.surgeWithin3km ? "inside" : "outside";
   surgeMounting.value = row.surgeMounting || "crossarm";
   const update = () => {
+    const scaffold = mounting.value === "scaffold";
+    if (scaffold) {
+      kva.value = "100";
+      type.value = "short-circuit";
+    } else if (type.value !== "sealed") {
+      type.value = "sealed";
+    }
+    kva.disabled = scaffold;
+    type.disabled = scaffold;
+    type.querySelector('option[value="short-circuit"]').disabled = !scaffold;
     row.transformerKva = Number(kva.value);
     row.transformerType = type.value;
     row.transformerMounting = mounting.value;
+    ltLabel.textContent = scaffold ? "ด้านจ่ายแรงต่ำ" : "จำนวน LT";
     const availableCircuits = [1, 2].filter((number) => THREE_PHASE_LT_FUSE_OPTIONS[`${row.transformerKva}:${number}`]);
     const requestedCircuits = Number(circuits.value) || preferredCircuits;
     const selectedCircuits = availableCircuits.includes(requestedCircuits) ? requestedCircuits : (availableCircuits[0] || 1);
@@ -913,8 +963,26 @@ function createTransformerDetailsRow(row) {
     }));
     circuits.value = String(selectedCircuits);
     row.transformerLtCircuits = Number(circuits.value);
+    row.transformerPlatformSides = Number(circuits.value);
+    const selectedPole = TRANSFORMER_SCAFFOLD_POLES.find((entry) => entry.code === pole.value) || TRANSFORMER_SCAFFOLD_POLES[0];
+    const selectedStub = stub.value || preferredStubCode;
+    const stubOptions = [new Option("ไม่มีตอม่อ", ""), ...selectedPole.stubs.map((code) => new Option(`${TRANSFORMER_SCAFFOLD_STUBS[code]} · ${code}`, code))];
+    stub.replaceChildren(...stubOptions);
+    if (selectedPole.stubs.includes(selectedStub)) stub.value = selectedStub;
+    preferredStubCode = "";
+    row.transformerScaffoldPoleCode = selectedPole.code;
+    row.transformerScaffoldStubCode = stub.value;
+    row.transformerHasConcreteStub = Boolean(stub.value);
+    fuse.closest("label").hidden = false;
+    poleLabel.hidden = !scaffold;
+    stubLabel.hidden = !scaffold;
+    scaffoldNote.hidden = !scaffold;
+    surgeNgr.closest("label").hidden = false;
+    surgeDistance.closest("label").hidden = false;
+    surgeMounting.closest("label").hidden = scaffold;
     row.surgeNgr = surgeNgr.value === "ngr";
     row.surgeWithin3km = surgeDistance.value === "inside";
+    if (scaffold) surgeMounting.value = "crossarm";
     if (row.surgeWithin3km) surgeMounting.value = "crossarm";
     surgeMounting.querySelector('option[value="tank"]').disabled = row.surgeWithin3km;
     row.surgeMounting = surgeMounting.value;
@@ -934,15 +1002,29 @@ function createTransformerDetailsRow(row) {
       row.transformerLtFuseChoice = -1;
     } else {
       fuse.disabled = false;
-      const choice = Math.max(0, Math.min(choices.length - 1, Number(row.transformerLtFuseChoice) || 0));
+      const defaultChoice = scaffold && row.transformerLtCircuits === 2 ? 1 : 0;
+      const requestedChoice = scaffold
+        ? (row.transformerLtCircuits === 2 ? row.transformerScaffoldTwoLtFuseChoice : row.transformerScaffoldFuseChoice)
+        : row.transformerLtFuseChoice;
+      const choice = Math.max(0, Math.min(choices.length - 1, Number.isInteger(Number(requestedChoice)) ? Number(requestedChoice) : defaultChoice));
       fuse.value = String(choice);
-      row.transformerLtFuseChoice = choice;
+      if (scaffold) {
+        row.transformerScaffoldFuseChoice = choice;
+        if (row.transformerLtCircuits === 2) row.transformerScaffoldTwoLtFuseChoice = choice;
+      }
+      else row.transformerLtFuseChoice = choice;
     }
+    panel.querySelector(".transformer-preview").textContent = scaffold
+      ? `แบบ Short Circuit · ติดตั้งนั่งร้าน · ${selectedPole.name} · จ่ายแรงต่ำ ${row.transformerPlatformSides} ข้าง · ${row.transformerHasConcreteStub ? TRANSFORMER_SCAFFOLD_STUBS[stub.value] : "ไม่มีตอม่อ"}`
+      : "แบบ Sealed · ติดตั้งบนคอนเดี่ยว (Set40203)";
     markProjectDirty();
   };
-  [kva, type, mounting, circuits, surgeNgr, surgeDistance, surgeMounting].forEach((select) => select.addEventListener("change", update));
+  [kva, type, mounting, circuits, pole, stub, surgeNgr, surgeDistance, surgeMounting].forEach((select) => select.addEventListener("change", update));
   fuse.addEventListener("change", () => {
-    row.transformerLtFuseChoice = Number(fuse.value);
+    if (row.transformerMounting === "scaffold") {
+      row.transformerScaffoldFuseChoice = Number(fuse.value);
+      if (row.transformerLtCircuits === 2) row.transformerScaffoldTwoLtFuseChoice = Number(fuse.value);
+    } else row.transformerLtFuseChoice = Number(fuse.value);
     markProjectDirty();
   });
   update();
@@ -2292,13 +2374,30 @@ els.expandSet.addEventListener("click", async () => {
   }
 });
 
+function buildDepartmentPagesExportPayload() {
+  stashCurrentDepartment();
+  return Object.entries(state.departmentWork).map(([name, work]) => ({
+    name,
+    pages: structuredClone(work.pages || []),
+  }));
+}
+
 els.exportExcel.addEventListener("click", async () => {
   try {
     const fileName = exportFileName("ผลลัพธ์");
     const saveTarget = await prepareSaveAs(fileName, "Excel Workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
     if (!saveTarget) { setStatus("ยกเลิก Save As"); return; }
     setStatus("กำลังสร้าง Excel...");
-    const response = await fetch("/api/export", { method: "POST" });
+    stashCurrentDepartment();
+    const departments = Object.entries(state.departmentWork).map(([name, work]) => ({
+      name,
+      results: structuredClone(work.results || []),
+    }));
+    const response = await fetch("/api/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ departments }),
+    });
     if (!response.ok) {
       await readJson(response, "Export ไม่สำเร็จ");
     }
@@ -2312,7 +2411,7 @@ els.exportExcel.addEventListener("click", async () => {
 
 els.exportPages.addEventListener("click", async () => {
   try {
-    saveCurrentPageFromDom();
+    const departments = buildDepartmentPagesExportPayload();
     const fileName = exportFileName("รายการหัวเสาแยกหน้า");
     const saveTarget = await prepareSaveAs(fileName, "Excel Workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
     if (!saveTarget) { setStatus("ยกเลิก Save As"); return; }
@@ -2320,7 +2419,7 @@ els.exportPages.addEventListener("click", async () => {
     const response = await fetch("/api/export-pages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pages: state.pages }),
+      body: JSON.stringify({ departments }),
     });
     if (!response.ok) {
       await readJson(response, "Export รายการแต่ละหน้าไม่สำเร็จ");
@@ -2335,7 +2434,7 @@ els.exportPages.addEventListener("click", async () => {
 
 els.exportPageHardware.addEventListener("click", async () => {
   try {
-    saveCurrentPageFromDom();
+    const departments = buildDepartmentPagesExportPayload();
     const fileName = exportFileName("ลูกถ้วย-Preformแยกหน้า");
     const saveTarget = await prepareSaveAs(fileName, "Excel Workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
     if (!saveTarget) { setStatus("ยกเลิก Save As"); return; }
@@ -2343,7 +2442,7 @@ els.exportPageHardware.addEventListener("click", async () => {
     const response = await fetch("/api/export-page-hardware", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pages: state.pages }),
+      body: JSON.stringify({ departments }),
     });
     if (!response.ok) {
       await readJson(response, "Export ลูกถ้วยและอุปกรณ์ยึดสายไม่สำเร็จ");
@@ -2358,7 +2457,7 @@ els.exportPageHardware.addEventListener("click", async () => {
 
 els.exportPageCrossarms.addEventListener("click", async () => {
   try {
-    saveCurrentPageFromDom();
+    const departments = buildDepartmentPagesExportPayload();
     const fileName = exportFileName("คอนแยกหน้า");
     const saveTarget = await prepareSaveAs(fileName, "Excel Workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
     if (!saveTarget) { setStatus("ยกเลิก Save As"); return; }
@@ -2366,7 +2465,7 @@ els.exportPageCrossarms.addEventListener("click", async () => {
     const response = await fetch("/api/export-page-crossarms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pages: state.pages }),
+      body: JSON.stringify({ departments }),
     });
     if (!response.ok) {
       await readJson(response, "Export คอนแยกหน้าไม่สำเร็จ");
@@ -3148,16 +3247,20 @@ async function loadReplaceHeads() {
 function populateTransformerEditSelector(heads) {
   const hasOnePhase = heads.includes("30kVA 1P");
   const hasSealedThreePhase = heads.some((head) => /^3P Sealed 22 kV · \d+ kVA · \d+ LT · Fuse .+ A$/.test(head));
+  const hasScaffold = heads.some((head) => head.startsWith("หม้อแปลง 3 เฟส 100 kVA (ติดตั้งแบบนั่งร้าน) ·"));
   const models = [];
   if (hasOnePhase) models.push("30kVA 1P");
   if (hasSealedThreePhase) models.push("3 เฟส · Sealed · 22 kV");
+  if (hasScaffold) models.push("3 เฟส · Short Circuit · นั่งร้าน");
   setSelectOptions(els.transformerEditModel, models, "เลือกรุ่นหม้อแปลง");
+  setSelectOptions(els.transformerEditScaffold, [], "เลือกรูปแบบนั่งร้าน");
   setSelectOptions(els.transformerEditKva, [], "เลือกขนาด");
   setSelectOptions(els.transformerEditLt, [], "เลือกจำนวน LT");
   setSelectOptions(els.transformerEditFuse, [], "เลือก Fuse");
   els.transformerEditKvaField.hidden = true;
   els.transformerEditLtField.hidden = true;
   els.transformerEditFuseField.hidden = true;
+  els.transformerEditScaffoldField.hidden = true;
 }
 
 function transformerEditVariants() {
@@ -3172,6 +3275,7 @@ function transformerEditVariants() {
 
 function onTransformerEditModelChange() {
   const threePhase = els.transformerEditModel.value === "3 เฟส · Sealed · 22 kV";
+  const scaffold = els.transformerEditModel.value === "3 เฟส · Short Circuit · นั่งร้าน";
   els.requestMaterialRows.innerHTML = "";
   state.baseRequestOriginalRows = [];
   els.requestLastEditor.value = "";
@@ -3179,7 +3283,17 @@ function onTransformerEditModelChange() {
   els.transformerEditKvaField.hidden = !threePhase;
   els.transformerEditLtField.hidden = true;
   els.transformerEditFuseField.hidden = true;
+  els.transformerEditScaffoldField.hidden = !scaffold;
+  if (scaffold) {
+    const scaffoldHeads = [...els.replaceHead.options]
+      .map((option) => option.value)
+      .filter((head) => head.startsWith("หม้อแปลง 3 เฟส 100 kVA (ติดตั้งแบบนั่งร้าน) ·"));
+    setSelectOptions(els.transformerEditScaffold, scaffoldHeads, "เลือกรูปแบบนั่งร้าน");
+    els.replaceHead.value = "";
+    return;
+  }
   if (!threePhase) {
+    setSelectOptions(els.transformerEditScaffold, [], "เลือกรูปแบบนั่งร้าน");
     setSelectOptions(els.transformerEditKva, [], "เลือกขนาด");
     setSelectOptions(els.transformerEditLt, [], "เลือกจำนวน LT");
     setSelectOptions(els.transformerEditFuse, [], "เลือก Fuse");
@@ -3192,6 +3306,11 @@ function onTransformerEditModelChange() {
   setSelectOptions(els.transformerEditLt, [], "เลือกจำนวน LT");
   setSelectOptions(els.transformerEditFuse, [], "เลือก Fuse");
   els.replaceHead.value = "";
+}
+
+function onTransformerEditScaffoldChange() {
+  els.replaceHead.value = els.transformerEditScaffold.value;
+  if (els.replaceHead.value) void loadExistingBaseEntry();
 }
 
 function onTransformerEditKvaChange() {
@@ -3764,6 +3883,7 @@ els.transmissionEditHead.addEventListener("change", loadExistingBaseEntry);
 els.replaceSize.addEventListener("change", loadReplaceHeads);
 els.replaceHead.addEventListener("change", loadExistingBaseEntry);
 els.transformerEditModel.addEventListener("change", onTransformerEditModelChange);
+els.transformerEditScaffold.addEventListener("change", onTransformerEditScaffoldChange);
 els.transformerEditKva.addEventListener("change", onTransformerEditKvaChange);
 els.transformerEditLt.addEventListener("change", onTransformerEditLtChange);
 els.transformerEditFuse.addEventListener("change", onTransformerEditFuseChange);
