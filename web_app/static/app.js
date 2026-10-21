@@ -506,6 +506,7 @@ function structureCatalogForDepartment(department = baseDepartmentFor()) {
   const isLowVoltage = department === "แผนกแรงต่ำ";
   return STRUCTURE_CATALOG.filter((item) => {
     if (isLowVoltage) return item.department === department;
+    if (department === "แผนกสายส่ง" && item.group.includes("ตอม่อ")) return false;
     if (department === "แผนกสายส่ง" && item.group === "เสาคอนกรีต") return item.department === department;
     return !item.department;
   });
