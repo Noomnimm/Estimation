@@ -52,6 +52,8 @@ const TRANSFORMER_SCAFFOLD_STUBS = {
   Set14318: "ตอม่อ 0.36 × 0.36 ม. · 6.50 ม.",
 };
 const WIRE_CATALOG = [
+  { group: "สาย OHGW", department: "แผนกสายส่ง", code: "1010100003", shortName: "35OHGW", material: "WIRE,STEEL STRANDED 35 SQ.MM.TIS.404" },
+  { group: "สายอลูมิเนียมเปลือย", department: "แผนกสายส่ง", code: "1020010009", shortName: "400A", material: "CONDUCTOR,AL,BARE,400 SQ.MM.TIS.85" },
   { group: "สาย TAC", department: "แผนกแรงสูง TAC", code: "1020050204", shortName: "240TAC", material: "CABLE,TWISTED,AL.22KV.3-1X240 SQ.MM." },
   { group: "สาย OHGW", code: "1010100002", shortName: "25OHGW", material: "WIRE,STEEL STRANDED 25 SQ.MM.TIS.404" },
   { group: "สาย Messenger", code: "1010100004", shortName: "Messenger 50/7", material: "WIRE,STEEL STRANDED 50/7 SQ.MM.TIS.404" },
@@ -512,6 +514,12 @@ function structureCatalogForDepartment(department = baseDepartmentFor()) {
   });
 }
 
+function wireCatalogForDepartment(department = baseDepartmentFor()) {
+  return WIRE_CATALOG.filter((item) => department === "แผนกสายส่ง"
+    ? item.department === department
+    : !item.department || item.department === department);
+}
+
 function renderWireInputs() {
   const pageRows = state.structurePages[state.currentPage] || [];
   if (!pageRows.some((row) => row.category === "wire")) pageRows.push(blankStructureRow(state.activeWorkType, "wire"));
@@ -523,7 +531,7 @@ function renderWireInputs() {
     line.innerHTML = `<label>${visibleIndex === 0 ? "<span>ชนิดสาย</span>" : ""}<select class="wire-item" aria-label="ชนิดสาย"><option value="">เลือกชนิดสาย</option></select></label><label>${visibleIndex === 0 ? "<span>จำนวน (เมตร)</span>" : ""}<input class="wire-count" type="text" inputmode="text" aria-label="จำนวนสาย (เมตร)" placeholder="เช่น 1200/3+100"></label><button class="remove-structure-row remove-wire-row" type="button" aria-label="ลบรายการสายนี้">×</button>`;
     const select = line.querySelector(".wire-item");
     WIRE_GROUP_ORDER.forEach((group) => {
-      const groupItems = WIRE_CATALOG.filter((item) => item.group === group && (!item.department || item.department === baseDepartmentFor()));
+      const groupItems = wireCatalogForDepartment().filter((item) => item.group === group);
       if (!groupItems.length) return;
       const optgroup = document.createElement("optgroup");
       optgroup.label = group;
