@@ -1,6 +1,10 @@
 const DEPARTMENTS = ["แผนกแรงสูง", "แผนกแรงสูง TAC", "แผนกแรงต่ำ", "แผนกหม้อแปลง", "แผนกสายส่ง"];
 const DEFAULT_DEPARTMENT = DEPARTMENTS[0];
 const STRUCTURE_CATALOG = [
+  { group: "อุปกรณ์สายส่ง", department: "แผนกสายส่ง", code: "1010010005", material: "STEEL ANGLE,OVERHEAD GROUND WIRE CORNER BAYONET 65X65X6 MM. 2,500 MM.LONG" },
+  { group: "อุปกรณ์สายส่ง", department: "แผนกสายส่ง", code: "1010010004", material: "STEEL ANGLE,OVERHEAD GROUND WIRE BAYONET 65X65X6 MM. 2,500 MM.LONG" },
+  { group: "อุปกรณ์สายส่ง", department: "แผนกสายส่ง", code: "1010230003", material: "CLAMP,TRIPLE BOLTS FOR STEEL STRANDED WIRE 35 SQ.MM." },
+  { group: "อุปกรณ์สายส่ง", department: "แผนกสายส่ง", code: "1010210304", material: "THIMBLE,GUY,FOR STEEL WIRE 50-95 sq.mm." },
   { group: "เสาคอนกรีต", department: "แผนกสายส่ง", code: "1000010016", material: "POLE 22 M. WITH GROUND PLATE 2 SIDES" },
   { group: "เสาคอนกรีต", department: "แผนกแรงต่ำ", code: "1000010001", material: "เสา คอร. 8.00m" },
   { group: "เสาคอนกรีต", department: "แผนกแรงต่ำ", code: "1000010002", material: "เสา คอร. 9.00m" },
@@ -30,7 +34,7 @@ const STRUCTURE_CATALOG = [
   { group: "ฐานรากและตอม่อ", code: "Set14202", material: "POLE FOUNDATION 12.20, 14 M." },
   { group: "งานปรับปรุงเสา", code: "9010070004", material: "POLE IMPROVEMENT 12.20, 14 M." },
 ];
-const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสาแรงต่ำ", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา"];
+const STRUCTURE_GROUP_ORDER = ["เสาคอนกรีต", "ตอม่อสำหรับเสาแรงต่ำ", "ตอม่อสำหรับเสา 12 ม.", "ตอม่อสำหรับเสา 12.20 ม.", "ตอม่อสำหรับเสา 14 ม.", "ตอม่อสำหรับเสา 14.30 ม.", "ฐานรากและตอม่อ", "งานปรับปรุงเสา", "อุปกรณ์สายส่ง"];
 const TRANSFORMER_SCAFFOLD_POLES = [
   { code: "1000010004", name: "เสา คอร. 12.00 ม.", stubs: ["Set14304", "Set14305", "Set14306"] },
   { code: "1000010006", name: "เสา คอร. 14.00 ม.", stubs: ["Set14307", "Set14308", "Set14309"] },
@@ -508,6 +512,7 @@ function structureCatalogForDepartment(department = baseDepartmentFor()) {
   const isLowVoltage = department === "แผนกแรงต่ำ";
   return STRUCTURE_CATALOG.filter((item) => {
     if (isLowVoltage) return item.department === department;
+    if (item.group === "อุปกรณ์สายส่ง") return item.department === department;
     if (department === "แผนกสายส่ง" && item.group.includes("ตอม่อ")) return false;
     if (department === "แผนกสายส่ง" && item.group === "เสาคอนกรีต") return item.department === department;
     return !item.department;
