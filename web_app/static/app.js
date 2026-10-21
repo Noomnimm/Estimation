@@ -1,6 +1,7 @@
 const DEPARTMENTS = ["แผนกแรงสูง", "แผนกแรงสูง TAC", "แผนกแรงต่ำ", "แผนกหม้อแปลง", "แผนกสายส่ง"];
 const DEFAULT_DEPARTMENT = DEPARTMENTS[0];
 const STRUCTURE_CATALOG = [
+  { group: "เสาคอนกรีต", department: "แผนกสายส่ง", code: "1000010016", material: "POLE 22 M. WITH GROUND PLATE 2 SIDES" },
   { group: "เสาคอนกรีต", department: "แผนกแรงต่ำ", code: "1000010001", material: "เสา คอร. 8.00m" },
   { group: "เสาคอนกรีต", department: "แผนกแรงต่ำ", code: "1000010002", material: "เสา คอร. 9.00m" },
   { group: "เสาคอนกรีต", department: "แผนกแรงต่ำ", code: "1000010004", material: "เสา คอร. 12.00m" },
@@ -503,7 +504,11 @@ function renderStructureInputs() {
 
 function structureCatalogForDepartment(department = baseDepartmentFor()) {
   const isLowVoltage = department === "แผนกแรงต่ำ";
-  return STRUCTURE_CATALOG.filter((item) => isLowVoltage ? item.department === department : !item.department);
+  return STRUCTURE_CATALOG.filter((item) => {
+    if (isLowVoltage) return item.department === department;
+    if (department === "แผนกสายส่ง" && item.group === "เสาคอนกรีต") return item.department === department;
+    return !item.department;
+  });
 }
 
 function renderWireInputs() {
