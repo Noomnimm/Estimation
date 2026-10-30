@@ -39,6 +39,7 @@ SET_DESC_COL = "คำอธิบาย"
 SET_INSTALL_COL = "ติดตั้ง"
 SET_REUSE_COL = "จำนวนนำกลับมาใช้ใหม่"
 SET_REUSE_ZERO_CODES = {"1020440119"}
+DEMOLITION_EXCLUDED_CODES = {"1010100002"}
 DEMOLITION_ALWAYS_KEEP_CODES = {
     "1020440000", "1020440008", "1030010200", "1040000002",
     "1040010015", "1040010016", "1040030002", "1060020050",
@@ -896,6 +897,8 @@ class MaterialWorkbook:
                     if not code or amount == 0:
                         continue
                     normalized_code = code.replace("-", "")
+                    if work_type == "demolition" and normalized_code in DEMOLITION_EXCLUDED_CODES:
+                        continue
                     if (
                         work_type == "demolition"
                         and normalized_code in demolition_non_reusable_codes
@@ -941,6 +944,8 @@ class MaterialWorkbook:
                 if not code or not material or count == 0:
                     continue
                 work_type = "demolition" if item.get("workType") == "demolition" else fallback_type
+                if work_type == "demolition" and code.replace("-", "") in DEMOLITION_EXCLUDED_CODES:
+                    continue
                 add_material(totals_by_work_type[work_type], material, code, count)
                 input_count += 1
                 matched_rows += 1
@@ -1108,6 +1113,8 @@ class MaterialWorkbook:
                     alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
                     for _, item in matches.iterrows():
                         child_code = clean_text(item[CODE_COL])
+                        if work_type == "demolition" and child_code.replace("-", "") in DEMOLITION_EXCLUDED_CODES:
+                            continue
                         if filter_scaffold_animal_barrier and child_code in SCAFFOLD_ANIMAL_BARRIER_CODES:
                             continue
                         if work_type == "demolition":
@@ -1204,6 +1211,8 @@ class MaterialWorkbook:
         alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
         for _, item in matches.iterrows():
             material_code = clean_text(item[CODE_COL])
+            if work_type == "demolition" and material_code.replace("-", "") in DEMOLITION_EXCLUDED_CODES:
+                continue
             if set_code.casefold() in self.transformer_scaffold_animal_barrier_sets and material_code in SCAFFOLD_ANIMAL_BARRIER_CODES:
                 continue
             if not re.fullmatch(r"\d{10}", material_code):
