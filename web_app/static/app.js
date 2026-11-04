@@ -118,6 +118,8 @@ const LATEST_FILE_HANDLE_KEY = "__latest_project_file__";
 const PUBLIC_PENDING_CACHE_KEY = "material-calculator-pending-requests-v1";
 let publicPendingLoadSequence = 0;
 let adminRequestLoadSequence = 0;
+let exportPreviewRequestSequence = 0;
+let activeExportPreviewType = "summary";
 
 const els = {
   status: document.getElementById("status"),
@@ -166,6 +168,13 @@ const els = {
   exportPages: document.getElementById("exportPages"),
   exportPageHardware: document.getElementById("exportPageHardware"),
   exportPageCrossarms: document.getElementById("exportPageCrossarms"),
+  exportPreviewProjectMeta: document.getElementById("exportPreviewProjectMeta"),
+  exportPreviewDepartments: document.getElementById("exportPreviewDepartments"),
+  exportPreviewDepartment: document.getElementById("exportPreviewDepartment"),
+  exportPreviewMeta: document.getElementById("exportPreviewMeta"),
+  exportPreviewTable: document.getElementById("exportPreviewTable"),
+  exportPreviewCount: document.getElementById("exportPreviewCount"),
+  exportPreviewDownload: document.getElementById("exportPreviewDownload"),
   baseRequestForm: document.getElementById("baseRequestForm"),
   requesterName: document.getElementById("requesterName"),
   requesterEmployeeId: document.getElementById("requesterEmployeeId"),
@@ -1762,6 +1771,7 @@ function switchTab(tabName) {
     panel.hidden = panel.dataset.panel !== tabName;
   });
   if (tabName === "saved") renderSavedProjects();
+  if (tabName === "export") loadExportPreview();
   if (tabName === "base-request") loadPublicPendingRequests();
   if (tabName === "base-admin") {
     state.activeRequestStatus = "pending";
@@ -2400,6 +2410,107 @@ function buildDepartmentPagesExportPayload() {
     pages: structuredClone(work.pages || []),
   }));
 }
+
+function buildDepartmentPreviewPayload() {
+  stashCurrentDepartment();
+  return Object.entries(state.departmentWork).map(([name, work]) => ({
+    name,
+    results: structuredClone(work.results || []),
+    pages: structuredClone(work.pages || []),
+  }));
+}
+
+function renderExportPreviewDepartments(departments) {
+  const selected = els.exportPreviewDepartment.value;
+  els.exportPreviewDepartment.replaceChildren(new Option("ทุกแผนก", ""));
+  els.exportPreviewDepartments.innerHTML = "";
+  departments.forEach(({ name }) => {
+    const option = new Option(name, name);
+    els.exportPreviewDepartment.appendChild(option);
+    const pill = document.createElement("span");
+    pill.className = "export-department-pill";
+    pill.textContent = name;
+    els.exportPreviewDepartments.appendChild(pill);
+  });
+  const allPill = document.createElement("span");
+  allPill.className = "export-department-pill all";
+  allPill.textContent = `รวมทุกแผนก · ${departments.length}`;
+  els.exportPreviewDepartments.prepend(allPill);
+  els.exportPreviewDepartment.value = departments.some(({ name }) => name === selected) ? selected : "";
+  els.exportPreviewProjectMeta.textContent = `${els.projectName.value.trim() || "งานปัจจุบัน"} · ${departments.length} แผนก`;
+}
+
+function exportSheetBelongsToDepartment(sheetName, departmentName) {
+  return sheetName === departmentName || sheetName.startsWith(`${departmentName} -`);
+}
+
+async function loadExportPreview() {
+  const requestSequence = ++exportPreviewRequestSequence;
+  const departments = buildDepartmentPreviewPayload();
+  renderExportPreviewDepartments(departments);
+  els.exportPreviewMeta.textContent = "กำลังเตรียมข้อมูล…";
+  els.exportPreviewTable.innerHTML = '<div class="empty-saved">กำลังอ่านข้อมูลที่จะส่งออก…</div>';
+  els.exportPreviewDownload.disabled = true;
+  try {
+    const response = await fetch("/api/export-preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: activeExportPreviewType, departments }),
+    });
+    const data = await readJson(response, "โหลดตัวอย่างข้อมูลส่งออกไม่สำเร็จ");
+    if (requestSequence !== exportPreviewRequestSequence) return;
+    const selectedDepartment = els.exportPreviewDepartment.value;
+    const allSheets = data.sheets || [];
+    const sheets = selectedDepartment
+      ? allSheets.filter((sheet) => exportSheetBelongsToDepartment(sheet.name, selectedDepartment))
+      : allSheets;
+    if (!sheets.length) {
+      els.exportPreviewTable.innerHTML = '<div class="empty-saved">ไม่มีข้อมูลในหมวดนี้สำหรับแผนกที่เลือก</div>';
+      els.exportPreviewMeta.textContent = `ไม่พบข้อมูล · ${selectedDepartment || "ทุกแผนก"}`;
+      els.exportPreviewCount.textContent = "0 รายการ";
+      return;
+    }
+    let rowCount = 0;
+    els.exportPreviewTable.innerHTML = sheets.map((sheet) => {
+      rowCount += sheet.rows.length;
+      const headings = sheet.columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
+      const body = sheet.rows.map((row) => `<tr>${sheet.columns.map((_, index) => {
+        const value = row[index];
+        const numeric = typeof value === "number";
+        return `<td${numeric ? ' class="numeric-cell"' : ""}>${escapeHtml(value == null ? "" : String(value))}</td>`;
+      }).join("")}</tr>`).join("");
+      return `<section class="export-preview-sheet"><h3>${escapeHtml(sheet.name)} <span>${sheet.rows.length} รายการ</span></h3><div class="table-wrap"><table><thead><tr>${headings}</tr></thead><tbody>${body || `<tr><td colspan="${Math.max(sheet.columns.length, 1)}">ไม่มีข้อมูล</td></tr>`}</tbody></table></div></section>`;
+    }).join("");
+    const departmentCount = selectedDepartment ? 1 : departments.length;
+    els.exportPreviewMeta.textContent = `แสดงข้อมูล ${rowCount.toLocaleString("th-TH")} รายการ · ${sheets.length} ชีต · ${selectedDepartment || `รวม ${departmentCount} แผนก`}`;
+    els.exportPreviewCount.textContent = `รวม ${rowCount.toLocaleString("th-TH")} รายการ`;
+  } catch (error) {
+    if (requestSequence !== exportPreviewRequestSequence) return;
+    els.exportPreviewTable.innerHTML = `<div class="empty-saved">${escapeHtml(error.message)}</div>`;
+    els.exportPreviewMeta.textContent = "โหลดตัวอย่างไม่สำเร็จ";
+    els.exportPreviewCount.textContent = "ยังไม่มีข้อมูล";
+  } finally {
+    if (requestSequence === exportPreviewRequestSequence) els.exportPreviewDownload.disabled = false;
+  }
+}
+
+document.querySelectorAll("[data-export-type]").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeExportPreviewType = button.dataset.exportType;
+    document.querySelectorAll("[data-export-type]").forEach((tab) => tab.classList.toggle("active", tab === button));
+    loadExportPreview();
+  });
+});
+els.exportPreviewDepartment.addEventListener("change", loadExportPreview);
+els.exportPreviewDownload.addEventListener("click", () => {
+  const downloadButtons = {
+    summary: els.exportExcel,
+    pages: els.exportPages,
+    hardware: els.exportPageHardware,
+    crossarms: els.exportPageCrossarms,
+  };
+  downloadButtons[activeExportPreviewType]?.click();
+});
 
 els.exportExcel.addEventListener("click", async () => {
   try {

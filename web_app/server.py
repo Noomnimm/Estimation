@@ -11,12 +11,14 @@ import os
 import threading
 import traceback
 import time
+from io import BytesIO
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
+from openpyxl import load_workbook
 
 from material_logic import MaterialWorkbook, SIZE_COL, HEAD_COL, MATERIAL_COL, CODE_COL, QTY_COL, DEPARTMENT_COL, DEFAULT_DEPARTMENT, INSULATOR_UPRIGHT_COL, INSULATOR_HORIZONTAL_COL, TRANSFORMER_DEMOLITION_QTY_COL, TRANSFORMER_SCAFFOLD_ROLE_COL
 from cloud_store import GoogleSheetProjectStore
@@ -275,6 +277,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/api/expand-set": self.expand_set,
             "/api/set-components": self.set_components,
             "/api/export": self.export_summary,
+            "/api/export-preview": self.export_preview,
             "/api/export-pages": self.export_pages,
             "/api/export-page-hardware": self.export_page_hardware,
             "/api/export-page-insulators": self.export_page_insulators,
@@ -361,6 +364,47 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def export_preview(self) -> None:
+        try:
+            payload = self.read_json()
+            export_type = str(payload.get("type", "summary")).strip()
+            departments = payload.get("departments", [])
+            if not isinstance(departments, list) or not departments:
+                raise ValueError("ยังไม่มีข้อมูลแผนกสำหรับแสดงตัวอย่าง")
+            exporters = {
+                "summary": lambda: WORKBOOK.export_department_summaries(departments),
+                "pages": lambda: WORKBOOK.export_department_page_summary(departments),
+                "hardware": lambda: WORKBOOK.export_department_page_hardware(departments),
+                "crossarms": lambda: WORKBOOK.export_department_page_crossarms(departments),
+            }
+            exporter = exporters.get(export_type)
+            if exporter is None:
+                raise ValueError("ประเภทข้อมูลตัวอย่างไม่ถูกต้อง")
+            workbook = load_workbook(BytesIO(exporter()), read_only=True, data_only=True)
+            sheets = []
+            for sheet in workbook.worksheets:
+                values = list(sheet.iter_rows(values_only=True))
+                header_index = max(
+                    range(min(len(values), 8)),
+                    key=lambda index: sum(value is not None and str(value).strip() != "" for value in values[index]),
+                    default=0,
+                ) if values else 0
+                headers = [str(value).strip() if value is not None else "" for value in values[header_index]]
+                while headers and not headers[-1]:
+                    headers.pop()
+                if not headers:
+                    continue
+                rows = []
+                for row in values[header_index + 1:]:
+                    if not any(value is not None and str(value).strip() != "" for value in row):
+                        continue
+                    rows.append([value.isoformat() if hasattr(value, "isoformat") else value for value in row[:len(headers)]])
+                sheets.append({"name": sheet.title, "columns": headers, "rows": rows})
+            workbook.close()
+            self.send_json({"sheets": sheets})
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 

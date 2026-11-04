@@ -31,6 +31,7 @@
       <button class="app-tab" data-tab="saved" type="button"><span class="tab-icon">▣</span> งานที่บันทึก <span id="savedCount" class="tab-count">0</span></button>
       <button class="app-tab" data-tab="base-request" type="button"><span class="tab-icon">＋</span> เพิ่มเติม/แก้ไขหัวเสา</button>
       <button class="app-tab" data-tab="base-admin" type="button"><span class="tab-icon">✓</span> รายการอนุมัติ (Admin)</button>
+      <button class="app-tab" data-tab="export" type="button"><span class="tab-icon">⇩</span> ส่งออกข้อมูล</button>
     </nav>
 
     <section class="project-bar tab-panel" data-panel="calculator">
@@ -267,13 +268,6 @@
       </div>
       <p>ใช้ตรวจสอบตามอัตราที่กำหนดเท่านั้น ไม่เพิ่มในรายการวัสดุหรือ Export Excel</p>
       <details id="insulatorWarnings" hidden><summary>รายการที่ยังไม่รวมในยอด</summary><ul id="insulatorWarningList"></ul></details>
-      <div class="export-actions" aria-label="ส่งออกข้อมูล">
-        <h3>Export ข้อมูล</h3>
-        <button id="exportExcel" type="button">Export Excel ผลลัพธ์</button>
-        <button id="exportPages" type="button">รายการหัวเสาแยกหน้า</button>
-        <button id="exportPageHardware" type="button">Export ลูกถ้วย/Preform แยกหน้า</button>
-        <button id="exportPageCrossarms" type="button">Export คอนแยกหน้า</button>
-      </div>
     </section>
 
     <section class="results tab-panel" data-panel="calculator">
@@ -318,6 +312,29 @@
         </table></div>
       </div>
     </section>
+    </div>
+    <section class="export-preview-panel tab-panel" data-panel="export" hidden>
+      <div class="export-preview-heading">
+        <div><h2>ข้อมูลที่จะส่งออก</h2><p>ตรวจดูข้อมูลในหน้านี้ได้เลย ไม่ต้องดาวน์โหลดก่อน</p></div>
+        <span id="exportPreviewProjectMeta" class="export-preview-project-meta">ยังไม่มีข้อมูลคำนวณ</span>
+      </div>
+      <div id="exportPreviewDepartments" class="export-preview-departments"></div>
+      <div class="export-preview-toolbar">
+        <div class="export-preview-tabs" role="tablist" aria-label="ประเภทข้อมูลส่งออก">
+          <button type="button" class="export-preview-tab active" data-export-type="summary">สรุปรายการวัสดุ</button>
+          <button type="button" class="export-preview-tab" data-export-type="pages">หัวเสาแยกหน้า</button>
+          <button type="button" class="export-preview-tab" data-export-type="hardware">ลูกถ้วย / Preform</button>
+          <button type="button" class="export-preview-tab" data-export-type="crossarms">คอนแยกหน้า</button>
+        </div>
+        <div class="export-preview-actions">
+          <label><span class="visually-hidden">กรองตามแผนก</span><select id="exportPreviewDepartment"><option value="">ทุกแผนก</option></select></label>
+          <button id="exportPreviewDownload" class="primary" type="button">↓ ดาวน์โหลด Excel</button>
+        </div>
+      </div>
+      <div id="exportPreviewMeta" class="export-preview-meta" aria-live="polite">กำลังเตรียมข้อมูล…</div>
+      <div id="exportPreviewTable" class="table-wrap export-preview-table"><div class="empty-saved">กดแท็บส่งออกข้อมูลเพื่อแสดงรายการ</div></div>
+      <div class="export-preview-footer"><span id="exportPreviewCount">0 รายการ</span><button id="exportExcel" type="button" hidden>Export Excel ผลลัพธ์</button><button id="exportPages" type="button" hidden>รายการหัวเสาแยกหน้า</button><button id="exportPageHardware" type="button" hidden>Export ลูกถ้วย/Preform แยกหน้า</button><button id="exportPageCrossarms" type="button" hidden>Export คอนแยกหน้า</button></div>
+    </section>
     <dialog id="headImageDialog" class="image-dialog"><button id="closeHeadImageDialog" type="button" aria-label="ปิดรูป">×</button><h3 id="headImageDialogTitle"></h3><img id="headImageDialogImage" alt="รูปประกอบหัวเสาขนาดใหญ่"></dialog>
     <dialog id="cloudSaveDialog" class="cloud-save-dialog">
       <form id="cloudSaveForm">
@@ -340,7 +357,6 @@
         <div class="department-dialog-actions"><button id="cancelDepartment" type="button">ยกเลิก</button><button class="primary" type="submit">สร้างแผนก</button></div>
       </form>
     </dialog>
-    </div>
   </main>
   <footer class="site-legal-links" aria-label="ข้อมูลทางกฎหมาย">
     <span class="site-attribution">จัดทำโดย แผนกวางแผนพัฒนาระบบไฟฟ้า · กองวิศวกรรมและวางแผน · การไฟฟ้าส่วนภูมิภาค เขต 3 (ภาคกลาง) จ.นครปฐม</span>
