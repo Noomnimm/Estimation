@@ -11,7 +11,7 @@
       document.documentElement.dataset.theme = savedTheme || preferredTheme;
     })();
   </script>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=20261110-export-review">
 </head>
 <body>
   <main class="shell">
@@ -331,7 +331,8 @@
           <button id="exportPreviewDownload" class="primary" type="button">↓ ดาวน์โหลด Excel</button>
         </div>
       </div>
-      <div id="exportPreviewMeta" class="export-preview-meta" aria-live="polite">กำลังเตรียมข้อมูล…</div>
+      <div id="exportPreviewMeta" class="export-preview-meta" aria-live="polite">กำลังเตรียมข้อมูลตัวอย่าง…</div>
+      <div class="export-preview-review-tools"><span id="exportCellCheckProgress" aria-live="polite">ติ๊กตรวจแล้ว 0 ช่อง</span><button id="clearExportCellChecks" type="button">ล้างเครื่องหมาย</button></div>
       <div id="exportPreviewTable" class="table-wrap export-preview-table"><div class="empty-saved">กดแท็บส่งออกข้อมูลเพื่อแสดงรายการ</div></div>
       <div class="export-preview-footer"><span id="exportPreviewCount">0 รายการ</span><button id="exportExcel" type="button" hidden>Export Excel ผลลัพธ์</button><button id="exportPages" type="button" hidden>รายการหัวเสาแยกหน้า</button><button id="exportPageHardware" type="button" hidden>Export ลูกถ้วย/Preform แยกหน้า</button><button id="exportPageCrossarms" type="button" hidden>Export คอนแยกหน้า</button></div>
     </section>
@@ -365,6 +366,6 @@
   </footer>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/static/insulators.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20261110-export-review"></script>
 </body>
 </html>

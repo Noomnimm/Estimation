@@ -120,6 +120,11 @@ let publicPendingLoadSequence = 0;
 let adminRequestLoadSequence = 0;
 let exportPreviewRequestSequence = 0;
 let activeExportPreviewType = "summary";
+const EXPORT_CELL_CHECKS_KEY = "estimation.export-preview-cell-checks.v1";
+let exportCellChecks = (() => {
+  try { return JSON.parse(localStorage.getItem(EXPORT_CELL_CHECKS_KEY) || "{}"); }
+  catch { return {}; }
+})();
 
 const els = {
   status: document.getElementById("status"),
@@ -175,6 +180,8 @@ const els = {
   exportPreviewTable: document.getElementById("exportPreviewTable"),
   exportPreviewCount: document.getElementById("exportPreviewCount"),
   exportPreviewDownload: document.getElementById("exportPreviewDownload"),
+  exportCellCheckProgress: document.getElementById("exportCellCheckProgress"),
+  clearExportCellChecks: document.getElementById("clearExportCellChecks"),
   baseRequestForm: document.getElementById("baseRequestForm"),
   requesterName: document.getElementById("requesterName"),
   requesterEmployeeId: document.getElementById("requesterEmployeeId"),
@@ -2444,8 +2451,98 @@ function exportSheetBelongsToDepartment(sheetName, departmentName) {
   return sheetName === departmentName || sheetName.startsWith(`${departmentName} -`);
 }
 
+function exportCellCheckScope() {
+  return [els.projectName.value.trim(), els.planNumber.value.trim(), activeExportPreviewType].join("\u001f");
+}
+
+function exportCellCheckKey(sheetName, rowIndex, columnIndex) {
+  return encodeURIComponent([exportCellCheckScope(), sheetName, rowIndex, columnIndex].join("\u001f"));
+}
+
+function saveExportCellChecks() {
+  try { localStorage.setItem(EXPORT_CELL_CHECKS_KEY, JSON.stringify(exportCellChecks)); }
+  catch { /* Keep checking usable if browser storage is unavailable. */ }
+}
+
+function updateExportCellCheckProgress() {
+  const checked = els.exportPreviewTable.querySelectorAll(".export-cell-check:checked").length;
+  const total = els.exportPreviewTable.querySelectorAll(".export-cell-check").length;
+  els.exportCellCheckProgress.textContent = `ติ๊กตรวจแล้ว ${checked.toLocaleString("th-TH")} / ${total.toLocaleString("th-TH")} ช่อง`;
+}
+
+function exportWorkTypeClass(groupName) {
+  if (groupName === "งานติดตั้ง") return "export-work-install";
+  if (groupName === "งานรื้อถอน") return "export-work-demolition";
+  return "";
+}
+
+function exportSheetWorkGroups(sheet) {
+  const groups = sheet.groups || [];
+  if (groups.some(Boolean)) return groups;
+  const seen = new Set();
+  let demolitionStart = -1;
+  for (let index = 2; index < sheet.columns.length; index += 1) {
+    const label = String(sheet.columns[index] ?? "").trim();
+    if (!/^\d+$/.test(label)) continue;
+    if (seen.has(label)) { demolitionStart = index; break; }
+    seen.add(label);
+  }
+  if (demolitionStart < 0) return groups;
+  return sheet.columns.map((_, index) => index < 2 ? "" : index < demolitionStart ? "งานติดตั้ง" : "งานรื้อถอน");
+}
+
+function renderExportPreviewHeaders(sheet, groups) {
+  if (!groups.some(Boolean)) {
+    return `<thead><tr>${sheet.columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead>`;
+  }
+  const firstRow = [];
+  const secondRow = [];
+  for (let index = 0; index < sheet.columns.length;) {
+    const group = groups[index] || "";
+    if (!group) {
+      firstRow.push(`<th rowspan="2">${escapeHtml(sheet.columns[index])}</th>`);
+      index += 1;
+      continue;
+    }
+    let end = index + 1;
+    while (end < sheet.columns.length && groups[end] === group) end += 1;
+    const workClass = exportWorkTypeClass(group);
+    firstRow.push(`<th class="export-work-type-heading ${workClass}" colspan="${end - index}">${escapeHtml(group)}</th>`);
+    for (let child = index; child < end; child += 1) {
+      secondRow.push(`<th class="export-work-column ${workClass}">${escapeHtml(sheet.columns[child])}</th>`);
+    }
+    index = end;
+  }
+  return `<thead><tr>${firstRow.join("")}</tr><tr>${secondRow.join("")}</tr></thead>`;
+}
+
+els.exportPreviewTable.addEventListener("change", (event) => {
+  const checkbox = event.target.closest(".export-cell-check");
+  if (!checkbox) return;
+  const key = checkbox.dataset.checkKey;
+  if (checkbox.checked) exportCellChecks[key] = true;
+  else delete exportCellChecks[key];
+  saveExportCellChecks();
+  checkbox.closest("td")?.classList.toggle("export-cell-checked", checkbox.checked);
+  updateExportCellCheckProgress();
+});
+
+els.clearExportCellChecks.addEventListener("click", () => {
+  const prefix = `${encodeURIComponent(exportCellCheckScope())}%1F`;
+  Object.keys(exportCellChecks).forEach((key) => {
+    if (key.startsWith(prefix)) delete exportCellChecks[key];
+  });
+  saveExportCellChecks();
+  els.exportPreviewTable.querySelectorAll(".export-cell-check").forEach((checkbox) => {
+    checkbox.checked = false;
+    checkbox.closest("td")?.classList.remove("export-cell-checked");
+  });
+  updateExportCellCheckProgress();
+});
+
 async function loadExportPreview() {
   const requestSequence = ++exportPreviewRequestSequence;
+  els.clearExportCellChecks.closest(".export-preview-review-tools").hidden = activeExportPreviewType !== "pages";
   const departments = buildDepartmentPreviewPayload();
   renderExportPreviewDepartments(departments);
   els.exportPreviewMeta.textContent = "กำลังเตรียมข้อมูล…";
@@ -2466,6 +2563,7 @@ async function loadExportPreview() {
       : allSheets;
     if (!sheets.length) {
       els.exportPreviewTable.innerHTML = '<div class="empty-saved">ไม่มีข้อมูลในหมวดนี้สำหรับแผนกที่เลือก</div>';
+      updateExportCellCheckProgress();
       els.exportPreviewMeta.textContent = `ไม่พบข้อมูล · ${selectedDepartment || "ทุกแผนก"}`;
       els.exportPreviewCount.textContent = "0 รายการ";
       return;
@@ -2473,20 +2571,37 @@ async function loadExportPreview() {
     let rowCount = 0;
     els.exportPreviewTable.innerHTML = sheets.map((sheet) => {
       rowCount += sheet.rows.length;
-      const headings = sheet.columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
-      const body = sheet.rows.map((row) => `<tr>${sheet.columns.map((_, index) => {
+      const sheetGroups = exportSheetWorkGroups(sheet);
+      const body = sheet.rows.map((row, rowIndex) => `<tr>${sheet.columns.map((column, index) => {
         const value = row[index];
         const numeric = typeof value === "number";
-        return `<td${numeric ? ' class="numeric-cell"' : ""}>${escapeHtml(value == null ? "" : String(value))}</td>`;
+        const normalizedColumn = String(column).trim();
+        const noCheckbox = normalizedColumn === "รหัสหัวเสา" || normalizedColumn === "เสา" || normalizedColumn === "รวม";
+        const canCheckCell = activeExportPreviewType === "pages" && !noCheckbox;
+        const workGroup = sheetGroups[index] || "";
+        const workClass = exportWorkTypeClass(workGroup);
+        const key = exportCellCheckKey(sheet.name, rowIndex, index);
+        const checked = canCheckCell && Boolean(exportCellChecks[key]);
+        const label = `ตรวจ ${sheet.name} · ${column} · แถว ${rowIndex + 1}`;
+        const classes = [numeric && "numeric-cell", workClass, checked && "export-cell-checked"].filter(Boolean).join(" ");
+        const displayValue = escapeHtml(value == null ? "" : String(value));
+        const workLabel = numeric && workClass
+          ? `<small class="export-cell-work-label ${workClass}">${workGroup === "งานติดตั้ง" ? "ติดตั้ง" : "รื้อถอน"}</small>`
+          : "";
+        const cellValue = workLabel ? `<span class="export-cell-value">${workLabel}<span>${displayValue}</span></span>` : displayValue;
+        if (!canCheckCell) return `<td class="${classes}"><span>${cellValue}</span></td>`;
+        return `<td class="${classes}"><label class="export-cell-review"><input class="export-cell-check" type="checkbox" data-check-key="${key}" aria-label="${escapeHtml(label)}"${checked ? " checked" : ""}><span>${cellValue}</span></label></td>`;
       }).join("")}</tr>`).join("");
-      return `<section class="export-preview-sheet"><h3>${escapeHtml(sheet.name)} <span>${sheet.rows.length} รายการ</span></h3><div class="table-wrap"><table><thead><tr>${headings}</tr></thead><tbody>${body || `<tr><td colspan="${Math.max(sheet.columns.length, 1)}">ไม่มีข้อมูล</td></tr>`}</tbody></table></div></section>`;
+      return `<section class="export-preview-sheet"><h3>${escapeHtml(sheet.name)} <span>${sheet.rows.length} รายการ</span></h3><div class="table-wrap"><table>${renderExportPreviewHeaders(sheet, sheetGroups)}<tbody>${body || `<tr><td colspan="${Math.max(sheet.columns.length, 1)}">ไม่มีข้อมูล</td></tr>`}</tbody></table></div></section>`;
     }).join("");
+    updateExportCellCheckProgress();
     const departmentCount = selectedDepartment ? 1 : departments.length;
     els.exportPreviewMeta.textContent = `แสดงข้อมูล ${rowCount.toLocaleString("th-TH")} รายการ · ${sheets.length} ชีต · ${selectedDepartment || `รวม ${departmentCount} แผนก`}`;
     els.exportPreviewCount.textContent = `รวม ${rowCount.toLocaleString("th-TH")} รายการ`;
   } catch (error) {
     if (requestSequence !== exportPreviewRequestSequence) return;
     els.exportPreviewTable.innerHTML = `<div class="empty-saved">${escapeHtml(error.message)}</div>`;
+    updateExportCellCheckProgress();
     els.exportPreviewMeta.textContent = "โหลดตัวอย่างไม่สำเร็จ";
     els.exportPreviewCount.textContent = "ยังไม่มีข้อมูล";
   } finally {

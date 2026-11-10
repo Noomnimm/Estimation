@@ -397,12 +397,21 @@ class AppHandler(SimpleHTTPRequestHandler):
                     headers.pop()
                 if not headers:
                     continue
+                column_groups = [""] * len(headers)
+                if header_index > 0:
+                    group_row = values[header_index - 1]
+                    active_group = ""
+                    for column_index in range(2, len(headers)):
+                        group_value = group_row[column_index] if column_index < len(group_row) else None
+                        if group_value in ("งานติดตั้ง", "งานรื้อถอน"):
+                            active_group = str(group_value)
+                        column_groups[column_index] = active_group
                 rows = []
                 for row in values[header_index + 1:]:
                     if not any(value is not None and str(value).strip() != "" for value in row):
                         continue
                     rows.append([value.isoformat() if hasattr(value, "isoformat") else value for value in row[:len(headers)]])
-                sheets.append({"name": sheet.title, "columns": headers, "rows": rows})
+                sheets.append({"name": sheet.title, "columns": headers, "groups": column_groups, "rows": rows})
             workbook.close()
             self.send_json({"sheets": sheets})
         except Exception as exc:
