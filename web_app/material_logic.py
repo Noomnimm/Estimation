@@ -39,11 +39,20 @@ SET_DESC_COL = "คำอธิบาย"
 SET_INSTALL_COL = "ติดตั้ง"
 SET_REUSE_COL = "จำนวนนำกลับมาใช้ใหม่"
 SET_REUSE_ZERO_CODES = {"1020440119"}
-DEMOLITION_EXCLUDED_CODES = {"1010100002", "1040030002"}
+DEMOLITION_EXCLUDED_CODES = {"1040030002"}
+DEMOLITION_HEAD_EXCLUDED_CODES = {"1010100002": {"dis", "drop-out fuse"}}
 DEMOLITION_ALWAYS_KEEP_CODES = {
     "1020440000", "1020440008", "1030010200", "1040000002",
     "1040010015", "1040010016", "1060020050",
 }
+
+
+def is_demolition_code_excluded(code: Any, head: Any = "") -> bool:
+    normalized_code = str(code or "").strip().replace("-", "")
+    if normalized_code in DEMOLITION_EXCLUDED_CODES:
+        return True
+    excluded_heads = DEMOLITION_HEAD_EXCLUDED_CODES.get(normalized_code, set())
+    return str(head or "").strip().casefold() in excluded_heads
 
 COMPOSITE_ASSEMBLY_HEADS = {
     ("1", "C", False): "COMPOSITE SUSPENSION INSULATOR ASSEMBLY D-19A",
@@ -897,7 +906,7 @@ class MaterialWorkbook:
                     if not code or amount == 0:
                         continue
                     normalized_code = code.replace("-", "")
-                    if work_type == "demolition" and normalized_code in DEMOLITION_EXCLUDED_CODES:
+                    if work_type == "demolition" and is_demolition_code_excluded(normalized_code, head):
                         continue
                     if (
                         work_type == "demolition"
@@ -944,7 +953,7 @@ class MaterialWorkbook:
                 if not code or not material or count == 0:
                     continue
                 work_type = "demolition" if item.get("workType") == "demolition" else fallback_type
-                if work_type == "demolition" and code.replace("-", "") in DEMOLITION_EXCLUDED_CODES:
+                if work_type == "demolition" and is_demolition_code_excluded(code, item.get("head", "")):
                     continue
                 add_material(totals_by_work_type[work_type], material, code, count)
                 input_count += 1
@@ -1113,7 +1122,7 @@ class MaterialWorkbook:
                     alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
                     for _, item in matches.iterrows():
                         child_code = clean_text(item[CODE_COL])
-                        if work_type == "demolition" and child_code.replace("-", "") in DEMOLITION_EXCLUDED_CODES:
+                        if work_type == "demolition" and is_demolition_code_excluded(child_code):
                             continue
                         if filter_scaffold_animal_barrier and child_code in SCAFFOLD_ANIMAL_BARRIER_CODES:
                             continue
@@ -1211,7 +1220,7 @@ class MaterialWorkbook:
         alternate_surge_count = sum(amount for surge_code, amount in surge_choices.items() if surge_code != default_surge_code)
         for _, item in matches.iterrows():
             material_code = clean_text(item[CODE_COL])
-            if work_type == "demolition" and material_code.replace("-", "") in DEMOLITION_EXCLUDED_CODES:
+            if work_type == "demolition" and is_demolition_code_excluded(material_code):
                 continue
             if set_code.casefold() in self.transformer_scaffold_animal_barrier_sets and material_code in SCAFFOLD_ANIMAL_BARRIER_CODES:
                 continue
